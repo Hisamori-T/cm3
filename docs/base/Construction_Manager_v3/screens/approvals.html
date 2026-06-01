@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S17 承認待ち一覧 — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  .ap-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--c-border); margin-bottom: 16px;}
+  .ap-tabs button {
+    background: transparent; border: none;
+    padding: 9px 14px; cursor: pointer;
+    font-size: 13px; font-weight: 500;
+    color: var(--c-text-muted);
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .ap-tabs button .pill {
+    font-size: 11px; padding: 0 6px; border-radius: var(--r-pill);
+    background: var(--c-surface-2); color: var(--c-text-muted); font-family: var(--ff-mono); font-weight: 600;
+  }
+  .ap-tabs button.on { color: var(--c-primary); border-bottom-color: var(--c-primary); font-weight: 600; }
+  .ap-tabs button.on .pill { background: var(--c-primary); color: #fff; }
+  [data-theme="dark"] .ap-tabs button.on { color: #fff; border-bottom-color: var(--c-primary);}
+
+  /* approval card row */
+  .ap-card {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 18px;
+    align-items: center;
+    padding: 14px 18px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+  .ap-card:hover { border-color: var(--c-border-strong); box-shadow: var(--sh-2); }
+  .ap-card.urgent { border-left: 3px solid var(--c-warn); }
+
+  .ap-card .doc-ic {
+    width: 38px; height: 38px;
+    background: color-mix(in oklab,var(--c-primary) 12%,var(--c-surface));
+    color: var(--c-primary);
+    border-radius: var(--r-md);
+    display: grid; place-items: center;
+    flex: 0 0 38px;
+  }
+  [data-theme="dark"] .ap-card .doc-ic { background: color-mix(in oklab,var(--c-primary) 30%,var(--c-surface)); color: #fff; }
+  .ap-card .doc-ic svg { width: 18px; height: 18px; stroke-width: 1.5; }
+  .ap-card .doc-info .pn {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    color: var(--c-text-muted);
+    font-weight: 600;
+  }
+  .ap-card .doc-info .nm {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 2px;
+  }
+  .ap-card .doc-info .meta {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    display: flex; gap: 12px;
+    margin-top: 4px;
+  }
+  .ap-card .doc-info .meta strong { color: var(--c-text); }
+
+  .ap-card .progress-mini {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 220px;
+  }
+  .ap-card .progress-mini .stepd {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--c-surface-2);
+    padding: 4px 10px;
+    border-radius: var(--r-pill);
+    font-size: 11px;
+  }
+  .ap-card .progress-mini .stepd .ava {
+    width: 18px; height: 18px;
+    border-radius: 50%; background: var(--c-success);
+    color: #fff; font-size: 9px; font-weight: 700;
+    display: grid; place-items: center;
+  }
+  .ap-card .progress-mini .stepd.cur { background: var(--c-warn-bg); }
+  [data-theme="dark"] .ap-card .progress-mini .stepd.cur { background: color-mix(in oklab,var(--c-warn) 22%,var(--c-surface)); }
+  .ap-card .progress-mini .stepd.cur .ava {
+    background: var(--c-warn);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.15);} }
+
+  .ap-card .amount {
+    text-align: right;
+    margin-right: 4px;
+  }
+  .ap-card .amount .v {
+    font-family: var(--ff-mono);
+    font-size: 16px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+  .ap-card .amount .age {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    margin-top: 2px;
+  }
+  .ap-card .amount .age.old { color: var(--c-warn); font-weight: 600; }
+
+  .ap-card .actions {
+    display: flex; gap: 6px;
+    flex: 0 0 auto;
+  }
+
+  /* As approver/requester sections */
+  .role-section {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    margin-bottom: 16px;
+  }
+  .role-section > .head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--c-border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .role-section > .head .ttl { font-weight: 700; font-size: 14px; }
+  .role-section > .head .sub { font-size: 12px; color: var(--c-text-muted); }
+  .role-section > .head .right { margin-left: auto; }
+  .role-section > .body { padding: 12px; }
+  .role-section > .body .ap-card { margin-bottom: 8px; }
+  .role-section > .body .ap-card:last-child { margin-bottom: 0;}
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .toolbar h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+</style>
+</head>
+<body data-screen-label="S17 Approvals">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6"/></svg>
+        見積書
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ
+      </div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <strong>承認待ち</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        履歴
+      </button>
+    </header>
+
+    <main class="page">
+      <div class="toolbar">
+        <h1>承認待ち</h1>
+        <span class="meta">あなた宛の承認・あなたが依頼中の案件</span>
+      </div>
+
+      <!-- Tabs -->
+      <div class="ap-tabs">
+        <button class="on">あなた宛 <span class="pill">2</span></button>
+        <button>依頼中 <span class="pill">3</span></button>
+        <button>差戻し中 <span class="pill" style="background:var(--c-danger);color:#fff">1</span></button>
+        <button>完了済</button>
+      </div>
+
+      <!-- Your turn -->
+      <div class="role-section">
+        <div class="head">
+          <span style="width:24px;height:24px;border-radius:50%;background:var(--c-warn);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700">2</span>
+          <div>
+            <div class="ttl">あなたの承認待ち</div>
+            <div class="sub">あなたの判断で進む案件 · クリックで見積書を開きます</div>
+          </div>
+          <div class="right">
+            <button class="btn btn-ghost btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+              一括承認
+            </button>
+          </div>
+        </div>
+        <div class="body">
+
+          <div class="ap-card urgent">
+            <div class="doc-ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="doc-info">
+              <span class="pn">見積書 No. 26-AP-014</span>
+              <div class="nm">三国第二工場 配管改修工事</div>
+              <div class="meta">
+                <span>📁 <strong>株式会社協和自工</strong></span>
+                <span>👤 依頼: <strong>平等 久盛</strong></span>
+                <span>🏷 工事 <strong>26-3-014</strong></span>
+              </div>
+            </div>
+            <div class="progress-mini">
+              <span class="stepd"><span class="ava">✓</span>担当<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">平等</small></span>
+              <span class="stepd"><span class="ava">✓</span>審査<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">中山</small></span>
+              <span class="stepd cur"><span class="ava">●</span>承認<small style="font-family:var(--ff-mono);color:var(--c-warn);font-weight:700">あなた</small></span>
+            </div>
+            <div class="amount">
+              <div class="v">¥4,820,000</div>
+              <div class="age old">📅 3日経過</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm">差戻</button>
+              <button class="btn btn-accent btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5"/></svg>
+                承認
+              </button>
+            </div>
+          </div>
+
+          <div class="ap-card">
+            <div class="doc-ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3"/></svg>
+            </div>
+            <div class="doc-info">
+              <span class="pn">注文書 No. 26-OR-014-03</span>
+              <div class="nm">福井配管工業 様向け 配管布設工事 発注</div>
+              <div class="meta">
+                <span>📁 <strong>福井配管工業 株式会社</strong></span>
+                <span>👤 依頼: <strong>平等 久盛</strong></span>
+                <span>🏷 工事 <strong>26-3-014</strong></span>
+              </div>
+            </div>
+            <div class="progress-mini">
+              <span class="stepd"><span class="ava">✓</span>担当<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">平等</small></span>
+              <span class="stepd cur"><span class="ava">●</span>審査<small style="font-family:var(--ff-mono);color:var(--c-warn);font-weight:700">あなた</small></span>
+              <span class="stepd"><span class="ava" style="background:var(--c-surface-3);color:var(--c-text-subtle)">3</span>承認<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">奴間</small></span>
+            </div>
+            <div class="amount">
+              <div class="v">¥1,240,000</div>
+              <div class="age">本日 09:15</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm">差戻</button>
+              <button class="btn btn-accent btn-sm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5"/></svg>
+                承認
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- As requester -->
+      <div class="role-section">
+        <div class="head">
+          <span style="width:24px;height:24px;border-radius:50%;background:var(--c-primary);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700">3</span>
+          <div>
+            <div class="ttl">あなたが依頼中</div>
+            <div class="sub">他のメンバーの承認待ち</div>
+          </div>
+        </div>
+        <div class="body">
+
+          <div class="ap-card">
+            <div class="doc-ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+            </div>
+            <div class="doc-info">
+              <span class="pn">見積書 No. 26-AP-015</span>
+              <div class="nm">三国観光ホテル B棟LED更新工事</div>
+              <div class="meta">
+                <span>📁 <strong>三国観光ホテル</strong></span>
+                <span>🏷 工事 <strong>26-5-010</strong></span>
+              </div>
+            </div>
+            <div class="progress-mini">
+              <span class="stepd"><span class="ava">✓</span>担当<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">平等</small></span>
+              <span class="stepd cur"><span class="ava">●</span>審査<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">中山</small></span>
+              <span class="stepd"><span class="ava" style="background:var(--c-surface-3);color:var(--c-text-subtle)">3</span>承認<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">奴間</small></span>
+            </div>
+            <div class="amount">
+              <div class="v">¥720,000</div>
+              <div class="age">昨日</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm">取下げ</button>
+            </div>
+          </div>
+
+          <div class="ap-card">
+            <div class="doc-ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+            </div>
+            <div class="doc-info">
+              <span class="pn">請求書 No. 26-IV-009</span>
+              <div class="nm">第3回 出来高請求 - 三国第二工場 配管改修</div>
+              <div class="meta">
+                <span>📁 <strong>株式会社協和自工</strong></span>
+                <span>🏷 工事 <strong>26-3-014</strong></span>
+              </div>
+            </div>
+            <div class="progress-mini">
+              <span class="stepd"><span class="ava">✓</span>担当<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">平等</small></span>
+              <span class="stepd cur"><span class="ava">●</span>審査<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">中山</small></span>
+              <span class="stepd"><span class="ava" style="background:var(--c-surface-3);color:var(--c-text-subtle)">3</span>承認<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">奴間</small></span>
+            </div>
+            <div class="amount">
+              <div class="v">¥2,620,000</div>
+              <div class="age">2日前</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm">取下げ</button>
+            </div>
+          </div>
+
+          <div class="ap-card">
+            <div class="doc-ic">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3"/></svg>
+            </div>
+            <div class="doc-info">
+              <span class="pn">注文書 No. 26-OR-015-01</span>
+              <div class="nm">北陸電気 様向け LED工事 発注</div>
+              <div class="meta">
+                <span>📁 <strong>北陸電気工業 株式会社</strong></span>
+                <span>🏷 工事 <strong>26-5-010</strong></span>
+              </div>
+            </div>
+            <div class="progress-mini">
+              <span class="stepd cur"><span class="ava">●</span>担当<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">山田</small></span>
+              <span class="stepd"><span class="ava" style="background:var(--c-surface-3);color:var(--c-text-subtle)">2</span>承認<small style="font-family:var(--ff-mono);color:var(--c-text-muted)">奴間</small></span>
+            </div>
+            <div class="amount">
+              <div class="v">¥210,000</div>
+              <div class="age">5/13</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm">取下げ</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Rejected returned to you -->
+      <div class="role-section" style="border-color:color-mix(in oklab,var(--c-danger) 35%, var(--c-border))">
+        <div class="head" style="background:var(--c-danger-bg)">
+          <span style="width:24px;height:24px;border-radius:50%;background:var(--c-danger);color:#fff;display:grid;place-items:center;font-size:11px;font-weight:700">1</span>
+          <div>
+            <div class="ttl" style="color:var(--c-danger)">差戻された案件</div>
+            <div class="sub">コメント確認後、再依頼してください</div>
+          </div>
+        </div>
+        <div class="body">
+          <div class="ap-card" style="border-color:color-mix(in oklab,var(--c-danger) 25%, var(--c-border));background:var(--c-danger-bg)">
+            <div class="doc-ic" style="background:var(--c-danger);color:#fff">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-15-6.7L3 13"/></svg>
+            </div>
+            <div class="doc-info">
+              <span class="pn" style="color:var(--c-danger);font-weight:700">見積書 No. 26-AP-013 · 差戻し</span>
+              <div class="nm">福井支店 内装工事 追加見積</div>
+              <div class="meta">
+                <span style="color:var(--c-danger)">⚠️ 中山 太郎: 「配管布設工事（25A）の単価が過去案件比 +15% です。業者見積書の添付を…」</span>
+              </div>
+            </div>
+            <div class="progress-mini">
+              <span class="stepd"><span class="ava">✓</span>担当<small>平等</small></span>
+              <span class="stepd" style="background:var(--c-danger-bg)"><span class="ava" style="background:var(--c-danger)">✕</span>審査<small style="color:var(--c-danger)">中山</small></span>
+            </div>
+            <div class="amount">
+              <div class="v">¥1,820,000</div>
+              <div class="age">5/12 差戻し</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-primary btn-sm">編集して再依頼</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

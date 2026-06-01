@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>請求書 — 26-IV-014 — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Serif+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/print.css">
+<style>
+  .invoice .top {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    margin-bottom: 8mm;
+    align-items: flex-start;
+  }
+  .invoice .doc-no { font-size: 10pt; line-height: 1.7; color: #333; }
+  .invoice .doc-no .ln { display: flex; gap: 6mm; }
+  .invoice .doc-no .ln span:first-child { color: #555; min-width: 22mm; }
+
+  .invoice .from { font-size: 9.5pt; line-height: 1.55; text-align: left;}
+  .invoice .from .corp {
+    font-size: 13pt; font-weight: 700; letter-spacing: 2pt; margin-bottom: 1.5mm;
+  }
+  .invoice .from .clap-mark {
+    display: inline-block;
+    background: #1B2A52;
+    color: #fff;
+    padding: 1mm 3mm;
+    font-family: "Inter", sans-serif;
+    font-weight: 800;
+    font-size: 11pt;
+    letter-spacing: 1pt;
+    margin-right: 3mm;
+    border-radius: 1mm;
+    vertical-align: middle;
+  }
+  .invoice .from .reg {
+    display: inline-block;
+    margin-top: 1mm;
+    background: #f0efeb;
+    padding: 0.4mm 2mm;
+    font-size: 8.5pt;
+    border: 0.4pt solid #999;
+  }
+
+  .invoice h1.title {
+    text-align: center;
+    font-size: 28pt;
+    font-weight: 700;
+    letter-spacing: 16pt;
+    margin: 0 0 10mm;
+    padding-bottom: 4mm;
+    padding-left: 16pt;
+    border-bottom: 2pt double #111;
+  }
+
+  .invoice .to-row {
+    display: grid;
+    grid-template-columns: 1fr 30mm;
+    gap: 10mm;
+    margin-bottom: 6mm;
+    align-items: flex-end;
+  }
+  .invoice .to {
+    font-size: 15pt; font-weight: 600;
+    border-bottom: 1pt solid #444; padding-bottom: 2mm;
+  }
+  .invoice .to .yu { font-size: 12pt; margin-left: 4mm; }
+  .invoice .greet { font-size: 10pt; line-height: 1.7; margin-bottom: 6mm; color: #222; }
+  .invoice .greet strong { font-size: 11pt; }
+
+  /* Summary table */
+  .summary {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 6mm;
+    font-size: 10pt;
+  }
+  .summary th, .summary td {
+    border: 0.6pt solid #555;
+    padding: 2.6mm 4mm;
+    text-align: right;
+  }
+  .summary th {
+    background: #f0efeb;
+    font-weight: 700;
+    text-align: center;
+    width: 16%;
+    color: #333;
+    font-size: 9pt;
+  }
+  .summary td.num {
+    font-family: "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: 11pt;
+  }
+  .summary tr.major td { background: #FFFBEB; font-weight: 700; font-size: 13pt; color: #C00000;}
+  .summary tr.major th { background: #1B2A52; color: #fff; }
+
+  /* Project info */
+  .proj-info {
+    font-size: 10pt;
+    line-height: 1.75;
+    color: #333;
+    margin-bottom: 4mm;
+    padding: 3mm 4mm;
+    background: #f8f7f3;
+    border-left: 2pt solid #1B2A52;
+  }
+  .proj-info strong { color: #111; min-width: 22mm; display: inline-block; }
+
+  /* Detail items */
+  .detail {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9pt;
+    margin-bottom: 6mm;
+  }
+  .detail th, .detail td {
+    border: 0.5pt solid #555;
+    padding: 1.8mm 3mm;
+  }
+  .detail th {
+    background: #f0efeb;
+    font-weight: 700;
+    font-size: 8.5pt;
+    letter-spacing: 0.5pt;
+  }
+  .detail td.num {
+    font-family: "JetBrains Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .detail td.no { text-align: center; color: #555; font-family: "JetBrains Mono", monospace; }
+  .detail tr.total td { background: #f5f5f3; font-weight: 700; }
+
+  /* Bank info */
+  .bank {
+    margin-top: 6mm;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6mm;
+    align-items: flex-start;
+  }
+  .bank-box {
+    border: 0.8pt solid #111;
+    padding: 4mm 5mm;
+    font-size: 10pt;
+    line-height: 1.7;
+  }
+  .bank-box .ttl {
+    font-weight: 700;
+    font-size: 11pt;
+    letter-spacing: 2pt;
+    border-bottom: 0.6pt solid #555;
+    padding-bottom: 1.5mm;
+    margin-bottom: 1.5mm;
+  }
+  .bank-box .row { display: flex; gap: 4mm; }
+  .bank-box .k { color: #555; min-width: 18mm; }
+  .bank-box .v { font-family: "JetBrains Mono", monospace; font-weight: 600; }
+
+  .stamps-mini {
+    display: grid;
+    grid-template-columns: repeat(3, 24mm);
+    border: 0.6pt solid #555;
+  }
+  .stamps-mini .role {
+    background: #f0efeb;
+    border-bottom: 0.6pt solid #555;
+    border-right: 0.6pt solid #555;
+    text-align: center;
+    padding: 1.5mm 0;
+    font-weight: 700;
+    font-size: 9pt;
+    letter-spacing: 2pt;
+  }
+  .stamps-mini .role:last-child { border-right: none; }
+  .stamps-mini .box {
+    height: 22mm;
+    border-right: 0.6pt solid #555;
+    display: grid; place-items: center;
+  }
+  .stamps-mini .box:last-child { border-right: none; }
+
+  /* Footer note */
+  .foot-note {
+    margin-top: 6mm;
+    font-size: 8.5pt;
+    color: #555;
+    line-height: 1.7;
+    padding-top: 3mm;
+    border-top: 0.4pt solid #888;
+  }
+</style>
+</head>
+<body>
+
+<div class="print-toolbar no-print">
+  <span class="doc-title">請求書</span>
+  <span class="doc-meta">26-IV-014.pdf · A4縦 · 適格請求書</span>
+  <span class="approve-pill approved">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+    承認済み
+  </span>
+  <span class="spacer"></span>
+  <button class="btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+    Excel
+  </button>
+  <button class="btn primary" onclick="window.print()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+    印刷 / PDF保存
+  </button>
+</div>
+
+<div class="sheet-shell">
+  <div class="sheet invoice">
+
+    <div class="top">
+      <div class="doc-no">
+        <div class="ln"><span>弊社工事番号</span><span class="fs-num">26-3-014</span></div>
+        <div class="ln"><span>請求書 No.</span><span class="fs-num">26-IV-014</span></div>
+        <div class="ln"><span>請求年月日</span><span class="fs-num">2026年8月31日</span></div>
+      </div>
+      <div class="from">
+        <div class="corp"><span class="clap-mark">CL</span>株式会社 クラップ</div>
+        <div style="color:#444;line-height:1.65">
+          〒913-0043　福井県坂井市三国町錦 3-4-2<br/>
+          TEL <span class="fs-num">0776-81-8330</span>　FAX <span class="fs-num">0776-81-8331</span>
+        </div>
+        <span class="reg">登録番号　<span class="fs-num">T5210001007332</span></span>
+      </div>
+    </div>
+
+    <h1 class="title">請&nbsp;求&nbsp;書</h1>
+
+    <div class="to-row">
+      <div class="to">株式会社 協和自工&emsp;<span class="yu">御&thinsp;中</span></div>
+    </div>
+
+    <div class="greet">
+      毎度格別のお引立てを賜り、誠にありがとうございます。<br/>
+      <strong>下記の通り御請求申し上げます。</strong>　よろしくお取り計らいの程お願い申し上げます。
+    </div>
+
+    <div class="proj-info">
+      <strong>工事名称：</strong> 三国第二工場 配管改修工事<br/>
+      <strong>工事場所：</strong> 福井県坂井市三国町山岸 12-3<br/>
+      <strong>工　&emsp;期：</strong> <span class="fs-num">2026年4月15日</span> 〜 <span class="fs-num">2026年7月31日</span>（完了済）
+    </div>
+
+    <!-- Summary -->
+    <table class="summary">
+      <tr>
+        <th>前月請求額</th>
+        <th>御入金額</th>
+        <th>差引残高</th>
+        <th>当月買上額</th>
+        <th>消費税（10%）</th>
+        <th>今回御請求額</th>
+      </tr>
+      <tr>
+        <td class="num">2,200,000</td>
+        <td class="num">2,200,000</td>
+        <td class="num">0</td>
+        <td class="num">2,381,818</td>
+        <td class="num">238,182</td>
+        <td class="num" style="color:#C00000;font-weight:700">2,620,000</td>
+      </tr>
+      <tr class="major">
+        <th colspan="5">今回御請求額（税込）</th>
+        <td class="num">¥&nbsp;2,620,000</td>
+      </tr>
+    </table>
+
+    <!-- Detail items -->
+    <table class="detail">
+      <thead>
+        <tr>
+          <th style="width:6%">No</th>
+          <th style="width:18%">日　付</th>
+          <th>工事内容 / 摘要</th>
+          <th style="width:18%">金額（税抜）</th>
+          <th style="width:10%">摘要</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="no">1</td>
+          <td class="num">2026/08/15</td>
+          <td>三国第二工場 配管改修工事　第3回出来高分　配管布設工事（SUS304 25A/50A）</td>
+          <td class="num">1,420,000</td>
+          <td style="text-align:center">10%</td>
+        </tr>
+        <tr>
+          <td class="no">2</td>
+          <td class="num">2026/08/25</td>
+          <td>三国第二工場 配管改修工事　第3回出来高分　保温工事・塗装仕上げ</td>
+          <td class="num">781,818</td>
+          <td style="text-align:center">10%</td>
+        </tr>
+        <tr>
+          <td class="no">3</td>
+          <td class="num">2026/08/31</td>
+          <td>三国第二工場 配管改修工事　第3回出来高分　諸経費・清掃・引渡し対応</td>
+          <td class="num">180,000</td>
+          <td style="text-align:center">10%</td>
+        </tr>
+        <tr class="total">
+          <td colspan="3" style="text-align:right">小計（税抜）</td>
+          <td class="num">2,381,818</td>
+          <td></td>
+        </tr>
+        <tr class="total">
+          <td colspan="3" style="text-align:right">消費税額（10% / 標準税率対象）</td>
+          <td class="num">238,182</td>
+          <td></td>
+        </tr>
+        <tr class="total">
+          <td colspan="3" style="text-align:right;font-size:11pt;color:#C00000">合計（税込）</td>
+          <td class="num" style="font-size:11pt;color:#C00000">2,620,000</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Bank info + stamps -->
+    <div class="bank">
+      <div class="bank-box">
+        <div class="ttl">お振込先</div>
+        <div class="row"><span class="k">銀　行</span><span class="v">福井銀行　経田支店</span></div>
+        <div class="row"><span class="k">預金種別</span><span class="v">普通</span></div>
+        <div class="row"><span class="k">口座番号</span><span class="v">1068586</span></div>
+        <div class="row"><span class="k">口座名義</span><span class="v">カブシキガイシャ クラップ　株式会社 クラップ</span></div>
+        <div style="margin-top:2mm;font-size:8.5pt;color:#555">※ 恐れ入りますが、お振込手数料は貴社負担にてお願い申し上げます</div>
+      </div>
+
+      <div class="stamps-mini">
+        <div class="role">承&thinsp;認</div>
+        <div class="role">審&thinsp;査</div>
+        <div class="role">担&thinsp;当</div>
+        <div class="box"><div class="stamp-circle compact">奴間</div></div>
+        <div class="box"><div class="stamp-circle compact">中山</div></div>
+        <div class="box"><div class="stamp-circle compact">平等</div></div>
+      </div>
+    </div>
+
+    <div class="foot-note">
+      この請求書は適格請求書（インボイス）の要件を満たしています。<br/>
+      お支払期限：<span class="fs-num">2026年9月30日</span>　お問い合わせ：経理担当　TEL <span class="fs-num">0776-81-8330</span>（内線 105）
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S13 業者マスタ — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Vendor table reuses .ptbl from projects */
+  .vtbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  .vtbl thead th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-align: left;
+    border-bottom: 1px solid var(--c-border);
+    padding: 9px 12px;
+    white-space: nowrap;
+  }
+  .vtbl thead th.num { text-align: right; }
+  .vtbl tbody td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: middle;
+  }
+  .vtbl tbody tr:hover td { background: var(--c-surface-2); cursor: pointer; }
+  .vtbl tbody td.num { text-align: right; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .vtbl .vn-row {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .vtbl .vn-ic {
+    width: 32px; height: 32px;
+    border-radius: var(--r-md);
+    background: var(--c-primary-50);
+    color: var(--c-primary);
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-family: var(--ff-mono);
+    flex: 0 0 32px;
+    font-size: 12px;
+  }
+  [data-theme="dark"] .vtbl .vn-ic { background: color-mix(in oklab,var(--c-primary) 25%, var(--c-surface)); color: #fff; }
+  .vtbl .vn-info .nm { font-weight: 600; }
+  .vtbl .vn-info small { display: block; color: var(--c-text-muted); font-size: 11px; margin-top: 1px;}
+  .trade-chip {
+    display: inline-block;
+    padding: 1px 7px;
+    background: var(--c-surface-2);
+    border-radius: var(--r-pill);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    margin-right: 4px;
+  }
+  .stars {
+    display: inline-flex; align-items: center; gap: 2px;
+    color: var(--c-status-progress);
+    font-size: 13px;
+    line-height: 1;
+  }
+
+  /* Filter bar same as projects */
+  .fbar {
+    display: flex;
+    gap: 8px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .fbar .lbl { font-size: 11px; color: var(--c-text-muted); font-weight: 600; }
+  .fbar .pill {
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .fbar .pill.on { background: var(--c-primary-50); border-color: var(--c-primary); color: var(--c-primary); font-weight: 600; }
+  [data-theme="dark"] .fbar .pill.on { color: #fff; background: color-mix(in oklab,var(--c-primary) 25%,var(--c-surface)); }
+  .fbar .sep { width: 1px; height: 18px; background: var(--c-border); }
+  .fbar .search-box {
+    flex: 1; min-width: 200px;
+    display: flex; align-items: center; gap: 6px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 4px 10px;
+    background: var(--c-surface);
+  }
+  .fbar .search-box input { border: none; outline: none; flex: 1; background: transparent; font-size: 13px; color: var(--c-text);}
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .toolbar h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+</style>
+</head>
+<body data-screen-label="S13 Vendor Master">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6"/></svg>
+        見積書
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ <span class="nav-badge">86</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <strong>業者マスタ</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+        CSV出力
+      </button>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        新規登録
+      </button>
+    </header>
+
+    <main class="page">
+
+      <div class="toolbar">
+        <h1>業者マスタ</h1>
+        <span class="meta">登録数 86社 · スキャン結果から自動追加された業者は ✨ 印</span>
+        <div class="spacer"></div>
+      </div>
+
+      <div class="fbar">
+        <div class="search-box">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input placeholder="業者名・所在地・工種で検索"/>
+        </div>
+        <span class="sep"></span>
+        <span class="lbl">工種</span>
+        <span class="pill on">配管</span>
+        <span class="pill">電気</span>
+        <span class="pill">塗装</span>
+        <span class="pill">鉄骨</span>
+        <span class="pill">保温</span>
+        <span class="pill">運搬</span>
+        <span class="pill">+</span>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="vtbl">
+          <thead>
+            <tr>
+              <th style="width:30px"><input type="checkbox"/></th>
+              <th>業者名</th>
+              <th>工種</th>
+              <th style="width:200px">所在地</th>
+              <th class="num" style="width:90px">取引件数</th>
+              <th class="num" style="width:120px">直近取引金額</th>
+              <th style="width:110px">単価評価</th>
+              <th style="width:96px">最終取引</th>
+              <th style="width:60px;text-align:right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic">福</div>
+                  <div class="vn-info">
+                    <div class="nm">福井配管工業 株式会社</div>
+                    <small>担当: 田中 課長 · TEL 0776-XX-XXXX · T9210001XXXXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">配管</span><span class="trade-chip">給排水</span></td>
+              <td>福井県福井市花堂南 X-X</td>
+              <td class="num">23</td>
+              <td class="num">¥1,240,000</td>
+              <td><span class="stars">★★★★★</span> <span style="font-size:11px;color:var(--c-text-muted)">4.8</span></td>
+              <td class="num">2026/05/13</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic" style="background:color-mix(in oklab,var(--c-status-billed) 14%,var(--c-surface));color:var(--c-status-billed)">北</div>
+                  <div class="vn-info">
+                    <div class="nm">北陸電気工業 株式会社 <span style="font-size:10px;color:var(--c-text-muted);font-weight:400">✨</span></div>
+                    <small>担当: 山下 部長 · TEL 0776-XX-XXXX · T7210001XXXXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">電気</span><span class="trade-chip">通信</span></td>
+              <td>福井県坂井市三国町○○ X-X</td>
+              <td class="num">17</td>
+              <td class="num">¥660,000</td>
+              <td><span class="stars">★★★★★</span> <span style="font-size:11px;color:var(--c-text-muted)">4.6</span></td>
+              <td class="num">2026/05/13</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic" style="background:color-mix(in oklab,var(--c-status-progress) 14%,var(--c-surface));color:var(--c-status-progress)">三</div>
+                  <div class="vn-info">
+                    <div class="nm">三国塗装 有限会社</div>
+                    <small>担当: 佐藤 社長 · TEL 0776-XX-XXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">塗装</span><span class="trade-chip">防水</span></td>
+              <td>福井県坂井市三国町山岸 X-X</td>
+              <td class="num">12</td>
+              <td class="num">¥438,000</td>
+              <td><span class="stars">★★★★☆</span> <span style="font-size:11px;color:var(--c-text-muted)">4.2</span></td>
+              <td class="num">2026/05/13</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic" style="background:color-mix(in oklab,var(--c-status-done) 14%,var(--c-surface));color:var(--c-status-done)">坂</div>
+                  <div class="vn-info">
+                    <div class="nm">坂井保温 株式会社</div>
+                    <small>担当: 中川 主任 · TEL 0776-XX-XXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">保温</span></td>
+              <td>福井県坂井市丸岡町 X-X</td>
+              <td class="num">9</td>
+              <td class="num">¥340,000</td>
+              <td><span class="stars">★★★★☆</span> <span style="font-size:11px;color:var(--c-text-muted)">3.9</span></td>
+              <td class="num">2026/04/22</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic" style="background:color-mix(in oklab,var(--c-status-paid) 14%,var(--c-surface));color:var(--c-status-paid)">小</div>
+                  <div class="vn-info">
+                    <div class="nm">小松鉄工所</div>
+                    <small>担当: 小松 社長 · TEL 0776-XX-XXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">鉄骨</span><span class="trade-chip">溶接</span></td>
+              <td>福井県あわら市 大溝 X-X</td>
+              <td class="num">8</td>
+              <td class="num">¥295,000</td>
+              <td><span class="stars">★★★★☆</span> <span style="font-size:11px;color:var(--c-text-muted)">4.0</span></td>
+              <td class="num">2026/04/18</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic">敦</div>
+                  <div class="vn-info">
+                    <div class="nm">敦賀バルブ商会</div>
+                    <small>担当: 西村 課長 · TEL 0770-XX-XXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">資材</span><span class="trade-chip">バルブ</span></td>
+              <td>福井県敦賀市 神楽町 X-X</td>
+              <td class="num">15</td>
+              <td class="num">¥75,000</td>
+              <td><span class="stars">★★★★★</span> <span style="font-size:11px;color:var(--c-text-muted)">4.5</span></td>
+              <td class="num">2026/05/12</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic">三</div>
+                  <div class="vn-info">
+                    <div class="nm">三浦工材 株式会社 <span style="font-size:10px;color:var(--c-text-muted);font-weight:400">✨</span></div>
+                    <small>担当: 三浦 専務 · TEL 0776-XX-XXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">資材</span></td>
+              <td>福井県福井市豊 X-X</td>
+              <td class="num">11</td>
+              <td class="num">¥35,000</td>
+              <td><span class="stars">★★★★☆</span> <span style="font-size:11px;color:var(--c-text-muted)">3.8</span></td>
+              <td class="num">2026/05/13</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic">三</div>
+                  <div class="vn-info">
+                    <div class="nm">三建運輸 株式会社</div>
+                    <small>担当: 田中 営業 · TEL 0776-XX-XXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">運搬</span></td>
+              <td>福井県坂井市三国町安島 X-X</td>
+              <td class="num">21</td>
+              <td class="num">¥180,000</td>
+              <td><span class="stars">★★★★☆</span> <span style="font-size:11px;color:var(--c-text-muted)">4.1</span></td>
+              <td class="num">2026/04/30</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td>
+                <div class="vn-row">
+                  <div class="vn-ic">福</div>
+                  <div class="vn-info">
+                    <div class="nm">福井鋼管 株式会社</div>
+                    <small>担当: 池田 部長 · TEL 0776-XX-XXXX</small>
+                  </div>
+                </div>
+              </td>
+              <td><span class="trade-chip">資材</span><span class="trade-chip">配管材</span></td>
+              <td>福井県福井市東森田 X-X</td>
+              <td class="num">28</td>
+              <td class="num">¥312,000</td>
+              <td><span class="stars">★★★★★</span> <span style="font-size:11px;color:var(--c-text-muted)">4.7</span></td>
+              <td class="num">2026/05/10</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+
+          </tbody>
+        </table>
+
+        <div style="padding:10px 14px;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--c-text-muted);border-top:1px solid var(--c-border)">
+          <span>1 - 9 / 86 件</span>
+          <span style="flex:1"></span>
+          <button class="btn btn-ghost btn-sm">‹</button>
+          <button class="btn btn-primary btn-sm">1</button>
+          <button class="btn btn-ghost btn-sm">2</button>
+          <button class="btn btn-ghost btn-sm">3</button>
+          <span style="color:var(--c-text-subtle)">…</span>
+          <button class="btn btn-ghost btn-sm">10</button>
+          <button class="btn btn-ghost btn-sm">›</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

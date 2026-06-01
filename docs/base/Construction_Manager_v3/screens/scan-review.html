@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S12 スキャン結果レビュー — Construction Manager v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Override app shell to give review a 2-pane layout */
+  .review-shell {
+    display: grid;
+    grid-template-rows: var(--header-h) auto auto 1fr;
+    height: 100vh;
+    background: var(--c-bg);
+  }
+  .review-topbar {
+    height: var(--header-h);
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+    display: flex; align-items: center; gap: 14px;
+    padding: 0 18px;
+  }
+  .review-topbar .back {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--c-text-muted); text-decoration: none;
+    font-size: 13px; font-weight: 500;
+  }
+  .review-topbar .back:hover { color: var(--c-text); }
+  .review-topbar .crumbs {
+    font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .review-topbar .crumbs strong { font-weight: 700;}
+  .review-topbar .sep { color: var(--c-text-subtle); }
+  .review-topbar .spacer { flex: 1; }
+  .ai-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: color-mix(in oklab, var(--c-primary) 8%, var(--c-surface));
+    border: 1px solid color-mix(in oklab, var(--c-primary) 25%, var(--c-border));
+    color: var(--c-primary);
+    padding: 3px 9px;
+    border-radius: var(--r-pill);
+    font-size: 11px; font-weight: 600;
+    font-family: var(--ff-mono);
+  }
+  [data-theme="dark"] .ai-chip { color: #c7d2fe; }
+
+  /* Job summary bar */
+  .job-bar {
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 22px;
+    padding: 12px 18px;
+  }
+  .job-bar .file {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .job-bar .file .ic {
+    width: 36px; height: 36px;
+    background: color-mix(in oklab,var(--c-danger) 14%,var(--c-surface));
+    color: var(--c-danger);
+    border-radius: var(--r-md);
+    display: grid; place-items: center;
+  }
+  .job-bar .file .nm { font-weight: 600; font-size: 14px;}
+  .job-bar .file .nm small { display: block; color: var(--c-text-muted); font-weight: 400; font-size: 11px; font-family: var(--ff-mono); margin-top: 1px;}
+
+  .job-bar .stats { display: flex; gap: 22px; }
+  .job-bar .stats > div { font-size: 12px; }
+  .job-bar .stats .k { font-size: 10px; color: var(--c-text-muted); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+  .job-bar .stats .v { font-family: var(--ff-mono); font-size: 14px; font-weight: 700; margin-top: 1px;}
+
+  .job-bar .actions { display: flex; gap: 6px; }
+
+  /* Confidence breakdown */
+  .conf-meter {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 11px;
+    color: var(--c-text-muted);
+  }
+  .conf-bar {
+    width: 140px; height: 8px;
+    background: var(--c-surface-3);
+    border-radius: var(--r-pill);
+    display: flex;
+    overflow: hidden;
+  }
+  .conf-bar > i { display: block; height: 100%; }
+  .conf-bar .h { background: var(--c-success); }
+  .conf-bar .m { background: var(--c-warn); }
+  .conf-bar .l { background: var(--c-danger); }
+
+  /* Subnav with target picker */
+  .target-bar {
+    display: flex;
+    gap: 16px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--c-border);
+    background: var(--c-surface);
+    align-items: center;
+    font-size: 12px;
+  }
+  .target-bar .label { color: var(--c-text-muted); font-weight: 600; font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .target-bar .target {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    background: var(--c-surface);
+    border: 1.5px solid var(--c-border);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .target-bar .target.on {
+    background: var(--c-primary-50);
+    border-color: var(--c-primary);
+    color: var(--c-primary);
+    font-weight: 700;
+  }
+  [data-theme="dark"] .target-bar .target.on { color: #fff; background: color-mix(in oklab, var(--c-primary) 25%, var(--c-surface)); }
+  .target-bar .target .pn {
+    font-family: var(--ff-mono);
+    font-size: 11px;
+    color: var(--c-text-muted);
+    background: var(--c-surface-2);
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+  }
+  .target-bar .target.on .pn { background: rgba(255,255,255,0.5); }
+  .target-bar .right { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+
+  /* Split pane */
+  .split {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .pane {
+    overflow: auto;
+    min-width: 0;
+    min-height: 0;
+  }
+  .pane.left { border-right: 1px solid var(--c-border); background: var(--c-surface-2); }
+  .pane.right { background: var(--c-bg); }
+
+  /* PDF Preview chrome */
+  .pdf-toolbar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--c-text-muted);
+  }
+  .pdf-toolbar .seg {
+    display: inline-flex;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+  }
+  .pdf-toolbar .seg button {
+    background: var(--c-surface);
+    border: none;
+    padding: 4px 8px;
+    color: var(--c-text-muted);
+    cursor: pointer;
+    border-right: 1px solid var(--c-border);
+    font-size: 12px;
+  }
+  .pdf-toolbar .seg button:last-child { border-right: none; }
+  .pdf-toolbar .seg button.on { background: var(--c-primary); color: #fff; }
+  .pdf-toolbar .page-info { font-family: var(--ff-mono); font-size: 11px; }
+  .pdf-toolbar .spacer { flex: 1; }
+  .pdf-toolbar .zoom { font-family: var(--ff-mono); font-size: 11px;}
+
+  .pdf-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 18px 24px 60px;
+    gap: 14px;
+    position: relative;
+  }
+  .pdf-page {
+    width: 100%;
+    max-width: 580px;
+    background: #fff;
+    color: #111;
+    box-shadow: 0 8px 24px rgba(17,24,39,0.15), 0 2px 4px rgba(17,24,39,0.06);
+    padding: 36px 36px 60px;
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+    position: relative;
+    min-height: 800px;
+  }
+  [data-theme="dark"] .pdf-page { box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
+  .pdf-page .header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 24px;
+  }
+  .pdf-page .header .seal {
+    border: 1.5px solid var(--c-danger);
+    color: var(--c-danger);
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: "Hiragino Mincho ProN", serif;
+    writing-mode: vertical-rl;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    transform: rotate(-6deg);
+  }
+  .pdf-page h1 {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    margin: 0 0 22px;
+    letter-spacing: 18px;
+    border-bottom: 2px solid #111;
+    padding-bottom: 10px;
+  }
+  .pdf-page .meta-row {
+    display: flex; justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 14px;
+    color: #444;
+  }
+  .pdf-page .vendor-box {
+    margin-bottom: 18px;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .pdf-page .vendor-box .nm {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+  }
+  .pdf-page .to {
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid #444;
+    padding: 6px 0;
+    margin-bottom: 14px;
+  }
+  .pdf-page .subject {
+    text-align: center;
+    font-size: 13px;
+    border: 1px solid #888;
+    padding: 8px;
+    margin-bottom: 16px;
+  }
+  .pdf-page .total-box {
+    background: #f5f5f5;
+    border: 1.5px solid #333;
+    padding: 12px 16px;
+    margin-bottom: 18px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .pdf-page .total-box .lbl { font-size: 13px; font-weight: 700; }
+  .pdf-page .total-box .amt { font-size: 22px; font-weight: 700; font-family: "Hiragino Mincho ProN", serif; }
+  .pdf-page table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    margin-bottom: 18px;
+    font-family: "Hiragino Kaku Gothic ProN", sans-serif;
+  }
+  .pdf-page table th, .pdf-page table td {
+    border: 1px solid #888;
+    padding: 6px 8px;
+  }
+  .pdf-page table th {
+    background: #eee;
+    text-align: left;
+    font-weight: 700;
+    font-size: 10px;
+  }
+  .pdf-page table td.num { text-align: right; font-family: 'JetBrains Mono', monospace; }
+
+  /* Bounding-box highlights overlaid on PDF — purely decorative for prototype */
+  .bbox {
+    position: absolute;
+    border: 1.5px dashed var(--c-primary);
+    background: color-mix(in oklab, var(--c-primary) 18%, transparent);
+    border-radius: 2px;
+    pointer-events: none;
+    transition: all 0.2s;
+  }
+  .bbox.warn { border-color: var(--c-warn); background: color-mix(in oklab, var(--c-warn) 22%, transparent); }
+  .bbox.low { border-color: var(--c-danger); background: color-mix(in oklab, var(--c-danger) 22%, transparent); }
+  .bbox.focus { box-shadow: 0 0 0 3px rgba(27,42,82,0.25); border-style: solid; }
+
+  /* Right pane content */
+  .review-card {
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+  }
+  .review-card .hd {
+    padding: 12px 18px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .review-card .hd .tt {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .review-card .hd .sub {
+    font-size: 11px;
+    color: var(--c-text-muted);
+  }
+  .review-card .hd .right { margin-left: auto; }
+
+  /* Header fields */
+  .hdr-grid {
+    display: grid;
+    grid-template-columns: 130px 1fr 80px;
+    gap: 0;
+  }
+  .hdr-grid .k {
+    background: var(--c-surface-2);
+    padding: 9px 14px;
+    font-size: 12px;
+    color: var(--c-text-muted);
+    font-weight: 500;
+    border-bottom: 1px solid var(--c-border);
+    display: flex; align-items: center;
+  }
+  .hdr-grid .v {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--c-border);
+    border-left: 1px solid var(--c-border);
+    font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+    cursor: text;
+  }
+  .hdr-grid .v:hover { background: var(--c-primary-50); }
+  .hdr-grid .c {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--c-border);
+    border-left: 1px solid var(--c-border);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hdr-grid .v.warn-bg { background: color-mix(in oklab, var(--c-warn) 12%, var(--c-surface)); }
+  .hdr-grid .v.low-bg { background: color-mix(in oklab, var(--c-danger) 12%, var(--c-surface)); }
+  .hdr-grid .v.warn-bg:hover { background: color-mix(in oklab, var(--c-warn) 20%, var(--c-surface)); }
+  .hdr-grid .v .vinput {
+    background: transparent;
+    border: 0;
+    outline: 0;
+    width: 100%;
+    color: inherit;
+    font: inherit;
+  }
+  .hdr-grid .v.editing { background: var(--c-surface); outline: 2px solid var(--c-primary); outline-offset: -2px; position: relative; z-index: 1; }
+  .hdr-grid .v.editing .vinput { font-weight: 500; }
+
+  /* Items table */
+  .items {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .items th, .items td {
+    border: 1px solid var(--c-border);
+    padding: 6px 10px;
+    height: 32px;
+  }
+  .items th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-align: left;
+    letter-spacing: 0.02em;
+  }
+  .items td { background: var(--c-surface); cursor: text; }
+  .items td.num { text-align: right; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .items td:hover { background: var(--c-primary-50); }
+  .items td.warn-bg { background: color-mix(in oklab, var(--c-warn) 14%, var(--c-surface)); }
+  .items td.warn-bg:hover { background: color-mix(in oklab, var(--c-warn) 22%, var(--c-surface)); }
+  .items td.low-bg { background: color-mix(in oklab, var(--c-danger) 14%, var(--c-surface)); }
+  .items td.low-bg:hover { background: color-mix(in oklab, var(--c-danger) 22%, var(--c-surface)); }
+  .items td.no { text-align: center; color: var(--c-text-muted); font-family: var(--ff-mono); width: 28px; background: var(--c-surface-2); }
+  .items td.editing {
+    outline: 2px solid var(--c-primary);
+    outline-offset: -2px;
+    position: relative;
+    z-index: 1;
+    background: var(--c-surface);
+  }
+  .items tr.subtotal td { background: var(--c-surface-2); font-weight: 700; }
+
+  /* Inline conf marker on cell */
+  .cell-mark {
+    display: inline-flex;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    align-items: center; justify-content: center;
+    font-size: 8px;
+    font-weight: 700;
+    color: #fff;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+  .cell-mark.warn { background: var(--c-warn); }
+  .cell-mark.low { background: var(--c-danger); }
+
+  /* Suggestions */
+  .sugg {
+    background: color-mix(in oklab, var(--c-info) 6%, var(--c-surface));
+    border: 1px solid color-mix(in oklab, var(--c-info) 25%, var(--c-border));
+    border-radius: var(--r-md);
+    padding: 10px 14px;
+    margin: 12px 18px;
+    font-size: 12px;
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .sugg .ic {
+    width: 22px; height: 22px;
+    background: var(--c-info);
+    color: #fff;
+    border-radius: 50%;
+    display: grid; place-items: center;
+    flex: 0 0 22px;
+  }
+  .sugg .ic svg { width: 12px; height: 12px; stroke-width: 2; }
+  .sugg .body strong { display: block; font-weight: 700; margin-bottom: 2px;}
+  .sugg .body { line-height: 1.5; }
+  .sugg .actions { margin-left: auto; display: flex; gap: 6px; flex: 0 0 auto;}
+
+  /* Footer action bar */
+  .actbar {
+    border-top: 1px solid var(--c-border);
+    background: var(--c-surface);
+    padding: 14px 22px;
+    display: flex; align-items: center; gap: 12px;
+    position: sticky;
+    bottom: 0;
+  }
+  .actbar .recap {
+    display: flex; gap: 18px;
+    font-size: 12px;
+  }
+  .actbar .recap > div .k { color: var(--c-text-muted); font-size: 11px; }
+  .actbar .recap > div .v { font-family: var(--ff-mono); font-weight: 700; font-size: 14px; }
+  .actbar .spacer { flex: 1; }
+
+  /* Action option cards */
+  .opts {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+    gap: 10px;
+    padding: 16px 18px 4px;
+  }
+  .opt {
+    border: 1.5px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 12px;
+    background: var(--c-surface);
+    cursor: pointer;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .opt:hover { border-color: var(--c-border-strong); }
+  .opt.on { border-color: var(--c-primary); background: var(--c-primary-50); }
+  [data-theme="dark"] .opt.on { background: color-mix(in oklab, var(--c-primary) 20%, var(--c-surface)); }
+  .opt input { margin-top: 2px; }
+  .opt .body { flex: 1; }
+  .opt .nm { font-weight: 600; font-size: 13px; }
+  .opt .nm small { display: block; color: var(--c-text-muted); font-weight: 400; font-size: 11px; margin-top: 2px; }
+  .opt .where {
+    font-size: 11px;
+    color: var(--c-primary);
+    font-family: var(--ff-mono);
+    margin-top: 4px;
+    display: inline-block;
+    background: var(--c-surface);
+    padding: 1px 6px;
+    border-radius: 2px;
+  }
+  [data-theme="dark"] .opt .where { color: #c7d2fe; }
+
+  /* PROMINENT project picker card */
+  .pp-card {
+    margin: 14px 18px 6px;
+    background: var(--c-surface);
+    border: 2px solid var(--c-primary);
+    border-radius: var(--r-lg);
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 0 0 4px var(--c-primary-50);
+  }
+  [data-theme="dark"] .pp-card { box-shadow: 0 0 0 4px color-mix(in oklab, var(--c-primary) 18%, var(--c-surface));}
+  .pp-card.empty {
+    border-color: var(--c-warn);
+    background: var(--c-warn-bg);
+    box-shadow: 0 0 0 4px color-mix(in oklab, var(--c-warn) 18%, var(--c-surface));
+  }
+  .pp-card .pp-icon {
+    width: 36px; height: 36px;
+    background: var(--c-primary);
+    color: #fff;
+    border-radius: var(--r-md);
+    display: grid; place-items: center;
+  }
+  .pp-card.empty .pp-icon { background: var(--c-warn); }
+  .pp-card .pp-icon svg { width: 18px; height: 18px; stroke-width: 1.6; }
+  .pp-card .pp-label {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .pp-card.empty .pp-label { color: var(--c-warn); }
+  .pp-card .pp-value {
+    display: flex; align-items: baseline; gap: 12px;
+  }
+  .pp-card .pp-value .pn {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    color: var(--c-text-muted);
+    background: var(--c-surface-2);
+    padding: 3px 9px;
+    border-radius: var(--r-md);
+    font-weight: 600;
+  }
+  .pp-card .pp-value .nm {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--c-text);
+  }
+  .pp-card .pp-value .nm.empty-text { color: var(--c-warn); }
+  .pp-card .pp-value .meta {
+    font-size: 12px;
+    color: var(--c-text-muted);
+    margin-left: 8px;
+  }
+  .pp-search {
+    width: 100%;
+    margin-top: 8px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--c-surface);
+    border: 1.5px solid var(--c-warn);
+    border-radius: var(--r-md);
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .pp-search input { border: none; outline: none; flex: 1; background: transparent; color: var(--c-text); font-size: 13px;}
+
+  /* Success toast (post transfer) */
+  .review-toast {
+    position: fixed;
+    top: 18px; right: 22px;
+    z-index: 100;
+    background: var(--c-surface);
+    border: 1px solid color-mix(in oklab, var(--c-success) 40%, var(--c-border));
+    border-left: 4px solid var(--c-success);
+    border-radius: var(--r-md);
+    box-shadow: var(--sh-pop);
+    padding: 14px 18px;
+    min-width: 360px;
+    animation: toastIn 0.25s ease-out;
+  }
+  @keyframes toastIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  .review-toast .head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 6px;
+  }
+  .review-toast .ic {
+    width: 22px; height: 22px;
+    background: var(--c-success);
+    color: #fff;
+    border-radius: 50%;
+    display: grid; place-items: center;
+  }
+  .review-toast .ic svg { width: 13px; height: 13px; stroke-width: 2.4; }
+  .review-toast .tt { font-weight: 700; font-size: 13px; }
+  .review-toast .body { font-size: 12px; color: var(--c-text-muted); margin-left: 30px; line-height: 1.55;}
+  .review-toast .links {
+    margin-top: 8px; margin-left: 30px;
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .review-toast .links a {
+    color: var(--c-primary);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 12px;
+    background: var(--c-primary-50);
+    padding: 4px 10px;
+    border-radius: var(--r-md);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  [data-theme="dark"] .review-toast .links a { color: #fff; background: color-mix(in oklab,var(--c-primary) 35%, var(--c-surface)); }
+  .review-toast .links a:hover { background: var(--c-primary); color: #fff; }
+  .review-toast .x {
+    position: absolute; top: 10px; right: 10px;
+    background: transparent; border: none;
+    color: var(--c-text-subtle); cursor: pointer;
+    padding: 2px;
+  }
+</style>
+</head>
+<body data-screen-label="S12 Scan Review">
+
+<div class="review-shell">
+
+  <!-- Top bar -->
+  <div class="review-topbar">
+    <a class="back" href="#">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      スキャン一覧へ
+    </a>
+    <span class="sep">/</span>
+    <div class="crumbs">
+      <span class="ai-chip">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l2.39 4.84L20 8l-4 3.9.94 5.5L12 14.77 7.06 17.4 8 11.9 4 8l5.61-1.16L12 2z"/></svg>
+              AI 解析結果
+      </span>
+      <strong>北陸電気工業_配管工事見積.pdf</strong>
+    </div>
+    <div class="spacer"></div>
+    <span style="font-size:11px;color:var(--c-text-muted);font-family:var(--ff-mono)">解析: 5/13 14:02 · Gemini 2.5 Pro · 28秒</span>
+    <button class="btn btn-ghost btn-sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      原本DL
+    </button>
+    <button class="btn btn-ghost btn-sm">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 0015 6.7L21 16M21 3v5h-5"/></svg>
+      再解析
+    </button>
+  </div>
+
+  <!-- Job summary bar -->
+  <div class="job-bar">
+    <div class="file">
+      <div class="ic">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+      </div>
+      <div class="nm">
+        北陸電気工業株式会社
+        <small>御見積書 No. 26-0512-EL · 2026/05/12</small>
+      </div>
+    </div>
+
+    <div class="stats">
+      <div>
+        <div class="k">合計金額</div>
+        <div class="v">¥660,000</div>
+      </div>
+      <div>
+        <div class="k">項目数</div>
+        <div class="v">12</div>
+      </div>
+      <div>
+        <div class="k">全体信頼度</div>
+        <div class="v" style="color:var(--c-success)">94%</div>
+      </div>
+      <div>
+        <div class="k">要確認</div>
+        <div class="v" style="color:var(--c-warn)">2件</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <div class="conf-meter">
+        <div class="conf-bar">
+          <i class="h" style="flex:10"></i>
+          <i class="m" style="flex:1.5"></i>
+          <i class="l" style="flex:0.5"></i>
+        </div>
+        <span><span style="color:var(--c-success);font-weight:600">10</span> · <span style="color:var(--c-warn);font-weight:600">2</span> · <span style="color:var(--c-danger);font-weight:600">0</span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Target target picker (deprecated thin bar - kept for spec compatibility, hidden) -->
+  <div class="target-bar" style="display:none">
+    <span class="label">転記先</span>
+    <div class="target on">
+      <span class="pn">26-3-014</span>
+      三国第二工場 配管改修
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <span style="color:var(--c-text-subtle)">案件への紐付け</span>
+    <div class="right">
+      <span style="font-size:11px;color:var(--c-text-muted)">注：必ず人がレビューしてから反映されます</span>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        棄却
+      </button>
+    </div>
+  </div>
+
+  <!-- PROMINENT Project picker -->
+  <div class="pp-card" id="ppCard">
+    <div class="pp-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+    </div>
+    <div>
+      <div class="pp-label">転記先 案件</div>
+      <div class="pp-value">
+        <span class="pn">26-3-014</span>
+        <span class="nm">三国第二工場 配管改修工事</span>
+        <span class="meta">株式会社協和自工 · <span class="badge s-progress" style="font-size:10px;padding:1px 6px"><span class="dot"></span>施工中</span></span>
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/></svg>
+        変更
+      </button>
+      <button class="btn btn-ghost btn-sm" title="紐付け解除">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Split -->
+  <div class="split">
+
+    <!-- LEFT: PDF Preview -->
+    <div class="pane left">
+      <div class="pdf-toolbar">
+        <div class="seg">
+          <button>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 18l-6-6 6-6"/></svg>
+          </button>
+          <button>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18l6-6-6-6"/></svg>
+          </button>
+        </div>
+        <span class="page-info">1 / 3</span>
+        <span class="spacer"></span>
+        <span style="font-size:11px">バウンディングボックス</span>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 6px;font-size:11px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v4l3 2"/></svg>
+          表示
+        </button>
+        <div class="seg">
+          <button><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M19 13H5"/></svg></button>
+          <span class="zoom" style="padding:4px 8px;background:var(--c-surface)">75%</span>
+          <button><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14M5 12h14"/></svg></button>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="padding:2px 6px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7V3h4M21 7V3h-4M3 17v4h4M21 17v4h-4"/></svg>
+        </button>
+      </div>
+      <div class="pdf-stage">
+        <div class="pdf-page">
+          <div class="header">
+            <div style="font-size:11px;line-height:1.5">
+              No. <span style="font-family:monospace">26-0512-EL</span><br/>
+              <span style="font-family:monospace">2026年5月12日</span>
+            </div>
+            <div class="seal">承&nbsp;&nbsp;認</div>
+          </div>
+          <h1>御見積書</h1>
+          <div class="to">株式会社クラップ　御中</div>
+          <div style="font-size:11px;color:#444;margin-bottom:10px;line-height:1.7">
+            下記の通り御見積申し上げます。<br/>
+            何卒ご検討の程よろしくお願い申し上げます。
+          </div>
+          <div class="vendor-box" style="text-align:right">
+            <div class="nm">北陸電気工業株式会社</div>
+            <div style="font-size:11px;color:#555">〒913-XXXX 福井県坂井市三国町○○ X-X<br/>
+              TEL 0776-XX-XXXX&nbsp;&nbsp;FAX 0776-XX-YYYY<br/>
+              登録番号: T7210001XXXXXX
+            </div>
+          </div>
+          <div class="subject" style="position:relative">
+            <strong>件　名：</strong>　三国第二工場 配管改修工事 電気設備工事
+            <div class="bbox" style="left:74px;top:6px;width:380px;height:18px"></div>
+          </div>
+          <div class="total-box" style="position:relative">
+            <div class="lbl">御見積金額（税込）</div>
+            <div class="amt">¥&nbsp;660,000<span style="font-size:11px;margin-left:6px;color:#666">―</span></div>
+            <div class="bbox focus" style="right:24px;top:14px;width:170px;height:30px"></div>
+          </div>
+          <table style="position:relative">
+            <thead>
+              <tr>
+                <th style="width:38px;text-align:center">No</th>
+                <th>項目</th>
+                <th style="width:60px;text-align:center">数量</th>
+                <th style="width:42px;text-align:center">単位</th>
+                <th style="width:72px;text-align:right">単価</th>
+                <th style="width:84px;text-align:right">金額</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td style="text-align:center">1</td><td>動力盤撤去・新設工事</td><td style="text-align:center">1</td><td style="text-align:center">式</td><td class="num">180,000</td><td class="num">180,000</td></tr>
+              <tr><td style="text-align:center">2</td><td>配線工事（CV 8sq）</td><td style="text-align:center">120</td><td style="text-align:center">m</td><td class="num">850</td><td class="num">102,000</td></tr>
+              <tr><td style="text-align:center">3</td><td>配線工事（IV 2sq）</td><td style="text-align:center">240</td><td style="text-align:center">m</td><td class="num">320</td><td class="num">76,800</td></tr>
+              <tr style="position:relative"><td style="text-align:center">4</td><td>制御盤改造工事</td><td style="text-align:center">1</td><td style="text-align:center">式</td><td class="num" style="background:#fff7d6">52,000</td><td class="num">52,000</td></tr>
+              <tr><td style="text-align:center">5</td><td>センサー取付工事</td><td style="text-align:center">6</td><td style="text-align:center">箇所</td><td class="num">8,500</td><td class="num">51,000</td></tr>
+              <tr><td style="text-align:center">6</td><td>結線・通電試験</td><td style="text-align:center">1</td><td style="text-align:center">式</td><td class="num">35,000</td><td class="num">35,000</td></tr>
+              <tr><td style="text-align:center">7</td><td>盤内整理・銘板</td><td style="text-align:center">1</td><td style="text-align:center">式</td><td class="num">18,000</td><td class="num">18,000</td></tr>
+              <tr><td style="text-align:center">8</td><td>諸経費（運搬・廃材処理）</td><td style="text-align:center">1</td><td style="text-align:center">式</td><td class="num">25,000</td><td class="num">25,000</td></tr>
+              <tr><td colspan="5" style="text-align:right;background:#f5f5f5"><strong>　小　計</strong></td><td class="num" style="background:#f5f5f5"><strong>539,800</strong></td></tr>
+              <tr><td colspan="5" style="text-align:right">　諸経費（10%）</td><td class="num">53,980</td></tr>
+              <tr><td colspan="5" style="text-align:right;background:#f5f5f5"><strong>　合　計</strong></td><td class="num" style="background:#f5f5f5"><strong>593,780</strong></td></tr>
+              <tr><td colspan="5" style="text-align:right">　消費税（10%）</td><td class="num">59,378</td></tr>
+              <tr><td colspan="5" style="text-align:right;background:#f5f5f5"><strong>　御見積金額</strong></td><td class="num" style="background:#f5f5f5"><strong>653,158</strong></td></tr>
+            </tbody>
+            <!-- bbox overlays -->
+            <div class="bbox" style="left:48px;top:48px;width:200px;height:18px"></div>
+            <div class="bbox" style="left:48px;top:78px;width:200px;height:18px"></div>
+            <div class="bbox warn" style="left:48px;top:138px;width:200px;height:18px"></div>
+            <div class="bbox" style="right:18px;top:48px;width:80px;height:18px"></div>
+            <div class="bbox warn" style="right:18px;top:138px;width:80px;height:18px"></div>
+          </table>
+          <div style="font-size:11px;color:#444;line-height:1.6">
+            <strong>工　期：</strong> 2026年4月15日 〜 2026年5月20日<br/>
+            <strong>支払条件：</strong> 月末締切翌月末払（現金）<br/>
+            <strong>有効期限：</strong> 発行日より30日間<br/>
+            <strong>備考：</strong> 既設盤の流用検討あり。試験は夜間実施。
+          </div>
+        </div>
+
+        <div class="pdf-page" style="padding-top:48px;min-height:200px;display:flex;align-items:center;justify-content:center;color:#999;font-size:13px">
+          ページ 2 / 3 …
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Extracted -->
+    <div class="pane right">
+
+      <!-- AI Suggestion -->
+      <div class="sugg">
+        <div class="ic">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2l2.39 4.84L20 8l-4 3.9.94 5.5L12 14.77 7.06 17.4 8 11.9 4 8l5.61-1.16L12 2z"/></svg>
+        </div>
+        <div class="body">
+          <strong>過去取引と一致 — 業者マスタへの紐付け候補あり</strong>
+          「北陸電気工業株式会社」は過去5案件で取引実績あり（直近：25-1-082 福井支店内装）。
+          単価は <span style="font-family:var(--ff-mono);font-weight:600">配線工事（CV 8sq）¥850/m</span> が前回比 <span style="color:var(--c-warn);font-weight:600">+6.3%</span>。
+        </div>
+        <div class="actions">
+          <button class="btn btn-ghost btn-sm">単価履歴</button>
+          <button class="btn btn-primary btn-sm">業者マスタに保存</button>
+        </div>
+      </div>
+
+      <!-- Header card -->
+      <div class="review-card">
+        <div class="hd">
+          <span class="badge-letter" style="background:var(--c-primary);color:#fff;width:22px;height:22px;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:800;font-family:var(--ff-mono);font-size:12px">①</span>
+          <div>
+            <div class="tt">ヘッダー情報</div>
+            <div class="sub">業者・見積番号・合計など</div>
+          </div>
+          <div class="right" style="display:flex;gap:6px;align-items:center">
+            <span class="conf h">96%</span>
+            <button class="btn btn-ghost btn-sm">折り畳む</button>
+          </div>
+        </div>
+        <div class="hdr-grid">
+          <div class="k">業者名</div>
+          <div class="v"><input class="vinput" value="北陸電気工業株式会社"/></div>
+          <div class="c"><span class="conf h">98%</span></div>
+
+          <div class="k">登録番号</div>
+          <div class="v"><input class="vinput" value="T7210001XXXXXX"/></div>
+          <div class="c"><span class="conf h">96%</span></div>
+
+          <div class="k">見積書 No.</div>
+          <div class="v"><input class="vinput" value="26-0512-EL"/></div>
+          <div class="c"><span class="conf h">97%</span></div>
+
+          <div class="k">見積日</div>
+          <div class="v"><input class="vinput" value="2026/05/12"/></div>
+          <div class="c"><span class="conf h">99%</span></div>
+
+          <div class="k">件名</div>
+          <div class="v editing"><input class="vinput" value="三国第二工場 配管改修工事 電気設備工事"/></div>
+          <div class="c"><span class="conf h">95%</span></div>
+
+          <div class="k">合計（税抜）</div>
+          <div class="v"><input class="vinput num" value="¥593,780" style="font-family:var(--ff-mono);font-weight:600"/></div>
+          <div class="c"><span class="conf h">99%</span></div>
+
+          <div class="k">合計（税込）</div>
+          <div class="v"><input class="vinput num" value="¥653,158" style="font-family:var(--ff-mono);font-weight:600"/></div>
+          <div class="c"><span class="conf h">99%</span></div>
+
+          <div class="k">工期</div>
+          <div class="v warn-bg">
+            <input class="vinput" value="2026/04/15 〜 2026/05/20"/>
+          </div>
+          <div class="c"><span class="conf m">76%</span></div>
+
+          <div class="k">支払条件</div>
+          <div class="v"><input class="vinput" value="月末締切翌月末払（現金）"/></div>
+          <div class="c"><span class="conf h">93%</span></div>
+
+          <div class="k" style="border-bottom:none">備考</div>
+          <div class="v" style="border-bottom:none"><input class="vinput" value="既設盤の流用検討あり。試験は夜間実施。"/></div>
+          <div class="c" style="border-bottom:none"><span class="conf m">82%</span></div>
+        </div>
+      </div>
+
+      <!-- Items -->
+      <div class="review-card">
+        <div class="hd">
+          <span class="badge-letter" style="background:var(--c-primary);color:#fff;width:22px;height:22px;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:800;font-family:var(--ff-mono);font-size:12px">②</span>
+          <div>
+            <div class="tt">明細</div>
+            <div class="sub">8項目 · 黄背景=要確認 · クリックで編集 · Tab/Enter で移動</div>
+          </div>
+          <div class="right" style="display:flex;gap:6px;align-items:center">
+            <span class="conf h">93%</span>
+            <button class="btn btn-ghost btn-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+              行追加
+            </button>
+          </div>
+        </div>
+        <div style="padding: 10px 18px 16px;">
+          <table class="items">
+            <thead>
+              <tr>
+                <th style="width:30px">No</th>
+                <th>項目</th>
+                <th style="width:60px" class="num">数量</th>
+                <th style="width:48px">単位</th>
+                <th style="width:90px" class="num">単価</th>
+                <th style="width:96px" class="num">金額</th>
+                <th style="width:60px" class="num">信頼</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="no">1</td>
+                <td>動力盤撤去・新設工事</td>
+                <td class="num">1</td>
+                <td>式</td>
+                <td class="num">180,000</td>
+                <td class="num">180,000</td>
+                <td class="num"><span class="conf h">99%</span></td>
+              </tr>
+              <tr>
+                <td class="no">2</td>
+                <td>配線工事（CV 8sq）</td>
+                <td class="num">120</td>
+                <td>m</td>
+                <td class="num">850</td>
+                <td class="num">102,000</td>
+                <td class="num"><span class="conf h">97%</span></td>
+              </tr>
+              <tr>
+                <td class="no">3</td>
+                <td>配線工事（IV 2sq）</td>
+                <td class="num">240</td>
+                <td>m</td>
+                <td class="num">320</td>
+                <td class="num">76,800</td>
+                <td class="num"><span class="conf h">96%</span></td>
+              </tr>
+              <tr>
+                <td class="no">4</td>
+                <td>制御盤改造工事</td>
+                <td class="num">1</td>
+                <td>式</td>
+                <td class="num warn-bg editing"><span class="cell-mark warn">!</span>52,000</td>
+                <td class="num">52,000</td>
+                <td class="num"><span class="conf m">71%</span></td>
+              </tr>
+              <tr>
+                <td class="no">5</td>
+                <td>センサー取付工事</td>
+                <td class="num">6</td>
+                <td>箇所</td>
+                <td class="num">8,500</td>
+                <td class="num">51,000</td>
+                <td class="num"><span class="conf h">95%</span></td>
+              </tr>
+              <tr>
+                <td class="no">6</td>
+                <td>結線・通電試験</td>
+                <td class="num">1</td>
+                <td>式</td>
+                <td class="num">35,000</td>
+                <td class="num">35,000</td>
+                <td class="num"><span class="conf h">94%</span></td>
+              </tr>
+              <tr>
+                <td class="no">7</td>
+                <td>盤内整理・銘板</td>
+                <td class="num">1</td>
+                <td>式</td>
+                <td class="num">18,000</td>
+                <td class="num">18,000</td>
+                <td class="num"><span class="conf h">92%</span></td>
+              </tr>
+              <tr>
+                <td class="no">8</td>
+                <td class="warn-bg"><span class="cell-mark warn">!</span>諸経費（運搬・廃材処理）</td>
+                <td class="num">1</td>
+                <td>式</td>
+                <td class="num">25,000</td>
+                <td class="num">25,000</td>
+                <td class="num"><span class="conf m">68%</span></td>
+              </tr>
+              <tr class="subtotal">
+                <td colspan="5" style="text-align:right">小計（税抜）</td>
+                <td class="num">539,800</td>
+                <td></td>
+              </tr>
+              <tr class="subtotal">
+                <td colspan="5" style="text-align:right">諸経費（10%）</td>
+                <td class="num">53,980</td>
+                <td></td>
+              </tr>
+              <tr class="subtotal">
+                <td colspan="5" style="text-align:right">合計（税抜）</td>
+                <td class="num">593,780</td>
+                <td></td>
+              </tr>
+              <tr class="subtotal">
+                <td colspan="5" style="text-align:right">消費税（10%）</td>
+                <td class="num">59,378</td>
+                <td></td>
+              </tr>
+              <tr class="subtotal">
+                <td colspan="5" style="text-align:right;color:var(--c-primary)"><strong>御見積金額</strong></td>
+                <td class="num" style="color:var(--c-primary)"><strong>¥653,158</strong></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Action options -->
+      <div class="review-card">
+        <div class="hd">
+          <span class="badge-letter" style="background:var(--c-accent);color:#fff;width:22px;height:22px;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:800;font-family:var(--ff-mono);font-size:12px">③</span>
+          <div>
+            <div class="tt">転記先を選択</div>
+            <div class="sub">複数選択可 · 反映前に確認ダイアログが出ます</div>
+          </div>
+        </div>
+        <div class="opts">
+          <label class="opt on">
+            <input type="checkbox" checked />
+            <div class="body">
+              <div class="nm">QCDS A-1 外注へ<small>3行分の追加 + 既存3行の更新</small></div>
+              <div class="where">QCDS / 直接工事 / 外注</div>
+            </div>
+          </label>
+          <label class="opt on">
+            <input type="checkbox" checked />
+            <div class="body">
+              <div class="nm">取決見通表 No.1<small>北陸電気工業 行に金額・支払予定を反映</small></div>
+              <div class="where">26-3-014 / 取決見通表</div>
+            </div>
+          </label>
+          <label class="opt">
+            <input type="checkbox" />
+            <div class="body">
+              <div class="nm">見積書 内訳候補<small>顧客向け見積書の項目候補に追加</small></div>
+              <div class="where">26-AP-014 / 見積書 内訳</div>
+            </div>
+          </label>
+          <label class="opt">
+            <input type="checkbox" />
+            <div class="body">
+              <div class="nm">業者マスタに保存<small>北陸電気工業 を業者マスタに登録</small></div>
+              <div class="where">業者マスタ / 単価履歴</div>
+            </div>
+          </label>
+        </div>
+
+        <div class="actbar">
+          <div class="recap">
+            <div><div class="k">転記先</div><div class="v">2 / 4</div></div>
+            <div><div class="k">影響行数</div><div class="v">9</div></div>
+            <div><div class="k">残レビュー</div><div class="v" style="color:var(--c-warn)">2件</div></div>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn btn-ghost">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12a9 9 0 11-9-9 9 9 0 019 9z"/><path d="M12 8v4l3 2"/></svg>
+            後で
+          </button>
+          <button class="btn">プレビュー</button>
+          <button class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            選択先に転記する
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Transfer success toast (shown after pressing "選択先に転記する") -->
+<div class="review-toast" id="reviewToast">
+  <button class="x" onclick="document.getElementById('reviewToast').style.display='none'">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+  </button>
+  <div class="head">
+    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5"/></svg></span>
+    <span class="tt">転記が完了しました</span>
+  </div>
+  <div class="body">
+    QCDS A-1 外注へ <strong>3行</strong>、取決見通表 No.1 行に <strong>支払予定</strong>を反映しました。
+  </div>
+  <div class="links">
+    <a href="screens/qcds.html">QCDSを見る →</a>
+    <a href="screens/project-detail.html">取決見通表を見る →</a>
+    <a href="screens/quote.html">見積書を見る →</a>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('theme');
+    if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+    if (params.get('state') === 'empty') {
+      const pp = document.getElementById('ppCard');
+      if (pp) {
+        pp.classList.add('empty');
+        pp.innerHTML = '<div class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div>' +
+          '<div><div class="pp-label">⚠ 転記先 案件が未選択です</div><div class="pp-value"><span class="nm empty-text">案件を選択してください</span><span class="meta">解析結果を転記する案件を選んでから操作してください</span></div><div class="pp-search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input placeholder="工事名・工事番号・発注者で検索"/></div></div>' +
+          '<button class="btn btn-primary">案件を選択</button>';
+      }
+    }
+    // Auto-hide success toast after 5s (only when shown)
+    setTimeout(() => {
+      const t = document.getElementById('reviewToast');
+      if (t && t.style.display !== 'none') {/* keep visible for demo */}
+    }, 200);
+  })();
+</script>
+
+</body>
+</html>

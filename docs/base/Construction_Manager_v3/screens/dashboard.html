@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S02 ダッシュボード — Construction Manager v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Dashboard-specific */
+  .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .kpi {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    box-shadow: var(--sh-1);
+  }
+  .kpi .label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    letter-spacing: 0.04em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .kpi .label svg { width: 12px; height: 12px; stroke-width: 1.6; }
+  .kpi .value {
+    font-size: 26px;
+    font-weight: 700;
+    font-family: var(--ff-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--c-text);
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+  .kpi .value .yen { font-size: 14px; font-weight: 500; color: var(--c-text-muted); margin-right: 2px; }
+  .kpi .delta {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600;
+    padding: 1px 6px;
+    border-radius: var(--r-pill);
+    width: fit-content;
+    font-family: var(--ff-mono);
+  }
+  .kpi .delta.up { color: var(--c-success); background: var(--c-success-bg); }
+  .kpi .delta.down { color: var(--c-danger); background: var(--c-danger-bg); }
+  .kpi .delta svg { width: 10px; height: 10px; stroke-width: 2; }
+  .kpi .sub { font-size: 11px; color: var(--c-text-muted); }
+  .kpi-spark {
+    position: absolute; right: 14px; top: 14px;
+    width: 60px; height: 24px;
+    color: var(--c-text-subtle);
+  }
+
+  /* Charts row */
+  .chart-row { display: grid; grid-template-columns: 360px 1fr; gap: 12px; }
+
+  /* Donut */
+  .donut-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: center; }
+  .donut { width: 140px; height: 140px; }
+  .donut-center {
+    font-family: var(--ff-mono);
+    font-size: 20px;
+    fill: var(--c-text);
+    font-weight: 700;
+  }
+  .donut-legend { display: flex; flex-direction: column; gap: 6px; font-size: 11px; }
+  .donut-legend .row { display: flex; align-items: center; gap: 6px; }
+  .donut-legend .sw { width: 8px; height: 8px; border-radius: 2px; }
+  .donut-legend .nm { flex: 1; color: var(--c-text); }
+  .donut-legend .ct { font-family: var(--ff-mono); color: var(--c-text-muted); font-weight: 600; }
+
+  /* Bar chart */
+  .bar-chart { padding: 16px; }
+  .bar-svg { width: 100%; height: 200px; display: block; }
+
+  /* Ranking table */
+  .rank-name { font-weight: 500; color: var(--c-text); }
+  .rank-name small { display: block; color: var(--c-text-muted); font-size: 11px; font-weight: 400; margin-top: 1px; }
+  .rate-bar {
+    width: 60px; height: 5px;
+    background: var(--c-surface-3);
+    border-radius: var(--r-pill);
+    overflow: hidden;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+  }
+  .rate-bar i {
+    display: block;
+    height: 100%;
+    background: var(--c-accent);
+    border-radius: var(--r-pill);
+  }
+
+  /* Alerts card */
+  .alert-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  .alert-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--c-border);
+    font-size: 12px;
+  }
+  .alert-row:last-child { border-bottom: none; }
+  .alert-row .icon {
+    width: 28px; height: 28px;
+    border-radius: var(--r-md);
+    display: grid; place-items: center;
+    flex: 0 0 28px;
+  }
+  .alert-row .icon svg { width: 14px; height: 14px; stroke-width: 1.7; }
+  .alert-row.danger .icon { background: var(--c-danger-bg); color: var(--c-danger); }
+  .alert-row.warn   .icon { background: var(--c-warn-bg);   color: var(--c-warn); }
+  .alert-row.info   .icon { background: var(--c-info-bg);   color: var(--c-info); }
+  .alert-row .label { font-weight: 600; }
+  .alert-row .count {
+    margin-left: auto;
+    font-family: var(--ff-mono);
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--c-text);
+  }
+  .alert-row .count small { color: var(--c-text-muted); font-weight: 500; font-family: var(--ff-sans); }
+  .alert-row .link { color: var(--c-primary); font-weight: 500; font-size: 11px; text-decoration: none; }
+
+  /* Timeline */
+  .timeline { padding: 4px 0; }
+  .tl-row {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--c-border);
+    font-size: 12px;
+    align-items: center;
+  }
+  .tl-row:last-child { border-bottom: none; }
+  .tl-row .avatar { width: 24px; height: 24px; font-size: 10px; }
+  .tl-row .what { color: var(--c-text); line-height: 1.4; }
+  .tl-row .what strong { font-weight: 600; }
+  .tl-row .what .pn { color: var(--c-primary); font-family: var(--ff-mono); font-size: 11px; }
+  .tl-row .when { color: var(--c-text-subtle); font-size: 11px; white-space: nowrap; font-family: var(--ff-mono); }
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .toolbar h1 {
+    font-size: 18px; font-weight: 700;
+    margin: 0;
+    letter-spacing: 0.01em;
+  }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+  .seg {
+    display: inline-flex;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 2px;
+  }
+  .seg button {
+    background: transparent;
+    border: none;
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--c-text-muted);
+    cursor: pointer;
+    border-radius: var(--r-sm);
+    font-weight: 500;
+  }
+  .seg button.on { background: var(--c-primary-50); color: var(--c-primary); font-weight: 600; }
+  [data-theme="dark"] .seg button.on { color: #fff; }
+
+  .grid-2 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 12px; }
+</style>
+</head>
+<body data-screen-label="S02 Dashboard">
+
+<div class="app">
+  <!-- ===== Sidebar ===== -->
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6M9 9h3"/></svg>
+        見積書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3"/></svg>
+        注文書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg>
+        QCDS
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+        進捗・写真
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">設定</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        設定
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+        ヘルプ
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <!-- ===== Main ===== -->
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <strong>ダッシュボード</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="search">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        案件・業者・工事番号を検索
+        <kbd>⌘K</kbd>
+      </div>
+      <div class="theme-switch" id="themeSwitch">
+        <button class="on" data-theme-set="light" title="ライト">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></svg>
+        </button>
+        <button data-theme-set="dark" title="ダーク">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+      </div>
+      <button class="icon-btn" title="通知">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0"/></svg>
+      </button>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        新規案件
+      </button>
+    </header>
+
+    <main class="page">
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <h1>ダッシュボード</h1>
+        <span class="meta">2026年度 · 通期サマリ</span>
+        <div class="spacer"></div>
+        <div class="seg">
+          <button class="on">2026</button>
+          <button>2025</button>
+          <button>2024</button>
+        </div>
+        <div class="seg">
+          <button class="on">全社</button>
+          <button>自分担当のみ</button>
+        </div>
+      </div>
+
+      <!-- KPI cards -->
+      <div class="kpi-grid">
+        <div class="kpi">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-7"/></svg>
+            今期受注額
+          </div>
+          <div class="value"><span class="yen">¥</span>45,800,000</div>
+          <div>
+            <span class="delta up">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12l7-7 7 7M12 5v14"/></svg>
+              +12.4%
+            </span>
+            <span class="sub">前年比</span>
+          </div>
+          <svg class="kpi-spark" viewBox="0 0 60 24" fill="none" preserveAspectRatio="none">
+            <polyline points="0,18 8,16 16,17 24,12 32,14 40,10 48,8 60,5" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          </svg>
+        </div>
+
+        <div class="kpi">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            今期粗利
+          </div>
+          <div class="value"><span class="yen">¥</span>9,202,000</div>
+          <div>
+            <span class="delta up">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12l7-7 7 7M12 5v14"/></svg>
+              +8.1%
+            </span>
+            <span class="sub">粗利率 20.1%</span>
+          </div>
+          <svg class="kpi-spark" viewBox="0 0 60 24" fill="none" preserveAspectRatio="none">
+            <polyline points="0,15 10,14 20,16 30,11 40,12 50,9 60,7" stroke="currentColor" stroke-width="1.2" fill="none"/>
+          </svg>
+        </div>
+
+        <div class="kpi">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 20h20M4 20V8l8-5 8 5v12M9 20V12h6v8"/></svg>
+            進行中案件
+          </div>
+          <div class="value">23<span class="yen" style="font-size:14px;margin-left:4px">件</span></div>
+          <div>
+            <span class="delta up">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12l7-7 7 7M12 5v14"/></svg>
+              +3
+            </span>
+            <span class="sub">うち施工中 12件</span>
+          </div>
+        </div>
+
+        <div class="kpi">
+          <div class="label">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 3v18h18"/><rect x="7" y="13" width="3" height="5"/><rect x="12" y="9" width="3" height="9"/><rect x="17" y="5" width="3" height="13"/></svg>
+            平均営業利益率
+          </div>
+          <div class="value">11.3<span class="yen" style="font-size:14px;margin-left:2px">%</span></div>
+          <div>
+            <span class="delta down">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12l-7 7-7-7M12 19V5"/></svg>
+              −0.6pt
+            </span>
+            <span class="sub">目標 12.0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 12px;"></div>
+
+      <!-- Charts row -->
+      <div class="chart-row">
+
+        <!-- Status distribution -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title">ステータス分布</div>
+              <div class="card-sub">7段階 · 全128件</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm">詳細</button>
+            </div>
+          </div>
+          <div class="card-pad">
+            <div class="donut-wrap">
+              <svg class="donut" viewBox="0 0 42 42">
+                <!-- background -->
+                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--c-surface-2)" stroke-width="6"/>
+                <!-- 7 segments. total 128. 18/35/18/12/22/14/9 -->
+                <!-- circumference = 100 -->
+                <!-- order: quote 18 (14.1%), order 35 (27.3%), start 18 (14.1%), progress 12 (9.4%), done 22 (17.2%), billed 14 (10.9%), paid 9 (7.0%) -->
+                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--c-status-quote)"    stroke-width="6" stroke-dasharray="14.1 85.9"  stroke-dashoffset="25"/>
+                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--c-status-order)"    stroke-width="6" stroke-dasharray="27.3 72.7"  stroke-dashoffset="10.9"/>
+                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--c-status-start)"    stroke-width="6" stroke-dasharray="14.1 85.9"  stroke-dashoffset="-16.4"/>
+                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--c-status-progress)" stroke-width="6" stroke-dasharray="9.4 90.6"   stroke-dashoffset="-30.5"/>
+                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--c-status-done)"     stroke-width="6" stroke-dasharray="17.2 82.8"  stroke-dashoffset="-39.9"/>
+                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--c-status-billed)"   stroke-width="6" stroke-dasharray="10.9 89.1"  stroke-dashoffset="-57.1"/>
+                <circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="var(--c-status-paid)"     stroke-width="6" stroke-dasharray="7.0 93.0"   stroke-dashoffset="-68"/>
+                <text x="21" y="21" text-anchor="middle" class="donut-center">128</text>
+                <text x="21" y="25.5" text-anchor="middle" font-size="3" fill="var(--c-text-muted)">件</text>
+              </svg>
+              <div class="donut-legend">
+                <div class="row"><span class="sw" style="background:var(--c-status-quote)"></span><span class="nm">見積中</span><span class="ct">18</span></div>
+                <div class="row"><span class="sw" style="background:var(--c-status-order)"></span><span class="nm">受注</span><span class="ct">35</span></div>
+                <div class="row"><span class="sw" style="background:var(--c-status-start)"></span><span class="nm">着工</span><span class="ct">18</span></div>
+                <div class="row"><span class="sw" style="background:var(--c-status-progress)"></span><span class="nm">施工中</span><span class="ct">12</span></div>
+                <div class="row"><span class="sw" style="background:var(--c-status-done)"></span><span class="nm">完工</span><span class="ct">22</span></div>
+                <div class="row"><span class="sw" style="background:var(--c-status-billed)"></span><span class="nm">請求済</span><span class="ct">14</span></div>
+                <div class="row"><span class="sw" style="background:var(--c-status-paid)"></span><span class="nm">入金済</span><span class="ct">9</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Monthly composed chart -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title">月別 受注額・粗利推移</div>
+              <div class="card-sub">2026年4月 〜 2027年3月</div>
+            </div>
+            <div class="actions">
+              <span style="display:inline-flex;gap:10px;font-size:11px;color:var(--c-text-muted);align-items:center">
+                <span style="display:inline-flex;gap:5px;align-items:center"><span style="width:10px;height:10px;background:var(--c-primary);border-radius:2px"></span>受注額</span>
+                <span style="display:inline-flex;gap:5px;align-items:center"><span style="width:14px;height:2px;background:var(--c-accent)"></span>粗利</span>
+              </span>
+            </div>
+          </div>
+          <div class="bar-chart">
+            <svg class="bar-svg" viewBox="0 0 720 200" preserveAspectRatio="none">
+              <!-- y grid -->
+              <g stroke="var(--c-border)" stroke-dasharray="2 3" stroke-width="0.5">
+                <line x1="40" y1="20" x2="710" y2="20"/>
+                <line x1="40" y1="60" x2="710" y2="60"/>
+                <line x1="40" y1="100" x2="710" y2="100"/>
+                <line x1="40" y1="140" x2="710" y2="140"/>
+                <line x1="40" y1="180" x2="710" y2="180"/>
+              </g>
+              <!-- y labels -->
+              <g font-size="9" fill="var(--c-text-subtle)" font-family="JetBrains Mono">
+                <text x="35" y="22" text-anchor="end">800</text>
+                <text x="35" y="62" text-anchor="end">600</text>
+                <text x="35" y="102" text-anchor="end">400</text>
+                <text x="35" y="142" text-anchor="end">200</text>
+                <text x="35" y="182" text-anchor="end">0</text>
+              </g>
+              <!-- bars (12 months) -->
+              <!-- x: 50 + i*55, width 30 -->
+              <g fill="var(--c-primary)" opacity="0.92">
+                <rect x="50"  y="100" width="30" height="80"/>
+                <rect x="105" y="80"  width="30" height="100"/>
+                <rect x="160" y="60"  width="30" height="120"/>
+                <rect x="215" y="45"  width="30" height="135"/>
+                <rect x="270" y="55"  width="30" height="125"/>
+                <rect x="325" y="35"  width="30" height="145"/>
+                <rect x="380" y="50"  width="30" height="130"/>
+                <rect x="435" y="40"  width="30" height="140"/>
+              </g>
+              <g fill="var(--c-surface-3)" stroke="var(--c-border)" stroke-width="0.5">
+                <rect x="490" y="90"  width="30" height="90"/>
+                <rect x="545" y="80"  width="30" height="100"/>
+                <rect x="600" y="70"  width="30" height="110"/>
+                <rect x="655" y="65"  width="30" height="115"/>
+              </g>
+              <!-- gross profit line -->
+              <polyline
+                fill="none"
+                stroke="var(--c-accent)"
+                stroke-width="1.8"
+                points="65,150 120,135 175,120 230,108 285,118 340,98 395,112 450,100 505,142 560,135 615,128 670,122"/>
+              <!-- dots -->
+              <g fill="var(--c-accent)">
+                <circle cx="65"  cy="150" r="2.5"/>
+                <circle cx="120" cy="135" r="2.5"/>
+                <circle cx="175" cy="120" r="2.5"/>
+                <circle cx="230" cy="108" r="2.5"/>
+                <circle cx="285" cy="118" r="2.5"/>
+                <circle cx="340" cy="98"  r="2.5"/>
+                <circle cx="395" cy="112" r="2.5"/>
+                <circle cx="450" cy="100" r="2.5"/>
+                <circle cx="505" cy="142" r="2.5" fill="var(--c-surface)" stroke="var(--c-accent)" stroke-width="1.5"/>
+                <circle cx="560" cy="135" r="2.5" fill="var(--c-surface)" stroke="var(--c-accent)" stroke-width="1.5"/>
+                <circle cx="615" cy="128" r="2.5" fill="var(--c-surface)" stroke="var(--c-accent)" stroke-width="1.5"/>
+                <circle cx="670" cy="122" r="2.5" fill="var(--c-surface)" stroke="var(--c-accent)" stroke-width="1.5"/>
+              </g>
+              <!-- x labels -->
+              <g font-size="9" fill="var(--c-text-subtle)" font-family="JetBrains Mono" text-anchor="middle">
+                <text x="65"  y="194">4月</text>
+                <text x="120" y="194">5月</text>
+                <text x="175" y="194">6月</text>
+                <text x="230" y="194">7月</text>
+                <text x="285" y="194">8月</text>
+                <text x="340" y="194">9月</text>
+                <text x="395" y="194">10月</text>
+                <text x="450" y="194">11月</text>
+                <text x="505" y="194">12月</text>
+                <text x="560" y="194">1月</text>
+                <text x="615" y="194">2月</text>
+                <text x="670" y="194">3月</text>
+              </g>
+              <!-- forecast label -->
+              <text x="585" y="32" font-size="9" fill="var(--c-text-muted)" font-family="Inter">見込み →</text>
+              <line x1="478" y1="20" x2="478" y2="180" stroke="var(--c-border-strong)" stroke-width="0.6" stroke-dasharray="3 3"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <div style="height: 12px;"></div>
+
+      <!-- Alerts + Timeline -->
+      <div class="grid-2">
+
+        <!-- Ranking -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title">利益率ランキング Top 10</div>
+              <div class="card-sub">進行中・完工案件から</div>
+            </div>
+            <div class="actions">
+              <button class="btn btn-ghost btn-sm">CSV</button>
+              <button class="btn btn-ghost btn-sm">すべて見る →</button>
+            </div>
+          </div>
+          <table class="tbl">
+            <thead>
+              <tr>
+                <th style="width: 38px;">#</th>
+                <th>工事名 / 発注者</th>
+                <th>ステータス</th>
+                <th class="num">金額</th>
+                <th class="num">粗利率</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="muted num">1</td>
+                <td class="rank-name">三国第二工場 配管改修<small>株式会社協和自工</small></td>
+                <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+                <td class="num">¥4,820,000</td>
+                <td class="num"><span class="rate-bar"><i style="width:88%"></i></span><strong>28.4%</strong></td>
+              </tr>
+              <tr>
+                <td class="muted num">2</td>
+                <td class="rank-name">坂井市役所 庁舎屋上防水<small>坂井市役所</small></td>
+                <td><span class="badge s-done"><span class="dot"></span>完工</span></td>
+                <td class="num">¥6,200,000</td>
+                <td class="num"><span class="rate-bar"><i style="width:80%"></i></span><strong>25.9%</strong></td>
+              </tr>
+              <tr>
+                <td class="muted num">3</td>
+                <td class="rank-name">福井支店 内装工事<small>株式会社平和建設</small></td>
+                <td><span class="badge s-billed"><span class="dot"></span>請求済</span></td>
+                <td class="num">¥3,150,000</td>
+                <td class="num"><span class="rate-bar"><i style="width:72%"></i></span><strong>23.1%</strong></td>
+              </tr>
+              <tr>
+                <td class="muted num">4</td>
+                <td class="rank-name">A棟外壁塗装<small>三国観光ホテル</small></td>
+                <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+                <td class="num">¥2,840,000</td>
+                <td class="num"><span class="rate-bar"><i style="width:68%"></i></span><strong>21.7%</strong></td>
+              </tr>
+              <tr>
+                <td class="muted num">5</td>
+                <td class="rank-name">工場内間仕切壁撤去工事（再）<small>協和自工株式会社</small></td>
+                <td><span class="badge s-start"><span class="dot"></span>着工</span></td>
+                <td class="num">¥1,780,000</td>
+                <td class="num"><span class="rate-bar"><i style="width:60%"></i></span><strong>19.4%</strong></td>
+              </tr>
+              <tr>
+                <td class="muted num">6</td>
+                <td class="rank-name">事務所棟リフォーム<small>株式会社木下</small></td>
+                <td><span class="badge s-order"><span class="dot"></span>受注</span></td>
+                <td class="num">¥5,400,000</td>
+                <td class="num"><span class="rate-bar"><i style="width:54%"></i></span><strong>17.5%</strong></td>
+              </tr>
+              <tr>
+                <td class="muted num">7</td>
+                <td class="rank-name">店舗改装<small>有限会社かわかみ</small></td>
+                <td><span class="badge s-paid"><span class="dot"></span>入金済</span></td>
+                <td class="num">¥1,240,000</td>
+                <td class="num"><span class="rate-bar"><i style="width:50%"></i></span><strong>16.0%</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+
+          <!-- Alerts -->
+          <div class="alert-card">
+            <div class="card-head">
+              <div>
+                <div class="card-title" style="display:flex;align-items:center;gap:6px">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-warn)" stroke-width="1.8"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+                  期限アラート
+                </div>
+                <div class="card-sub">対応が必要な案件 · 計6件</div>
+              </div>
+            </div>
+            <div class="alert-row danger">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+              </div>
+              <div>
+                <div class="label">工期超過</div>
+                <div class="muted" style="font-size:11px">坂井市庁舎 / 三国第二工場 · 平均 6日遅延</div>
+              </div>
+              <div class="count">2<small>件</small></div>
+              <a class="link" href="#">確認 →</a>
+            </div>
+            <div class="alert-row warn">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6"/></svg>
+              </div>
+              <div>
+                <div class="label">請求書未発行</div>
+                <div class="muted" style="font-size:11px">完工後 30日以上経過</div>
+              </div>
+              <div class="count">3<small>件</small></div>
+              <a class="link" href="#">確認 →</a>
+            </div>
+            <div class="alert-row info">
+              <div class="icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 1l3 6 6 1-4.5 4.5L18 19l-6-3-6 3 1.5-6.5L3 8l6-1 3-6z"/></svg>
+              </div>
+              <div>
+                <div class="label">入金未確認</div>
+                <div class="muted" style="font-size:11px">請求書発行 60日経過</div>
+              </div>
+              <div class="count">1<small>件</small></div>
+              <a class="link" href="#">確認 →</a>
+            </div>
+          </div>
+
+          <!-- Timeline -->
+          <div class="card" style="min-width:0">
+            <div class="card-head">
+              <div>
+                <div class="card-title">最近の活動</div>
+                <div class="card-sub">直近 20件</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm">すべて</button>
+              </div>
+            </div>
+            <div class="timeline">
+              <div class="tl-row">
+                <div class="avatar" style="background:var(--c-accent)">中</div>
+                <div class="what">中山 太郎が <strong>三国第二工場 配管改修</strong> <span class="pn">26-3-014</span> のQCDSを更新</div>
+                <div class="when">5分前</div>
+              </div>
+              <div class="tl-row">
+                <div class="avatar" style="background:var(--c-status-billed)">奴</div>
+                <div class="what">奴間 正人が <strong>福井支店 内装工事</strong> <span class="pn">26-1-008</span> の見積を <strong>承認</strong></div>
+                <div class="when">23分前</div>
+              </div>
+              <div class="tl-row">
+                <div class="avatar">平</div>
+                <div class="what">平等 久盛が業者見積をスキャン（<strong>北陸電気工業</strong>）</div>
+                <div class="when">1時間前</div>
+              </div>
+              <div class="tl-row">
+                <div class="avatar" style="background:var(--c-status-progress)">山</div>
+                <div class="what">山田 健司が <strong>A棟外壁塗装</strong> <span class="pn">26-5-011</span> に写真3枚を追加</div>
+                <div class="when">2時間前</div>
+              </div>
+              <div class="tl-row">
+                <div class="avatar" style="background:var(--c-status-order)">経</div>
+                <div class="what">経理が <strong>店舗改装</strong> <span class="pn">25-7-122</span> を <strong>入金済</strong>に変更</div>
+                <div class="when">昨日 17:42</div>
+              </div>
+              <div class="tl-row">
+                <div class="avatar" style="background:var(--c-accent)">中</div>
+                <div class="what">中山 太郎が新規案件 <strong>第3倉庫 床補修</strong> <span class="pn">26-3-015</span> を作成</div>
+                <div class="when">昨日 14:08</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  // Theme switch
+  const themeSwitch = document.getElementById('themeSwitch');
+  themeSwitch.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-theme-set]');
+    if (!btn) return;
+    const theme = btn.dataset.themeSet;
+    document.documentElement.dataset.theme = theme;
+    themeSwitch.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,130 @@
+/* Construction Manager v3 — Print/A4 document base
+ * Used for 見積書表紙 / 請求書 / 注文書 等
+ * A4 = 210mm × 297mm
+ */
+
+@page {
+  size: A4 portrait;
+  margin: 0;
+}
+
+* { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: #e9e9e6;
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "MS Mincho", serif;
+  color: #111;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Toolbar shown on screen (hidden when printed) */
+.print-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #161A23;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 20px;
+  font-family: "Inter", "Hiragino Kaku Gothic ProN", sans-serif;
+  font-size: 13px;
+  border-bottom: 1px solid #2A3142;
+}
+.print-toolbar .doc-title { font-weight: 700; font-size: 14px; }
+.print-toolbar .doc-meta { color: #9CA3AF; font-size: 11px; font-family: "JetBrains Mono", monospace; }
+.print-toolbar .spacer { flex: 1; }
+.print-toolbar .btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.print-toolbar .btn:hover { background: rgba(255,255,255,0.12); }
+.print-toolbar .btn.primary { background: #1B2A52; border-color: #2A3A6B; }
+.print-toolbar .btn.primary:hover { background: #2A3A6B; }
+.print-toolbar .btn svg { width: 13px; height: 13px; stroke-width: 1.6; }
+.print-toolbar .approve-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.print-toolbar .approve-pill.approved { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+.print-toolbar .approve-pill.draft { background: rgba(156, 163, 175, 0.18); color: #9CA3AF; }
+
+/* Page chrome — the actual sheet */
+.sheet-shell {
+  display: flex;
+  justify-content: center;
+  padding: 22px 0 60px;
+}
+.sheet {
+  width: 210mm;
+  min-height: 297mm;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.18), 0 2px 4px rgba(0,0,0,0.08);
+  padding: 18mm 16mm;
+  position: relative;
+  font-size: 11pt;
+  line-height: 1.5;
+}
+
+@media print {
+  body { background: #fff; }
+  .print-toolbar { display: none; }
+  .sheet-shell { padding: 0; }
+  .sheet { box-shadow: none; padding: 18mm 16mm; }
+  .no-print { display: none !important; }
+}
+
+/* Watermarks */
+.wm {
+  position: absolute;
+  top: 35%; left: 0; right: 0;
+  text-align: center;
+  font-size: 90pt;
+  font-weight: 700;
+  font-family: "Hiragino Mincho ProN", serif;
+  letter-spacing: 0.2em;
+  pointer-events: none;
+  transform: rotate(-18deg);
+}
+.wm.draft { color: rgba(156, 163, 175, 0.20); }
+.wm.pending { color: rgba(245, 158, 11, 0.18); }
+.wm.rejected { color: rgba(192, 0, 0, 0.18); }
+
+/* Stamps */
+.stamp-circle {
+  width: 18mm; height: 18mm;
+  border: 1.2mm solid #C00000;
+  color: #C00000;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+  font-weight: 600;
+  font-size: 12pt;
+  letter-spacing: 2pt;
+  writing-mode: vertical-rl;
+  line-height: 1;
+}
+.stamp-circle.compact {
+  width: 14mm; height: 14mm;
+  border-width: 0.9mm;
+  font-size: 10pt;
+  letter-spacing: 1pt;
+}
+
+/* Helpers */
+.fs-num { font-family: "JetBrains Mono", "Courier New", monospace; font-variant-numeric: tabular-nums; }
+.fs-gothic { font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif; }

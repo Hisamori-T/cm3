@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S16 管理 — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Admin layout */
+  .admin-shell {
+    display: grid;
+    grid-template-columns: 230px 1fr;
+    gap: 22px;
+  }
+  .admin-nav {
+    display: flex; flex-direction: column;
+    gap: 2px;
+    padding-right: 14px;
+    border-right: 1px solid var(--c-border);
+  }
+  .admin-nav .sec-title {
+    font-size: 10px;
+    color: var(--c-text-subtle);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 6px 8px 4px;
+  }
+  .admin-nav a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px;
+    border-radius: var(--r-md);
+    color: var(--c-text-muted);
+    font-size: 13px;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .admin-nav a:hover { background: var(--c-surface-2); color: var(--c-text);}
+  .admin-nav a.active { background: var(--c-primary-50); color: var(--c-primary); font-weight: 600; }
+  [data-theme="dark"] .admin-nav a.active { color: #fff; }
+  .admin-nav a svg { width: 14px; height: 14px; stroke-width: 1.5; flex: 0 0 14px; }
+  .admin-nav a .pill {
+    margin-left: auto; font-size: 10px;
+    background: var(--c-surface-2); color: var(--c-text-muted);
+    border-radius: var(--r-pill); padding: 0 6px;
+    font-family: var(--ff-mono); font-weight: 600;
+  }
+
+  /* User table */
+  .utbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  .utbl thead th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-align: left;
+    border-bottom: 1px solid var(--c-border);
+    padding: 9px 12px;
+  }
+  .utbl tbody td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: middle;
+  }
+  .utbl .uname {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .utbl .uname .ava {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    color: #fff; font-weight: 700;
+    display: grid; place-items: center;
+    font-size: 12px;
+    flex: 0 0 32px;
+  }
+  .utbl .uname .info .nm { font-weight: 600;}
+  .utbl .uname .info small { display: block; color: var(--c-text-muted); font-size: 11px; margin-top:1px;}
+  .role-chip {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px;
+    border-radius: var(--r-pill);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .role-chip.admin { background: color-mix(in oklab,var(--c-primary) 14%,var(--c-surface)); color: var(--c-primary);}
+  [data-theme="dark"] .role-chip.admin { background: color-mix(in oklab,var(--c-primary) 30%,var(--c-surface)); color: #fff; }
+  .role-chip.editor { background: color-mix(in oklab,var(--c-accent) 14%,var(--c-surface)); color: var(--c-accent);}
+  .role-chip.viewer { background: var(--c-surface-2); color: var(--c-text-muted);}
+  .stamp-mini {
+    width: 30px; height: 30px;
+    border: 1.5px solid var(--c-stamp);
+    color: var(--c-stamp);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: "Hiragino Mincho ProN", serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1px;
+    writing-mode: vertical-rl;
+    line-height: 1;
+  }
+  .stamp-mini.navy { border-color: var(--c-primary); color: var(--c-primary);}
+  [data-theme="dark"] .stamp-mini.navy { border-color: #c7d2fe; color: #c7d2fe; }
+
+  /* Toggle */
+  .toggle-sw {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px;
+    color: var(--c-text-muted);
+  }
+  .toggle-sw .sw {
+    position: relative;
+    width: 28px; height: 16px;
+    background: var(--c-surface-3);
+    border-radius: var(--r-pill);
+    cursor: pointer;
+  }
+  .toggle-sw .sw::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.15s;
+  }
+  .toggle-sw.on .sw { background: var(--c-success); }
+  .toggle-sw.on .sw::after { transform: translateX(12px); }
+  .toggle-sw.on { color: var(--c-success); font-weight: 600;}
+
+  /* Tax table */
+  .tax-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .tax-tbl th, .tax-tbl td {
+    border-bottom: 1px solid var(--c-border);
+    padding: 8px 12px;
+    text-align: left;
+  }
+  .tax-tbl th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+  }
+  .tax-tbl .num { text-align: right; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .tax-tbl tbody td:first-child { font-family: var(--ff-mono); color: var(--c-text-muted); width: 40px;}
+
+  /* Cards inside admin */
+  .admin-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .admin-card-head {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--c-border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .admin-card-head .ttl { font-weight: 700; font-size: 14px; }
+  .admin-card-head .sub { font-size: 12px; color: var(--c-text-muted); }
+  .admin-card-head .right { margin-left: auto; }
+
+  h1.admin-h { font-size: 22px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em;}
+  h1.admin-h + p { margin: 0 0 18px; color: var(--c-text-muted); font-size: 13px; }
+</style>
+</head>
+<body data-screen-label="S16 Admin">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">管理</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        管理
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <strong>管理</strong>
+        <span class="sep">/</span>
+        <span style="color:var(--c-text)">ユーザー</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <span style="font-size:11px;color:var(--c-text-muted);font-family:var(--ff-mono)">管理者: 平等 久盛</span>
+    </header>
+
+    <main class="page">
+
+      <div class="admin-shell">
+
+        <nav class="admin-nav">
+          <div class="sec-title">組織</div>
+          <a class="active" href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2M17 11a4 4 0 100-8 4 4 0 000 8z"/></svg>ユーザー <span class="pill">12</span></a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 21h18M5 21V7l8-4 8 4v14M9 9h6M9 13h6M9 17h6"/></svg>会社情報</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>承認ルート</a>
+
+          <div class="sec-title">マスタ</div>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>印紙税表 <span class="pill">18</span></a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>見積条件文</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>基本契約約款</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg>QCDS テンプレート</a>
+
+          <div class="sec-title">運用</div>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>監査ログ</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 10h20"/></svg>バックアップ</a>
+          <a href="#"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>システム状態</a>
+        </nav>
+
+        <div class="admin-main">
+          <h1 class="admin-h">ユーザー管理</h1>
+          <p>社員のアカウント・権限・印影を管理します。Phase 1 は社内 12名 想定。</p>
+
+          <!-- KPI mini -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px">
+            <div class="card" style="padding:12px 14px"><div style="font-size:11px;color:var(--c-text-muted);font-weight:600">登録ユーザー</div><div style="font-family:var(--ff-mono);font-size:20px;font-weight:700">12</div></div>
+            <div class="card" style="padding:12px 14px"><div style="font-size:11px;color:var(--c-text-muted);font-weight:600">アクティブ（30日）</div><div style="font-family:var(--ff-mono);font-size:20px;font-weight:700">9</div></div>
+            <div class="card" style="padding:12px 14px"><div style="font-size:11px;color:var(--c-text-muted);font-weight:600">管理者</div><div style="font-family:var(--ff-mono);font-size:20px;font-weight:700">2</div></div>
+            <div class="card" style="padding:12px 14px"><div style="font-size:11px;color:var(--c-text-muted);font-weight:600">招待中</div><div style="font-family:var(--ff-mono);font-size:20px;font-weight:700" style="color:var(--c-warn)">1</div></div>
+          </div>
+
+          <div class="admin-card">
+            <div class="admin-card-head">
+              <div>
+                <div class="ttl">ユーザー一覧</div>
+                <div class="sub">最終ログイン順</div>
+              </div>
+              <div class="right" style="display:flex;gap:8px">
+                <input class="input" placeholder="名前・メールで検索" style="width:200px;font-size:12px"/>
+                <button class="btn btn-primary btn-sm">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M8 11a4 4 0 100-8 4 4 0 000 8zM20 8v6M23 11h-6"/></svg>
+                  招待
+                </button>
+              </div>
+            </div>
+
+            <table class="utbl">
+              <thead>
+                <tr>
+                  <th>ユーザー</th>
+                  <th style="width:140px">役職 / 部署</th>
+                  <th style="width:90px">権限</th>
+                  <th style="width:64px">印影</th>
+                  <th style="width:100px">最終ログイン</th>
+                  <th style="width:90px">2FA</th>
+                  <th style="width:60px;text-align:right">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <div class="uname">
+                      <div class="ava" style="background:var(--c-status-billed)">奴</div>
+                      <div class="info"><div class="nm">奴間 正人</div><small>nukuma@clap-corp.example</small></div>
+                    </div>
+                  </td>
+                  <td>代表取締役</td>
+                  <td><span class="role-chip admin">管理者</span></td>
+                  <td><div class="stamp-mini">奴間</div></td>
+                  <td style="font-family:var(--ff-mono);font-size:11px">本日 09:42</td>
+                  <td><span class="toggle-sw on"><span class="sw"></span>有効</span></td>
+                  <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="uname">
+                      <div class="ava" style="background:var(--c-primary)">平</div>
+                      <div class="info"><div class="nm">平等 久盛 <span style="font-size:10px;color:var(--c-text-muted);font-weight:500">（自分）</span></div><small>hisamori@clap-corp.example</small></div>
+                    </div>
+                  </td>
+                  <td>営業 / 管理者</td>
+                  <td><span class="role-chip admin">管理者</span></td>
+                  <td><div class="stamp-mini">平等</div></td>
+                  <td style="font-family:var(--ff-mono);font-size:11px">本日</td>
+                  <td><span class="toggle-sw on"><span class="sw"></span>有効</span></td>
+                  <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="uname">
+                      <div class="ava" style="background:var(--c-status-progress)">中</div>
+                      <div class="info"><div class="nm">中山 太郎</div><small>nakayama@clap-corp.example</small></div>
+                    </div>
+                  </td>
+                  <td>工事部 / 部長代理</td>
+                  <td><span class="role-chip editor">編集者</span></td>
+                  <td><div class="stamp-mini">中山</div></td>
+                  <td style="font-family:var(--ff-mono);font-size:11px">本日 14:08</td>
+                  <td><span class="toggle-sw on"><span class="sw"></span>有効</span></td>
+                  <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="uname">
+                      <div class="ava" style="background:var(--c-status-start)">山</div>
+                      <div class="info"><div class="nm">山田 健司</div><small>yamada@clap-corp.example</small></div>
+                    </div>
+                  </td>
+                  <td>工事担当</td>
+                  <td><span class="role-chip editor">編集者</span></td>
+                  <td><div class="stamp-mini">山田</div></td>
+                  <td style="font-family:var(--ff-mono);font-size:11px">本日 11:20</td>
+                  <td><span class="toggle-sw on"><span class="sw"></span>有効</span></td>
+                  <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="uname">
+                      <div class="ava" style="background:var(--c-accent)">経</div>
+                      <div class="info"><div class="nm">小林 美咲</div><small>kobayashi@clap-corp.example</small></div>
+                    </div>
+                  </td>
+                  <td>経理</td>
+                  <td><span class="role-chip editor">編集者</span></td>
+                  <td><div class="stamp-mini navy">小林</div></td>
+                  <td style="font-family:var(--ff-mono);font-size:11px">昨日</td>
+                  <td><span class="toggle-sw on"><span class="sw"></span>有効</span></td>
+                  <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+                </tr>
+                <tr>
+                  <td>
+                    <div class="uname">
+                      <div class="ava" style="background:var(--c-text-subtle)">高</div>
+                      <div class="info"><div class="nm">高木 一郎</div><small>takagi@clap-corp.example</small></div>
+                    </div>
+                  </td>
+                  <td>工事担当（ベテラン）</td>
+                  <td><span class="role-chip viewer">閲覧者</span></td>
+                  <td><div class="stamp-mini">高木</div></td>
+                  <td style="font-family:var(--ff-mono);font-size:11px">3日前</td>
+                  <td><span class="toggle-sw" style="color:var(--c-text-muted)"><span class="sw"></span>無効</span></td>
+                  <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+                </tr>
+                <tr style="background:var(--c-warn-bg)">
+                  <td>
+                    <div class="uname">
+                      <div class="ava" style="background:var(--c-warn)">藤</div>
+                      <div class="info"><div class="nm">藤田 健太 <span class="badge" style="font-size:10px;padding:1px 5px;background:var(--c-warn);color:#fff;border-radius:var(--r-pill);margin-left:4px">招待中</span></div><small>fujita@clap-corp.example</small></div>
+                    </div>
+                  </td>
+                  <td>営業（新入社員）</td>
+                  <td><span class="role-chip editor">編集者</span></td>
+                  <td style="color:var(--c-text-subtle)">未設定</td>
+                  <td style="font-family:var(--ff-mono);font-size:11px;color:var(--c-warn)">招待 4/30</td>
+                  <td>—</td>
+                  <td style="text-align:right"><button class="btn btn-ghost btn-sm">再送</button></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-top:1px solid var(--c-border);background:var(--c-surface-2);font-size:12px;color:var(--c-text-muted)">
+              7 / 12 件表示中　·　全12名（管理者2 / 編集者8 / 閲覧者2 / 招待中1）
+            </div>
+          </div>
+
+          <!-- Stamp tax table -->
+          <div class="admin-card">
+            <div class="admin-card-head">
+              <div>
+                <div class="ttl">印紙税額表（第2号文書：請負）</div>
+                <div class="sub">2026年度版 · 注文書の印紙税自動算定に使用</div>
+              </div>
+              <div class="right">
+                <span style="font-size:11px;color:var(--c-text-muted);font-family:var(--ff-mono);margin-right:8px">最終更新 2026/01/04</span>
+                <button class="btn btn-ghost btn-sm">編集</button>
+              </div>
+            </div>
+            <table class="tax-tbl">
+              <thead><tr><th>#</th><th>契約金額（税抜）</th><th class="num">本則</th><th class="num">軽減税率</th></tr></thead>
+              <tbody>
+                <tr><td>1</td><td>1万円未満</td><td class="num">非課税</td><td class="num">非課税</td></tr>
+                <tr><td>2</td><td>1万円以上 〜 100万円以下</td><td class="num">¥200</td><td class="num">¥200</td></tr>
+                <tr><td>3</td><td>100万円超 〜 200万円以下</td><td class="num">¥400</td><td class="num">¥200</td></tr>
+                <tr><td>4</td><td>200万円超 〜 300万円以下</td><td class="num">¥1,000</td><td class="num">¥500</td></tr>
+                <tr><td>5</td><td>300万円超 〜 500万円以下</td><td class="num">¥2,000</td><td class="num">¥1,000</td></tr>
+                <tr><td>6</td><td>500万円超 〜 1,000万円以下</td><td class="num"><strong>¥10,000</strong></td><td class="num"><strong>¥5,000</strong></td></tr>
+                <tr><td>7</td><td>1,000万円超 〜 5,000万円以下</td><td class="num">¥20,000</td><td class="num">¥10,000</td></tr>
+                <tr><td>8</td><td>5,000万円超 〜 1億円以下</td><td class="num">¥60,000</td><td class="num">¥30,000</td></tr>
+                <tr><td>…</td><td colspan="3" style="color:var(--c-text-subtle)">＋ 10億円超まで全18段</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

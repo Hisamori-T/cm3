@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S06 見積書 — Construction Manager v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Approval status bar — full width */
+  .ap-bar {
+    background: color-mix(in oklab, var(--c-warn) 8%, var(--c-surface));
+    border: 1px solid color-mix(in oklab, var(--c-warn) 35%, var(--c-border));
+    border-radius: var(--r-lg);
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 18px;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .ap-bar .pulse {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--c-warn);
+    color: #fff;
+    display: grid; place-items: center;
+    flex: 0 0 32px;
+    position: relative;
+  }
+  .ap-bar .pulse::before {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border: 2px solid var(--c-warn);
+    border-radius: 50%;
+    opacity: 0.4;
+    animation: ap-pulse 1.8s ease-out infinite;
+  }
+  @keyframes ap-pulse {
+    0% { transform: scale(1); opacity: 0.4; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+  .ap-bar .pulse svg { width: 16px; height: 16px; stroke-width: 2; }
+  .ap-bar .ttl { font-size: 13px; font-weight: 700; }
+  .ap-bar .ttl small { display: block; font-weight: 500; color: var(--c-text-muted); margin-top: 2px; font-size: 12px;}
+
+  .ap-bar .steps { display: flex; gap: 6px; align-items: center; }
+  .ap-step {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 10px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  .ap-step .dot {
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--c-surface-2);
+    border: 1.5px solid var(--c-border-strong);
+    display: grid; place-items: center;
+    flex: 0 0 18px;
+    color: var(--c-text-subtle);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .ap-step.done .dot { background: var(--c-success); border-color: var(--c-success); color: #fff; }
+  .ap-step.done .dot::after { content: ""; width: 5px; height: 9px; border-right: 2px solid #fff; border-bottom: 2px solid #fff; transform: rotate(45deg); margin-top:-2px;}
+  .ap-step.pend .dot {
+    background: var(--c-warn); border-color: var(--c-warn); color: #fff;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.5);} 50% { box-shadow: 0 0 0 6px rgba(245,158,11,0);}}
+  .ap-step .role { color: var(--c-text-muted); font-size: 10px; font-weight: 600; letter-spacing: 0.04em;}
+  .ap-step .who { font-weight: 600; }
+  .ap-step .ts { color: var(--c-text-subtle); font-family: var(--ff-mono); font-size: 10px; margin-left: 2px; }
+  .ap-arrow {
+    color: var(--c-text-subtle);
+    flex: 0 0 10px;
+  }
+  .ap-bar .actions { display: flex; gap: 6px; }
+
+  /* Lock notice */
+  .lock {
+    display: flex; gap: 10px; align-items: center;
+    padding: 9px 14px;
+    background: var(--c-info-bg);
+    border-radius: var(--r-md);
+    font-size: 12px;
+    border-left: 3px solid var(--c-info);
+    margin-bottom: 14px;
+  }
+  [data-theme="dark"] .lock { background: color-mix(in oklab, var(--c-info) 14%, var(--c-surface)); }
+  .lock svg { width: 14px; height: 14px; color: var(--c-info); stroke-width: 1.8; flex: 0 0 14px;}
+
+  /* Quote hero */
+  .q-hero {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 14px 18px;
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 14px;
+  }
+  .q-hero .qn {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    color: var(--c-text-muted);
+    background: var(--c-surface-2);
+    padding: 3px 9px;
+    border-radius: var(--r-md);
+    font-weight: 600;
+  }
+  .q-hero h1 { margin: 0; font-size: 18px; font-weight: 700;}
+  .q-hero h1 small { display:block; font-weight: 500; color: var(--c-text-muted); font-size:12px;margin-top:2px;}
+  .q-hero .ext { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* Main layout */
+  .q-grid { display: grid; grid-template-columns: 2.3fr 1fr; gap: 12px; }
+
+  /* Header field grid */
+  .qf-grid {
+    display: grid;
+    grid-template-columns: 100px 1fr 100px 1fr;
+    border-top: 1px solid var(--c-border);
+  }
+  .qf-grid > div {
+    border-bottom: 1px solid var(--c-border);
+    padding: 9px 12px;
+    font-size: 13px;
+    min-height: 36px;
+    display: flex; align-items: center;
+  }
+  .qf-grid > div.k {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    border-right: 1px solid var(--c-border);
+  }
+  .qf-grid > div.v { border-right: 1px solid var(--c-border); }
+  .qf-grid > div.v:last-of-type { border-right: none; }
+  .qf-grid > div.span2 { grid-column: 2 / span 3; }
+  .qf-grid .v.locked { color: var(--c-text); }
+
+  /* Items table */
+  .qitems {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .qitems th, .qitems td {
+    border: 1px solid var(--c-border);
+    padding: 7px 10px;
+    height: 32px;
+    vertical-align: middle;
+  }
+  .qitems th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-align: left;
+  }
+  .qitems td { background: var(--c-surface); cursor: text; }
+  .qitems td.num { text-align: right; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .qitems td.no { text-align: center; color: var(--c-text-muted); font-family: var(--ff-mono); width: 30px; background: var(--c-surface-2); }
+  .qitems td.editable:hover { background: var(--c-primary-50); }
+  .qitems td.locked, .qitems td.locked:hover { cursor: not-allowed; opacity: 0.85; background: var(--c-surface); }
+  .qitems tr.section td {
+    background: color-mix(in oklab, var(--c-primary) 8%, var(--c-surface));
+    font-weight: 700;
+    color: var(--c-text);
+    padding: 7px 14px;
+    font-size: 12px;
+  }
+  .qitems tr.subtotal td { background: var(--c-surface-2); font-weight: 700; }
+  .qitems .vendor-chip {
+    display: inline-block;
+    font-size: 10px;
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    padding: 1px 6px;
+    border-radius: var(--r-pill);
+    margin-left: 6px;
+    font-family: var(--ff-mono);
+  }
+
+  /* Right rail: totals & stamps */
+  .totals {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  .totals-head {
+    background: var(--c-primary);
+    color: #fff;
+    padding: 11px 14px;
+  }
+  .totals-head .lbl { font-size: 11px; opacity: 0.85; letter-spacing: 0.04em; font-weight: 600;}
+  .totals-head .price {
+    font-family: var(--ff-mono); font-size: 22px; font-weight: 700;
+    margin-top: 2px;
+  }
+  .totals-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .totals-row .k { color: var(--c-text-muted); font-size: 12px; }
+  .totals-row .v { font-family: var(--ff-mono); font-weight: 600; font-variant-numeric: tabular-nums;}
+  .totals-row.major { background: var(--c-surface-2); font-weight: 700;}
+  .totals-row.major .k { color: var(--c-text); font-weight: 600;}
+  .totals-row.major .v { font-size: 15px; }
+
+  /* Margin gauge */
+  .margin {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--c-border);
+    background: color-mix(in oklab, var(--c-accent) 6%, var(--c-surface));
+  }
+  .margin .row { display: flex; align-items: baseline; justify-content: space-between; }
+  .margin .lbl { font-size: 11px; color: var(--c-text-muted); font-weight: 600; letter-spacing: 0.04em;}
+  .margin .pct { font-family: var(--ff-mono); font-weight: 700; color: var(--c-accent); font-size: 18px;}
+  .margin .meter {
+    height: 6px; background: var(--c-surface-3); border-radius: var(--r-pill); margin-top: 6px;
+    position: relative;
+    overflow: hidden;
+  }
+  .margin .meter > i { display: block; height: 100%; background: var(--c-accent); border-radius: var(--r-pill); }
+  .margin .meter .target { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--c-text); opacity: 0.4;}
+  .margin .scale { display: flex; justify-content: space-between; font-family: var(--ff-mono); font-size: 10px; color: var(--c-text-subtle); margin-top: 3px;}
+
+  /* Stamp board (preview) */
+  .stampboard {
+    padding: 14px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    margin-top: 12px;
+  }
+  .stampboard .ttl {
+    font-size: 11px; color: var(--c-text-muted); font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .stampboard .frames {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border: 1px solid #333;
+  }
+  .stampboard .frames .frame {
+    border-right: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .stampboard .frames .frame:last-child { border-right: none; }
+  .stampboard .frames .frame .role {
+    width: 100%;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 0;
+    border-bottom: 1px solid #333;
+    background: #fafafa;
+    color: #111;
+  }
+  [data-theme="dark"] .stampboard .frames { border-color: var(--c-border-strong); }
+  [data-theme="dark"] .stampboard .frames .frame { border-color: var(--c-border-strong); }
+  [data-theme="dark"] .stampboard .frames .frame .role { background: var(--c-surface-2); color: var(--c-text); border-color: var(--c-border-strong); }
+  .stampboard .frames .frame .body {
+    width: 100%; height: 86px;
+    display: grid; place-items: center;
+    background: #fff;
+  }
+  [data-theme="dark"] .stampboard .frames .frame .body { background: var(--c-surface-2); }
+  .stampboard .frames .frame.pending .body {
+    background: repeating-linear-gradient(45deg,var(--c-warn-bg),var(--c-warn-bg) 6px,transparent 6px,transparent 12px);
+  }
+  [data-theme="dark"] .stampboard .frames .frame.pending .body {
+    background: repeating-linear-gradient(45deg,color-mix(in oklab,var(--c-warn) 18%,var(--c-surface)),color-mix(in oklab,var(--c-warn) 18%,var(--c-surface)) 6px,var(--c-surface-2) 6px,var(--c-surface-2) 12px);
+  }
+  .stampboard .meta {
+    font-size: 10px;
+    color: var(--c-text-muted);
+    text-align: center;
+    margin-top: 6px;
+    font-family: var(--ff-mono);
+  }
+
+  /* Comments */
+  .comments {
+    padding: 14px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    margin-top: 12px;
+  }
+  .comments .ttl {
+    font-size: 11px; color: var(--c-text-muted); font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .cmt {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--c-border);
+    font-size: 12px;
+  }
+  .cmt:last-child { border-bottom: none; }
+  .cmt .avatar { width: 24px; height: 24px; font-size: 10px;}
+  .cmt .head {
+    display: flex; gap: 6px; align-items: baseline;
+    margin-bottom: 2px;
+  }
+  .cmt .who { font-weight: 600; }
+  .cmt .role { font-size: 10px; padding: 1px 5px; border-radius: var(--r-pill); background: var(--c-surface-2); color: var(--c-text-muted); }
+  .cmt .ts { color: var(--c-text-subtle); font-size: 11px; font-family: var(--ff-mono); margin-left: auto; }
+  .cmt .body { color: var(--c-text); line-height: 1.5; }
+
+  /* Watermark on preview */
+  .preview-shell {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .preview-shell .pv-head { padding: 10px 14px; border-bottom: 1px solid var(--c-border); display: flex; align-items: center; gap: 8px;}
+  .preview-shell .pv-head .tt { font-size: 12px; font-weight: 700; }
+  .preview-shell .pv-head .right { margin-left: auto; display: flex; gap: 6px; }
+  .pv-pdf {
+    background: #fff;
+    color: #111;
+    padding: 22px;
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+    position: relative;
+    aspect-ratio: 210 / 297;
+  }
+  [data-theme="dark"] .pv-pdf { background: #1a1d24; color: #ddd; }
+  .pv-pdf::after {
+    content: "承認待ち";
+    position: absolute;
+    top: 40%; left: 0; right: 0;
+    text-align: center;
+    font-size: 56px;
+    font-weight: 700;
+    color: rgba(245, 158, 11, 0.18);
+    letter-spacing: 0.2em;
+    transform: rotate(-12deg);
+    pointer-events: none;
+  }
+  .pv-pdf h1 {
+    text-align: center;
+    letter-spacing: 12px;
+    margin: 0 0 14px;
+    font-size: 16px;
+    border-bottom: 1px solid;
+    padding-bottom: 6px;
+  }
+  .pv-pdf .row { display: flex; justify-content: space-between; font-size: 9px; margin-bottom: 8px; }
+  .pv-pdf .amt-box {
+    background: #f5f5f5;
+    border: 1px solid #888;
+    padding: 8px 12px;
+    text-align: center;
+    margin: 10px 0;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  [data-theme="dark"] .pv-pdf .amt-box { background: var(--c-surface-2); border-color: var(--c-border-strong); }
+  .pv-pdf .stamps-area {
+    display: grid; grid-template-columns: repeat(3,1fr);
+    border: 1px solid #333;
+    margin-top: 10px;
+    width: 50%;
+    margin-left: auto;
+  }
+  .pv-pdf .stamps-area .f { border-right: 1px solid #333; min-height: 70px; display: flex; flex-direction: column; }
+  .pv-pdf .stamps-area .f:last-child { border-right: none;}
+  .pv-pdf .stamps-area .f .r { font-size: 9px; text-align: center; border-bottom: 1px solid #333; padding: 2px 0; }
+  .pv-pdf .stamps-area .f .b { flex: 1; display: grid; place-items: center; padding: 4px; }
+  [data-theme="dark"] .pv-pdf .stamps-area { border-color: var(--c-border-strong); }
+  [data-theme="dark"] .pv-pdf .stamps-area .f, [data-theme="dark"] .pv-pdf .stamps-area .f .r { border-color: var(--c-border-strong); }
+
+  .pv-pdf .vendor { text-align: right; font-size: 9px; line-height: 1.5; margin-top: 10px;}
+  .pv-pdf .seal-orig { position: absolute; top: 22px; right: 22px; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .toolbar h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+</style>
+</head>
+<body data-screen-label="S06 Quote">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6M9 9h3"/></svg>
+        見積書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3"/></svg>
+        注文書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg>
+        QCDS
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="#" style="color:var(--c-text-muted);text-decoration:none">案件一覧</a>
+        <span class="sep">/</span>
+        <a href="#" style="color:var(--c-text-muted);text-decoration:none">三国第二工場 配管改修</a>
+        <span class="sep">/</span>
+        <strong>見積書</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <span style="font-size:11px;color:var(--c-text-muted);font-family:var(--ff-mono)">編集ロック中（承認待ち）</span>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+        PDF
+      </button>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+        Excel
+      </button>
+    </header>
+
+    <main class="page">
+
+      <!-- Approval status bar (pending state) -->
+      <div class="ap-bar">
+        <div class="pulse">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        </div>
+        <div>
+          <div class="ttl">承認待ち（2 / 3 完了）</div>
+          <small>残り承認者: <strong>奴間 正人</strong>（建築部長）&nbsp;·&nbsp;通知済 5/12 09:15</small>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div class="steps">
+            <div class="ap-step done">
+              <span class="dot"></span>
+              <div><span class="role">担当</span><br/><span class="who">平等</span> <span class="ts">5/10 14:23</span></div>
+            </div>
+            <svg class="ap-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="ap-step done">
+              <span class="dot"></span>
+              <div><span class="role">審査</span><br/><span class="who">中山</span> <span class="ts">5/11 09:15</span></div>
+            </div>
+            <svg class="ap-arrow" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="ap-step pend">
+              <span class="dot">3</span>
+              <div><span class="role">承認</span><br/><span class="who">奴間</span> <span class="ts">承認待ち</span></div>
+            </div>
+          </div>
+          <div style="border-left:1px solid var(--c-border);height:32px;margin:0 4px"></div>
+          <button class="btn btn-ghost btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            依頼を取り下げる
+          </button>
+        </div>
+      </div>
+
+      <!-- Lock notice -->
+      <div class="lock">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        <span>承認待ち中のため編集はロックされています。編集する場合は <strong>「依頼を取り下げる」</strong> を押してください。<strong style="color:var(--c-warn)">編集すると全承認が自動リセット</strong>され、再依頼が必要になります。</span>
+      </div>
+
+      <!-- Quote hero -->
+      <div class="q-hero">
+        <span class="qn">26-AP-014</span>
+        <h1>御見積書<small>三国第二工場 配管改修 · 株式会社協和自工 御中</small></h1>
+        <div class="ext">
+          <button class="btn btn-ghost btn-sm" disabled style="opacity:0.5;cursor:not-allowed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            編集（ロック）
+          </button>
+          <button class="btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+            履歴
+          </button>
+        </div>
+      </div>
+
+      <!-- Main grid -->
+      <div class="q-grid">
+
+        <!-- LEFT: editor -->
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+
+          <!-- Header info -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">見積書ヘッダー</div>
+                <div class="card-sub">PDF/Excel 出力時に反映されます</div>
+              </div>
+            </div>
+            <div class="qf-grid">
+              <div class="k">宛先</div>
+              <div class="v locked span2">株式会社協和自工　御中</div>
+
+              <div class="k">件名</div>
+              <div class="v locked span2">三国第二工場 配管改修工事</div>
+
+              <div class="k">工事場所</div>
+              <div class="v locked">福井県坂井市三国町山岸 12-3</div>
+              <div class="k">工期</div>
+              <div class="v locked"><span class="num">2026/04/12</span> 〜 <span class="num">2026/07/31</span></div>
+
+              <div class="k">支払条件</div>
+              <div class="v locked">月末締・翌月末払（手形 90日）</div>
+              <div class="k">有効期限</div>
+              <div class="v locked">発行日より 30日</div>
+
+              <div class="k">見積日</div>
+              <div class="v locked"><span class="num">2026/05/10</span></div>
+              <div class="k">担当者</div>
+              <div class="v locked">
+                <span class="avatar" style="width:20px;height:20px;font-size:9px;display:inline-grid;background:var(--c-primary);margin-right:6px">平</span>
+                平等 久盛
+              </div>
+
+              <div class="k" style="border-bottom:none">備考</div>
+              <div class="v locked span2" style="border-bottom:none;display:block;padding-top:10px;padding-bottom:10px;line-height:1.6">
+                既設配管撤去から本配管布設・保温・塗装までの一括施工。<br/>
+                工場稼働を停止せず夜間・休日施工で対応します。
+              </div>
+            </div>
+          </div>
+
+          <!-- Items -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">内訳</div>
+                <div class="card-sub">8項目 · 業者見積から流用可（編集ロック中）</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm" disabled style="opacity:0.5;cursor:not-allowed">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+                  業者見積から流用
+                </button>
+                <button class="btn btn-ghost btn-sm" disabled style="opacity:0.5;cursor:not-allowed">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+                  行追加
+                </button>
+              </div>
+            </div>
+            <div style="padding: 4px 16px 14px;">
+              <table class="qitems">
+                <thead>
+                  <tr>
+                    <th style="width:30px">No</th>
+                    <th>項目</th>
+                    <th style="width:60px">仕様</th>
+                    <th style="width:60px" class="num">数量</th>
+                    <th style="width:42px">単位</th>
+                    <th style="width:90px" class="num">単価</th>
+                    <th style="width:100px" class="num">金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="section"><td colspan="7">第1章 既設配管撤去工事</td></tr>
+                  <tr><td class="no">1</td><td class="locked">既設配管撤去（SUS304 25A） <span class="vendor-chip">福井配管</span></td><td class="locked">25A</td><td class="num locked">85</td><td class="locked">m</td><td class="num locked">1,200</td><td class="num locked">102,000</td></tr>
+                  <tr><td class="no">2</td><td class="locked">既設配管撤去（SUS304 50A） <span class="vendor-chip">福井配管</span></td><td class="locked">50A</td><td class="num locked">42</td><td class="locked">m</td><td class="num locked">1,800</td><td class="num locked">75,600</td></tr>
+                  <tr><td class="no">3</td><td class="locked">サポート金物撤去 <span class="vendor-chip">小松鉄工</span></td><td class="locked">―</td><td class="num locked">1</td><td class="locked">式</td><td class="num locked">68,000</td><td class="num locked">68,000</td></tr>
+
+                  <tr class="section"><td colspan="7">第2章 新規配管布設工事</td></tr>
+                  <tr><td class="no">4</td><td class="locked">SUS配管布設 + 溶接（25A） <span class="vendor-chip">福井配管</span></td><td class="locked">25A</td><td class="num locked">85</td><td class="locked">m</td><td class="num locked">4,800</td><td class="num locked">408,000</td></tr>
+                  <tr><td class="no">5</td><td class="locked">SUS配管布設 + 溶接（50A） <span class="vendor-chip">福井配管</span></td><td class="locked">50A</td><td class="num locked">42</td><td class="locked">m</td><td class="num locked">7,200</td><td class="num locked">302,400</td></tr>
+                  <tr><td class="no">6</td><td class="locked">バルブ・継手取付 <span class="vendor-chip">敦賀バルブ</span></td><td class="locked">―</td><td class="num locked">1</td><td class="locked">式</td><td class="num locked">340,000</td><td class="num locked">340,000</td></tr>
+
+                  <tr class="section"><td colspan="7">第3章 仕上げ工事</td></tr>
+                  <tr><td class="no">7</td><td class="locked">保温工事（厚さ 20mm） <span class="vendor-chip">坂井保温</span></td><td class="locked">―</td><td class="num locked">127</td><td class="locked">m</td><td class="num locked">2,800</td><td class="num locked">355,600</td></tr>
+                  <tr><td class="no">8</td><td class="locked">配管塗装 + 識別表示 <span class="vendor-chip">三国塗装</span></td><td class="locked">―</td><td class="num locked">127</td><td class="locked">m</td><td class="num locked">2,400</td><td class="num locked">304,800</td></tr>
+
+                  <tr class="subtotal">
+                    <td colspan="6" style="text-align:right">直接工事費 小計</td>
+                    <td class="num">1,956,400</td>
+                  </tr>
+                  <tr class="subtotal">
+                    <td colspan="6" style="text-align:right">諸経費</td>
+                    <td class="num">2,425,455</td>
+                  </tr>
+                  <tr class="subtotal">
+                    <td colspan="6" style="text-align:right">小計（税抜）</td>
+                    <td class="num">4,381,855</td>
+                  </tr>
+                  <tr class="subtotal">
+                    <td colspan="6" style="text-align:right">消費税（10%）</td>
+                    <td class="num">438,145</td>
+                  </tr>
+                  <tr class="subtotal">
+                    <td colspan="6" style="text-align:right;color:var(--c-primary)"><strong>御見積金額（税込）</strong></td>
+                    <td class="num" style="color:var(--c-primary)"><strong>¥4,820,000</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Conditions text -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">見積条件書</div>
+                <div class="card-sub">基本契約約款 + 個別条件文 · PDF末尾に付属</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm">テンプレートから挿入</button>
+              </div>
+            </div>
+            <div style="padding:14px 18px;font-size:12px;line-height:1.7;color:var(--c-text);max-height:180px;overflow:auto">
+              <p style="margin:0 0 8px"><strong>1. 工事範囲</strong>　本見積は別紙仕様書および図面に基づくものとし、これ以外の追加・変更工事については別途協議の上、書面にて確定するものとする。</p>
+              <p style="margin:0 0 8px"><strong>2. 工期</strong>　天候不良・社会的事由・発注者起因の作業中断による工期延長は協議による。</p>
+              <p style="margin:0 0 8px"><strong>3. 支払条件</strong>　月末締・翌月末払。手形（90日）の場合は別途協議。</p>
+              <p style="margin:0"><strong>4. 有効期限</strong>　本見積書の有効期限は発行日より30日間とする。これを超えた場合は再見積を行う。</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT: rail -->
+        <div style="display:flex;flex-direction:column;gap:0;min-width:0">
+
+          <!-- Totals -->
+          <div class="totals">
+            <div class="totals-head">
+              <div class="lbl">御見積金額（税込）</div>
+              <div class="price">¥4,820,000</div>
+            </div>
+            <div class="totals-row"><span class="k">直接工事費 計</span><span class="v">¥1,956,400</span></div>
+            <div class="totals-row"><span class="k">諸経費</span><span class="v">¥2,425,455</span></div>
+            <div class="totals-row major"><span class="k">小計（税抜）</span><span class="v">¥4,381,855</span></div>
+            <div class="totals-row"><span class="k">消費税（10%）</span><span class="v">¥438,145</span></div>
+
+            <!-- Margin -->
+            <div class="margin">
+              <div class="row">
+                <span class="lbl">予想営業利益率</span>
+                <span class="pct">22.5%</span>
+              </div>
+              <div class="meter">
+                <i style="width:75%"></i>
+                <span class="target" style="left:33%"></span>
+              </div>
+              <div class="scale">
+                <span>0%</span>
+                <span>目標 10%</span>
+                <span>30%</span>
+              </div>
+              <div style="font-size:11px;color:var(--c-text-muted);margin-top:6px">
+                目標を <strong style="color:var(--c-success)">+12.5pt</strong> 超過 · QCDS連動
+              </div>
+            </div>
+          </div>
+
+          <!-- Stamps -->
+          <div class="stampboard">
+            <div class="ttl">印影プレビュー（帳票出力時に自動配置）</div>
+            <div class="frames">
+              <div class="frame">
+                <div class="role">承　認</div>
+                <div class="body pending-bg">
+                  <div class="stamp pending" style="opacity:0.3;filter:grayscale(0.5)">奴間</div>
+                </div>
+              </div>
+              <div class="frame">
+                <div class="role">審　査</div>
+                <div class="body">
+                  <div class="stamp">中山</div>
+                </div>
+              </div>
+              <div class="frame">
+                <div class="role">担　当</div>
+                <div class="body">
+                  <div class="stamp">平等</div>
+                </div>
+              </div>
+            </div>
+            <div class="meta">奴間 正人 の承認待ち · 承認後にこの位置に印影が押されます</div>
+          </div>
+
+          <!-- Comments -->
+          <div class="comments">
+            <div class="ttl">承認コメント · 履歴</div>
+            <div class="cmt">
+              <div class="avatar" style="background:var(--c-status-progress)">中</div>
+              <div>
+                <div class="head">
+                  <span class="who">中山 太郎</span>
+                  <span class="role">審査 · 承認</span>
+                  <span class="ts">5/11 09:15</span>
+                </div>
+                <div class="body">配管布設の単価、過去案件の +5%以内に収まっており妥当。承認します。</div>
+              </div>
+            </div>
+            <div class="cmt">
+              <div class="avatar">平</div>
+              <div>
+                <div class="head">
+                  <span class="who">平等 久盛</span>
+                  <span class="role">担当 · 承認依頼</span>
+                  <span class="ts">5/10 14:23</span>
+                </div>
+                <div class="body">三国第二工場 配管改修の見積です。営業利益 22.5% で確定としたいです。よろしくお願いします。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mini PDF preview -->
+          <div class="preview-shell">
+            <div class="pv-head">
+              <span class="tt">PDF プレビュー</span>
+              <span style="font-size:11px;color:var(--c-warn);font-weight:600">⚠ 承認待ちのため「承認待ち」透かしが表示されます</span>
+              <div class="right">
+                <button class="btn btn-ghost btn-sm">拡大</button>
+              </div>
+            </div>
+            <div class="pv-pdf">
+              <div class="seal-orig" style="border:1.5px solid var(--c-danger);color:var(--c-danger);width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-family:'Hiragino Mincho ProN',serif;writing-mode:vertical-rl;font-size:8px;font-weight:700;letter-spacing:2px">承認</div>
+              <h1>御見積書</h1>
+              <div class="row"><span>2026年5月10日</span><span>No. 26-AP-014</span></div>
+              <div style="font-size:11px">株式会社協和自工　御中</div>
+              <div class="amt-box">御見積金額　¥&nbsp;4,820,000　-</div>
+              <div style="font-size:9px;line-height:1.6;margin-bottom:8px">
+                <strong>工事名称：</strong> 三国第二工場 配管改修工事<br/>
+                <strong>工事場所：</strong> 福井県坂井市三国町<br/>
+                <strong>見積有効期限：</strong> 30日間<br/>
+                <strong>支払条件：</strong> 月末締・翌月末払
+              </div>
+              <div class="stamps-area">
+                <div class="f">
+                  <div class="r">承　認</div>
+                  <div class="b" style="opacity:0.4;background:repeating-linear-gradient(45deg,#fffbe8,#fffbe8 4px,transparent 4px,transparent 8px)"></div>
+                </div>
+                <div class="f">
+                  <div class="r">審　査</div>
+                  <div class="b"><div class="stamp sm" style="width:30px;height:30px;font-size:10px;border-width:1.5px;background:transparent">中山</div></div>
+                </div>
+                <div class="f">
+                  <div class="r">担　当</div>
+                  <div class="b"><div class="stamp sm" style="width:30px;height:30px;font-size:10px;border-width:1.5px;background:transparent">平等</div></div>
+                </div>
+              </div>
+              <div class="vendor">
+                <strong>株式会社クラップ</strong><br/>
+                〒913-0043 福井県坂井市三国町錦3-4-2<br/>
+                TEL 0776-81-8330　FAX 0776-81-8331
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('theme');
+    if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

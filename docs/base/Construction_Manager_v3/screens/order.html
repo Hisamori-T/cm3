@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S07 注文書 — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Order status badge / dropdown */
+  .ord-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: var(--r-md);
+    border: 1.5px solid;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    background: var(--c-surface);
+  }
+  .ord-status .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .ord-status .caret { color: var(--c-text-subtle); }
+  .ord-status.draft        { border-color: var(--c-text-subtle); color: var(--c-text-muted); }
+  .ord-status.draft .dot   { background: var(--c-text-subtle); }
+  .ord-status.sent         { border-color: var(--c-status-order); color: var(--c-status-order); background: color-mix(in oklab,var(--c-status-order) 8%,var(--c-surface)); }
+  .ord-status.sent .dot    { background: var(--c-status-order); }
+  .ord-status.signed       { border-color: var(--c-warn); color: #b45309; background: var(--c-warn-bg); }
+  .ord-status.signed .dot  { background: var(--c-warn); }
+  .ord-status.acknowledged { border-color: var(--c-success); color: var(--c-success); background: color-mix(in oklab,var(--c-success) 10%,var(--c-surface)); }
+  .ord-status.acknowledged .dot { background: var(--c-success); }
+  .ord-status.cancelled    { border-color: var(--c-danger); color: var(--c-danger); background: var(--c-danger-bg); }
+  .ord-status.cancelled .dot { background: var(--c-danger); }
+
+  /* Order header card */
+  .ord-hero {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 14px 18px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 16px;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .ord-hero .num {
+    font-family: var(--ff-mono);
+    font-size: 13px;
+    color: var(--c-text-muted);
+    background: var(--c-surface-2);
+    padding: 3px 9px;
+    border-radius: var(--r-md);
+    font-weight: 600;
+  }
+  .ord-hero h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+  }
+  .ord-hero h1 small {
+    display: block;
+    font-weight: 500;
+    color: var(--c-text-muted);
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .ord-hero .actions {
+    display: flex; gap: 8px; align-items: center;
+  }
+  .ack-btn {
+    background: var(--c-success);
+    color: #fff;
+    border-color: var(--c-success);
+  }
+  .ack-btn:hover { background: #0d8d63; border-color: #0d8d63; }
+
+  /* Status timeline */
+  .ord-timeline {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 14px 18px;
+    margin-bottom: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .tl-step {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--c-text-muted);
+  }
+  .tl-step .tl-dot {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--c-surface-2);
+    border: 1.5px solid var(--c-border-strong);
+    display: grid; place-items: center;
+    flex: 0 0 22px;
+    color: var(--c-text-subtle);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--ff-mono);
+  }
+  .tl-step.done .tl-dot { background: var(--c-success); border-color: var(--c-success); color: #fff; }
+  .tl-step.done { color: var(--c-text); }
+  .tl-step.cur .tl-dot { background: var(--c-warn); border-color: var(--c-warn); color: #fff; }
+  .tl-step.cur { color: var(--c-warn); font-weight: 700;}
+  .tl-step .info .lbl { font-weight: 600; }
+  .tl-step .info .ts { font-family: var(--ff-mono); font-size: 10px; }
+  .tl-arrow {
+    color: var(--c-text-subtle);
+    flex: 0 0 auto;
+  }
+
+  /* Layout */
+  .ord-grid { display: grid; grid-template-columns: 2.3fr 1fr; gap: 12px; }
+
+  /* Header info field grid */
+  .ord-field-grid {
+    display: grid;
+    grid-template-columns: 100px 1fr 100px 1fr;
+    border-top: 1px solid var(--c-border);
+  }
+  .ord-field-grid > div {
+    border-bottom: 1px solid var(--c-border);
+    padding: 9px 12px;
+    font-size: 13px;
+    min-height: 36px;
+    display: flex; align-items: center;
+  }
+  .ord-field-grid > div.k {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    border-right: 1px solid var(--c-border);
+  }
+  .ord-field-grid > div.v { border-right: 1px solid var(--c-border); }
+  .ord-field-grid > div.v:last-of-type { border-right: none; }
+  .ord-field-grid > div.span2 { grid-column: 2 / span 3; }
+
+  /* Items table */
+  .ord-items {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .ord-items th, .ord-items td {
+    border: 1px solid var(--c-border);
+    padding: 7px 10px;
+    height: 32px;
+    vertical-align: middle;
+  }
+  .ord-items th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-align: left;
+  }
+  .ord-items td { background: var(--c-surface); }
+  .ord-items td.num { text-align: right; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .ord-items td.no { text-align: center; color: var(--c-text-muted); font-family: var(--ff-mono); width: 30px; background: var(--c-surface-2); }
+  .ord-items tr.subtotal td { background: var(--c-surface-2); font-weight: 700; }
+
+  /* Right rail totals */
+  .totals-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  .totals-card .head {
+    background: var(--c-primary);
+    color: #fff;
+    padding: 11px 14px;
+  }
+  .totals-card .head .lbl { font-size: 11px; opacity: 0.85; letter-spacing: 0.04em; font-weight: 600;}
+  .totals-card .head .price {
+    font-family: var(--ff-mono); font-size: 22px; font-weight: 700;
+    margin-top: 2px;
+  }
+  .totals-card .row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 14px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--c-border);
+  }
+  .totals-card .row .k { color: var(--c-text-muted); font-size: 12px; }
+  .totals-card .row .v { font-family: var(--ff-mono); font-weight: 600; font-variant-numeric: tabular-nums;}
+  .totals-card .row.major { background: var(--c-surface-2); font-weight: 700;}
+  .totals-card .row.major .k { color: var(--c-text); font-weight: 600;}
+  .totals-card .row.major .v { font-size: 15px; }
+
+  /* Stamp tax */
+  .stamp-tax {
+    margin-top: 0;
+    padding: 14px;
+    border-top: 1px solid var(--c-border);
+    background: color-mix(in oklab, var(--c-warn) 6%, var(--c-surface));
+  }
+  .stamp-tax .ttl {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .stamp-tax .v {
+    font-family: var(--ff-mono);
+    font-size: 18px;
+    font-weight: 700;
+    margin-top: 2px;
+  }
+  .stamp-tax .desc {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  /* Activity log */
+  .activity {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    margin-top: 12px;
+  }
+  .activity .row {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 10px;
+    padding: 8px 14px;
+    align-items: center;
+    border-bottom: 1px dashed var(--c-border);
+    font-size: 12px;
+  }
+  .activity .row:last-child { border-bottom: none; }
+  .activity .ava { width: 22px; height: 22px; font-size: 10px; }
+  .activity .what strong { font-weight: 600; }
+  .activity .ts { font-family: var(--ff-mono); color: var(--c-text-subtle); font-size: 10px; }
+</style>
+</head>
+<body data-screen-label="S07 Order">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6"/></svg>
+        見積書
+      </div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3"/></svg>
+        注文書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg>
+        QCDS
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="#" style="color:var(--c-text-muted);text-decoration:none">案件一覧</a>
+        <span class="sep">/</span>
+        <a href="#" style="color:var(--c-text-muted);text-decoration:none">三国第二工場 配管改修</a>
+        <span class="sep">/</span>
+        <strong>注文書</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+    </header>
+
+    <main class="page">
+
+      <!-- Project sub-nav (shared) -->
+      <div class="proj-header">
+        <div class="ph-top">
+          <a class="crumb" href="screens/projects.html">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M15 18l-6-6 6-6"/></svg>
+            案件一覧
+          </a>
+          <span class="pn">26-3-014</span>
+          <h1>三国第二工場 配管改修</h1>
+          <span class="badge s-progress"><span class="dot"></span>施工中</span>
+        </div>
+        <nav class="proj-subnav">
+          <a class="tab" href="screens/project-detail.html">詳細</a>
+          <a class="tab" href="screens/qcds.html">QCDS <span class="ct">1</span></a>
+          <a class="tab" href="#">業者見積 <span class="ct">7</span></a>
+          <a class="tab" href="screens/quote.html">顧客見積 <span class="ct">1</span></a>
+          <a class="tab on" href="#">注文書 <span class="ct">5</span></a>
+          <a class="tab zero" href="#">注文請書 <span class="ct">0</span></a>
+          <a class="tab zero" href="#">請求書 <span class="ct">0</span></a>
+          <a class="tab" href="#">進捗 <span class="ct">12</span></a>
+          <a class="tab" href="#">編集履歴 <span class="ct">78</span></a>
+        </nav>
+      </div>
+
+      <!-- Order hero -->
+      <div class="ord-hero">
+        <span class="num">26-OR-014-01</span>
+        <div>
+          <h1>福井配管工業 株式会社 様向け 注文書<small>SUS304 配管布設・溶接工事（25A / 50A）一式 · 工期 5/10〜7/20</small></h1>
+        </div>
+        <div class="actions">
+          <!-- Status dropdown -->
+          <button class="ord-status signed">
+            <span class="dot"></span>
+            signed
+            <svg class="caret" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+
+          <div style="width:1px;height:24px;background:var(--c-border);margin:0 4px"></div>
+
+          <button class="btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6M9 9h2"/></svg>
+            PDF
+          </button>
+          <button class="btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+            Excel
+          </button>
+          <button class="btn ack-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+            注文請書を発行
+          </button>
+        </div>
+      </div>
+
+      <!-- Status timeline -->
+      <div class="ord-timeline">
+        <div class="tl-step done">
+          <span class="tl-dot">✓</span>
+          <div class="info"><div class="lbl">下書き</div><div class="ts">5/8 09:00</div></div>
+        </div>
+        <svg class="tl-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        <div class="tl-step done">
+          <span class="tl-dot">✓</span>
+          <div class="info"><div class="lbl">送付済（sent）</div><div class="ts">5/8 14:30 to 田中課長</div></div>
+        </div>
+        <svg class="tl-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        <div class="tl-step cur">
+          <span class="tl-dot">●</span>
+          <div class="info"><div class="lbl">先方押印済（signed）</div><div class="ts">5/12 — 注文請書発行待ち</div></div>
+        </div>
+        <svg class="tl-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+        <div class="tl-step">
+          <span class="tl-dot">4</span>
+          <div class="info"><div class="lbl">受領済（acknowledged）</div><div class="ts">—</div></div>
+        </div>
+      </div>
+
+      <!-- Grid -->
+      <div class="ord-grid">
+
+        <!-- LEFT -->
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+
+          <!-- Vendor info -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">発注先・件名</div>
+                <div class="card-sub">クリックで編集</div>
+              </div>
+            </div>
+            <div class="ord-field-grid">
+              <div class="k">発注先</div>
+              <div class="v span2">
+                <a href="screens/vendor-detail.html" style="color:var(--c-primary);font-weight:600;text-decoration:none">福井配管工業 株式会社</a>
+                <span class="muted" style="font-size:11px;margin-left:8px">福井県福井市花堂南 1-X-X · TEL 0776-XX-XXXX</span>
+              </div>
+
+              <div class="k">担当者</div>
+              <div class="v">設備課 田中 一郎 課長</div>
+              <div class="k">登録番号</div>
+              <div class="v num">T9210001XXXXXX</div>
+
+              <div class="k">件名</div>
+              <div class="v span2">三国第二工場 配管改修工事　SUS304 配管布設・溶接（25A / 50A）一式</div>
+
+              <div class="k">工事場所</div>
+              <div class="v">福井県坂井市三国町山岸 12-3</div>
+              <div class="k">納期</div>
+              <div class="v"><span class="num">2026/05/10</span> 〜 <span class="num">2026/07/20</span></div>
+
+              <div class="k">支払条件</div>
+              <div class="v">月末締・翌月末払（現金）</div>
+              <div class="k">支払サイト</div>
+              <div class="v">翌月末（60日）</div>
+
+              <div class="k" style="border-bottom:none">備考</div>
+              <div class="v span2" style="border-bottom:none;display:block;padding-top:10px;padding-bottom:10px;line-height:1.6">
+                ・出来高に応じて月末で請求書を発行ください<br/>
+                ・養生・引渡し清掃含む
+              </div>
+            </div>
+          </div>
+
+          <!-- Items -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">明細</div>
+                <div class="card-sub">5項目 · 取決見通表 No.3 と連動</div>
+              </div>
+            </div>
+            <div style="padding: 4px 16px 14px;">
+              <table class="ord-items">
+                <thead>
+                  <tr>
+                    <th style="width:30px">No</th>
+                    <th>項目</th>
+                    <th style="width:60px">仕様</th>
+                    <th style="width:60px" class="num">数量</th>
+                    <th style="width:42px">単位</th>
+                    <th style="width:90px" class="num">単価</th>
+                    <th style="width:100px" class="num">金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr><td class="no">1</td><td>既設 SUS304 配管撤去</td><td>25A</td><td class="num">85</td><td>m</td><td class="num">1,150</td><td class="num">97,750</td></tr>
+                  <tr><td class="no">2</td><td>既設 SUS304 配管撤去</td><td>50A</td><td class="num">42</td><td>m</td><td class="num">1,700</td><td class="num">71,400</td></tr>
+                  <tr><td class="no">3</td><td>SUS304 配管布設・溶接</td><td>25A</td><td class="num">85</td><td>m</td><td class="num">4,500</td><td class="num">382,500</td></tr>
+                  <tr><td class="no">4</td><td>SUS304 配管布設・溶接</td><td>50A</td><td class="num">42</td><td>m</td><td class="num">6,800</td><td class="num">285,600</td></tr>
+                  <tr><td class="no">5</td><td>諸経費・運搬・養生</td><td>—</td><td class="num">1</td><td>式</td><td class="num">290,023</td><td class="num">290,023</td></tr>
+
+                  <tr class="subtotal"><td colspan="6" style="text-align:right">小計（税抜）</td><td class="num">1,127,273</td></tr>
+                  <tr class="subtotal"><td colspan="6" style="text-align:right">消費税（10%）</td><td class="num">112,727</td></tr>
+                  <tr class="subtotal"><td colspan="6" style="text-align:right;color:var(--c-primary)"><strong>合計（税込）</strong></td><td class="num" style="color:var(--c-primary)"><strong>¥1,240,000</strong></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Terms -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">注文条件 · 基本契約約款</div>
+                <div class="card-sub">注文請書発行時に同条件で発行されます</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm">テンプレートから挿入</button>
+              </div>
+            </div>
+            <div style="padding:14px 18px;font-size:12px;line-height:1.7;color:var(--c-text);max-height:160px;overflow:auto">
+              <p style="margin:0 0 6px"><strong>1. 注文内容</strong>　本注文は別途締結の基本契約約款に従うものとする。</p>
+              <p style="margin:0 0 6px"><strong>2. 納期遅延</strong>　納期遅延の場合は遅延損害金として、遅延 1日につき注文金額の <span class="num" style="font-family:var(--ff-mono)">0.04%</span> を支払うものとする。</p>
+              <p style="margin:0 0 6px"><strong>3. 品質保証</strong>　品質不良が発見された場合は、無償にて補修または交換するものとする。</p>
+              <p style="margin:0"><strong>4. 請書返送</strong>　本注文書 2部のうち 1部に貴社印を押し、注文請書として返送願います。</p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT rail -->
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+
+          <div class="totals-card">
+            <div class="head">
+              <div class="lbl">注文金額（税込）</div>
+              <div class="price">¥1,240,000</div>
+            </div>
+            <div class="row"><span class="k">小計（税抜）</span><span class="v">¥1,127,273</span></div>
+            <div class="row major"><span class="k">消費税（10%）</span><span class="v">¥112,727</span></div>
+            <div class="row"><span class="k">取決見通表 連動</span><span class="v" style="font-size:11px;color:var(--c-primary)"><a href="screens/project-detail.html" style="color:inherit;text-decoration:none">No.3 福井配管工業 →</a></span></div>
+
+            <!-- Stamp tax -->
+            <div class="stamp-tax">
+              <div class="ttl">印紙税額（自動算定）</div>
+              <div class="v">¥400</div>
+              <div class="desc">第2号文書（請負）／ 100万円超 〜 200万円以下 · 軽減税率適用</div>
+            </div>
+          </div>
+
+          <!-- Quick acknowledge box (only visible when signed) -->
+          <div style="background:color-mix(in oklab,var(--c-success) 8%,var(--c-surface));border:1.5px solid var(--c-success);border-radius:var(--r-lg);padding:14px 16px">
+            <div style="font-weight:700;font-size:13px;margin-bottom:4px">📩 注文請書を発行できる状態です</div>
+            <div style="font-size:12px;color:var(--c-text-muted);line-height:1.55;margin-bottom:10px">
+              先方押印済（signed）になりました。注文請書ドラフトを生成して案件に紐付けます。
+            </div>
+            <button class="btn ack-btn" style="width:100%">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+              注文請書を発行する
+            </button>
+          </div>
+
+          <!-- Activity -->
+          <div class="activity">
+            <div style="padding:10px 14px;border-bottom:1px solid var(--c-border)">
+              <div style="font-size:11px;color:var(--c-text-muted);font-weight:700;letter-spacing:0.04em">アクティビティ</div>
+            </div>
+            <div class="row">
+              <span class="avatar" style="background:var(--c-warn)">田</span>
+              <div class="what">田中課長（先方）が <strong>押印して返送</strong></div>
+              <span class="ts">5/12 11:08</span>
+            </div>
+            <div class="row">
+              <span class="avatar">平</span>
+              <div class="what">平等が <strong>注文書を送付</strong>（PDF）</div>
+              <span class="ts">5/8 14:30</span>
+            </div>
+            <div class="row">
+              <span class="avatar" style="background:var(--c-status-billed)">奴</span>
+              <div class="what">奴間が <strong>承認</strong></div>
+              <span class="ts">5/8 11:42</span>
+            </div>
+            <div class="row">
+              <span class="avatar" style="background:var(--c-status-progress)">中</span>
+              <div class="what">中山が <strong>審査</strong></div>
+              <span class="ts">5/8 10:15</span>
+            </div>
+            <div class="row">
+              <span class="avatar">平</span>
+              <div class="what">平等が <strong>注文書を作成</strong></div>
+              <span class="ts">5/8 09:00</span>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

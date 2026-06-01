@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>御見積書 — 26-AP-014 — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Serif+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/print.css">
+<style>
+  /* Cover page */
+  .cover .top-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: flex-start;
+    margin-bottom: 10mm;
+  }
+  .cover .doc-no {
+    font-size: 10pt;
+    line-height: 1.7;
+    color: #333;
+  }
+  .cover .doc-no .ln { display: flex; gap: 8mm; }
+  .cover .doc-no .ln span:first-child { color: #555; min-width: 24mm; }
+
+  .cover .from {
+    text-align: left;
+    font-size: 10pt;
+    line-height: 1.55;
+  }
+  .cover .from .corp {
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 2pt;
+    margin-bottom: 2mm;
+  }
+  .cover .from .corp small {
+    display: inline-block;
+    font-size: 8pt;
+    color: #555;
+    font-weight: 400;
+    margin-left: 4mm;
+    letter-spacing: 0;
+  }
+  .cover .from .clap-mark {
+    display: inline-block;
+    background: #1B2A52;
+    color: #fff;
+    padding: 1mm 3mm;
+    font-family: "Inter", sans-serif;
+    font-weight: 800;
+    font-size: 11pt;
+    letter-spacing: 1pt;
+    margin-right: 3mm;
+    border-radius: 1mm;
+    vertical-align: middle;
+  }
+
+  .cover h1.title {
+    text-align: center;
+    font-size: 28pt;
+    font-weight: 700;
+    letter-spacing: 18pt;
+    margin: 4mm 0 12mm 0;
+    padding-bottom: 4mm;
+    border-bottom: 2pt double #111;
+    padding-left: 18pt; /* visual balance vs letter-spacing */
+  }
+
+  .cover .to-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10mm;
+    margin-bottom: 8mm;
+  }
+  .cover .to {
+    font-size: 16pt;
+    font-weight: 600;
+    border-bottom: 1pt solid #444;
+    padding-bottom: 2mm;
+    align-self: flex-end;
+  }
+  .cover .to .yu { font-size: 13pt; margin-left: 4mm; }
+
+  .cover .greet {
+    font-size: 10pt;
+    line-height: 1.85;
+    margin-bottom: 8mm;
+    color: #222;
+  }
+
+  /* Amount box — the hero */
+  .amount-box {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1.5pt solid #111;
+    margin-bottom: 8mm;
+  }
+  .amount-box .lbl {
+    background: #f5f5f3;
+    padding: 6mm 8mm;
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: 4pt;
+    text-align: center;
+    align-self: center;
+    border-right: 1pt solid #111;
+  }
+  .amount-box .val {
+    padding: 6mm 8mm;
+    text-align: right;
+    align-self: center;
+  }
+  .amount-box .val .yen { font-size: 14pt; margin-right: 6pt; vertical-align: 1pt;}
+  .amount-box .val .num {
+    font-size: 26pt;
+    font-weight: 700;
+    font-family: "Hiragino Mincho ProN", serif;
+    letter-spacing: 1pt;
+  }
+  .amount-box .val .tax {
+    display: block;
+    font-size: 9pt;
+    color: #555;
+    margin-top: 1mm;
+  }
+
+  /* Details + stamps row */
+  .details-row {
+    display: grid;
+    grid-template-columns: 1fr 65mm;
+    gap: 6mm;
+    margin-bottom: 8mm;
+  }
+  .details {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 10pt;
+  }
+  .details th, .details td {
+    border: 0.6pt solid #555;
+    padding: 2.4mm 3mm;
+    text-align: left;
+    vertical-align: top;
+  }
+  .details th {
+    background: #f0efeb;
+    font-weight: 700;
+    width: 28mm;
+    color: #333;
+    letter-spacing: 0.5pt;
+  }
+  .details td { line-height: 1.55; }
+
+  /* Stamp box */
+  .stamps {
+    border: 0.6pt solid #555;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+  .stamps .row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .stamps .role {
+    background: #f0efeb;
+    border-bottom: 0.6pt solid #555;
+    border-right: 0.6pt solid #555;
+    padding: 2.4mm 0;
+    text-align: center;
+    font-weight: 700;
+    font-size: 10pt;
+    letter-spacing: 4pt;
+  }
+  .stamps .role:last-child { border-right: none; }
+  .stamps .box-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    height: 28mm;
+  }
+  .stamps .box {
+    border-right: 0.6pt solid #555;
+    display: grid;
+    place-items: center;
+    padding: 2mm;
+  }
+  .stamps .box:last-child { border-right: none; }
+  .stamps .box.pending {
+    background: repeating-linear-gradient(45deg, #fff8e1, #fff8e1 1.5mm, transparent 1.5mm, transparent 3mm);
+  }
+
+  /* Bottom contact */
+  .footer-contact {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6mm;
+    font-size: 9pt;
+    color: #444;
+    line-height: 1.7;
+    padding-top: 6mm;
+    border-top: 0.6pt solid #888;
+  }
+  .footer-contact .left {
+    font-size: 9pt;
+  }
+  .footer-contact .right { text-align: right; }
+  .footer-contact .right .corp { font-size: 11pt; font-weight: 700; color: #111;}
+
+  /* Tax note */
+  .tax-note {
+    font-size: 8pt;
+    color: #555;
+    margin-top: -4mm;
+    margin-bottom: 6mm;
+    text-align: right;
+    font-family: "Hiragino Kaku Gothic ProN", sans-serif;
+  }
+
+  /* Status corner band */
+  .corner-band {
+    position: absolute;
+    top: 12mm;
+    right: -12mm;
+    transform: rotate(35deg);
+    background: #10B981;
+    color: #fff;
+    font-family: "Inter", "Hiragino Kaku Gothic ProN", sans-serif;
+    font-weight: 700;
+    font-size: 9pt;
+    padding: 1.5mm 14mm;
+    letter-spacing: 3pt;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  }
+</style>
+</head>
+<body>
+
+<!-- Screen-only toolbar -->
+<div class="print-toolbar no-print">
+  <span class="doc-title">御見積書 表紙</span>
+  <span class="doc-meta">26-AP-014.pdf · A4縦 · 1/2</span>
+  <span class="approve-pill approved">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+    承認済み（顧客提出可能）
+  </span>
+  <span class="spacer"></span>
+  <button class="btn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+    Excel
+  </button>
+  <button class="btn primary" onclick="window.print()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/><path d="M6 14h12v8H6z"/></svg>
+    印刷 / PDF保存
+  </button>
+</div>
+
+<div class="sheet-shell">
+  <div class="sheet cover">
+
+    <!-- Status band -->
+    <div class="corner-band">APPROVED</div>
+
+    <!-- Top: doc number (left) + company (right) -->
+    <div class="top-row">
+      <div class="doc-no">
+        <div class="ln"><span>弊社工事番号</span><span class="fs-num">26-3-014</span></div>
+        <div class="ln"><span>御見積書 No.</span><span class="fs-num">26-AP-014</span></div>
+        <div class="ln"><span>発行年月日</span><span class="fs-num">2026年5月13日</span></div>
+      </div>
+      <div class="from">
+        <div class="corp"><span class="clap-mark">CL</span>株式会社 クラップ<small>CLAP CORPORATION</small></div>
+        <div style="line-height:1.6;color:#444">
+          〒913-0043　福井県坂井市三国町錦 3-4-2<br/>
+          TEL <span class="fs-num">0776-81-8330</span>　FAX <span class="fs-num">0776-81-8331</span><br/>
+          登録番号　<span class="fs-num">T5210001007332</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Title -->
+    <h1 class="title">御&nbsp;見&nbsp;積&nbsp;書</h1>
+
+    <!-- Customer -->
+    <div class="to-row">
+      <div class="to">株式会社 協和自工&emsp;<span class="yu">御&thinsp;中</span></div>
+    </div>
+
+    <div class="greet">
+      平素は格別のお引立てを賜り、誠にありがとうございます。<br/>
+      下記の通り御見積申し上げますので、ご検討の程よろしくお願い申し上げます。
+    </div>
+
+    <!-- Amount -->
+    <div class="amount-box">
+      <div class="lbl">御 見 積 金 額</div>
+      <div class="val">
+        <span class="yen">¥</span><span class="num fs-num">4,820,000</span><span style="font-size:14pt;margin-left:4pt">―</span>
+        <span class="tax">（うち消費税　¥&thinsp;438,182 ／ 税抜　¥&thinsp;4,381,818）</span>
+      </div>
+    </div>
+
+    <!-- Details + stamps -->
+    <div class="details-row">
+      <table class="details">
+        <tr><th>工事名称</th><td>三国第二工場 配管改修工事</td></tr>
+        <tr><th>工事場所</th><td>福井県坂井市三国町山岸 12-3</td></tr>
+        <tr><th>工　&emsp;期</th><td><span class="fs-num">2026年4月12日</span> 〜 <span class="fs-num">2026年7月31日</span></td></tr>
+        <tr><th>支払条件</th><td>月末締切　翌月末払（手形 90日）</td></tr>
+        <tr><th>有効期限</th><td>御見積発行日より <span class="fs-num">30日</span> 間</td></tr>
+        <tr><th>備　&emsp;考</th>
+          <td style="line-height:1.7">
+            ・既設配管撤去から本配管布設・保温・塗装までの一括施工<br/>
+            ・工場稼働を停止せず夜間・休日施工で対応<br/>
+            ・本見積書はA棟・B棟両棟分を含みます
+          </td>
+        </tr>
+      </table>
+
+      <div class="stamps">
+        <div class="row">
+          <div class="role">承&thinsp;認</div>
+          <div class="role">審&thinsp;査</div>
+          <div class="role">担&thinsp;当</div>
+        </div>
+        <div class="box-row">
+          <div class="box">
+            <div class="stamp-circle">奴間</div>
+          </div>
+          <div class="box">
+            <div class="stamp-circle">中山</div>
+          </div>
+          <div class="box">
+            <div class="stamp-circle">平等</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 担当 -->
+    <div class="footer-contact">
+      <div class="left">
+        ※ 本見積書の内訳明細書は別紙の通りでございます。<br/>
+        ※ 内容について不明な点がございましたら、下記担当者までお問い合わせください。
+      </div>
+      <div class="right">
+        <div class="corp">担当　平等 久盛</div>
+        <div>TEL <span class="fs-num">0776-81-8330</span>（内線 <span class="fs-num">102</span>）</div>
+        <div>Mail　hisamori@clap-corp.example</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

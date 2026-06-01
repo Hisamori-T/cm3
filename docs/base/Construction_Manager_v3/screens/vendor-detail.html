@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S14 業者詳細 — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Hero */
+  .v-hero {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 16px;
+    align-items: center;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 16px 20px;
+    box-shadow: var(--sh-1);
+    margin-bottom: 14px;
+  }
+  .v-hero .ic {
+    width: 64px; height: 64px;
+    background: var(--c-primary-50);
+    color: var(--c-primary);
+    border-radius: var(--r-md);
+    display: grid; place-items: center;
+    font-size: 24px;
+    font-weight: 800;
+    font-family: var(--ff-mono);
+  }
+  [data-theme="dark"] .v-hero .ic { background: color-mix(in oklab,var(--c-primary) 25%,var(--c-surface)); color: #fff; }
+  .v-hero h1 { margin: 0; font-size: 22px; font-weight: 700;}
+  .v-hero h1 small { display: block; font-weight: 500; color: var(--c-text-muted); font-size: 12px; margin-top: 3px;}
+  .v-hero .trade-chips { margin-top: 6px; }
+  .trade-chip {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-pill);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    margin-right: 4px;
+  }
+  .v-hero .stat {
+    display: flex; gap: 16px;
+    padding-left: 18px;
+    border-left: 1px solid var(--c-border);
+    align-items: stretch;
+  }
+  .v-hero .stat > div .k { font-size: 11px; color: var(--c-text-muted); font-weight: 600; }
+  .v-hero .stat > div .v { font-family: var(--ff-mono); font-size: 18px; font-weight: 700; }
+
+  /* Grid */
+  .v-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 12px;
+  }
+
+  /* Info card */
+  .field-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    border-top: 1px solid var(--c-border);
+  }
+  .field-row > div {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--c-border);
+    font-size: 13px;
+    min-height: 36px;
+    display: flex; align-items: center;
+  }
+  .field-row > div.k {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .field-row .v { gap: 6px; }
+
+  /* Price history table */
+  .hist-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .hist-tbl th, .hist-tbl td {
+    border-bottom: 1px solid var(--c-border);
+    padding: 7px 10px;
+    height: 32px;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .hist-tbl th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+  .hist-tbl .num { text-align: right; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .hist-tbl tbody tr:hover td { background: var(--c-surface-2); }
+  .delta-up { color: var(--c-danger); font-family: var(--ff-mono); font-size: 11px; }
+  .delta-down { color: var(--c-success); font-family: var(--ff-mono); font-size: 11px; }
+  .delta-flat { color: var(--c-text-muted); font-family: var(--ff-mono); font-size: 11px; }
+  .proj-link { color: var(--c-primary); font-family: var(--ff-mono); font-size: 11px; text-decoration: none; }
+
+  /* Price chart */
+  .price-chart {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 16px;
+  }
+  .price-chart .head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .price-chart .head .ttl { font-size: 13px; font-weight: 700; }
+  .price-chart .head .meta { font-size: 11px; color: var(--c-text-muted); margin-left: auto; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .toolbar h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+</style>
+</head>
+<body data-screen-label="S14 Vendor Detail">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ <span class="nav-badge">86</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="#" style="color:var(--c-text-muted);text-decoration:none">業者マスタ</a>
+        <span class="sep">/</span>
+        <strong>福井配管工業 株式会社</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        編集
+      </button>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        新規見積に流用
+      </button>
+    </header>
+
+    <main class="page">
+
+      <!-- Hero -->
+      <div class="v-hero">
+        <div class="ic">福</div>
+        <div>
+          <h1>福井配管工業 株式会社<small>担当: 田中 課長 · 登録 2018/04/01</small></h1>
+          <div class="trade-chips">
+            <span class="trade-chip">配管</span>
+            <span class="trade-chip">給排水</span>
+            <span class="trade-chip">SUS304</span>
+            <span class="trade-chip">溶接</span>
+          </div>
+        </div>
+        <div class="stat">
+          <div><div class="k">取引</div><div class="v">23 <span style="font-size:11px;color:var(--c-text-muted)">件</span></div></div>
+          <div><div class="k">累計</div><div class="v">¥24.6M</div></div>
+          <div><div class="k">評価</div><div class="v" style="color:var(--c-status-progress)">★ 4.8</div></div>
+          <div><div class="k">最終取引</div><div class="v" style="font-size:13px">5/13</div></div>
+        </div>
+      </div>
+
+      <div class="v-grid">
+
+        <!-- LEFT: info -->
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">業者基本情報</div>
+                <div class="card-sub">クリックで編集</div>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="k">業者名</div><div class="v">福井配管工業 株式会社</div>
+              <div class="k">登録番号</div><div class="v num">T9210001XXXXXX</div>
+              <div class="k">代表者</div><div class="v">福井 太郎</div>
+              <div class="k">担当者</div><div class="v">設備課 田中 一郎 課長</div>
+              <div class="k">郵便番号</div><div class="v num">910-0852</div>
+              <div class="k">住所</div><div class="v">福井県福井市花堂南 1-X-X</div>
+              <div class="k">TEL</div><div class="v num">0776-XX-XXXX</div>
+              <div class="k">FAX</div><div class="v num">0776-XX-YYYY</div>
+              <div class="k">Email</div><div class="v">tanaka@fukui-haikan.example</div>
+              <div class="k">支払条件</div><div class="v">月末締・翌月末払（現金）</div>
+              <div class="k" style="border-bottom:none">備考</div>
+              <div class="v" style="border-bottom:none;line-height:1.55;padding-top:10px;padding-bottom:10px">SUS304の溶接技能士を3名擁し、品質安定。<br/>夜間・休日対応可。</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">関連案件</div>
+                <div class="card-sub">直近5件</div>
+              </div>
+              <div class="actions">
+                <button class="btn btn-ghost btn-sm">すべて →</button>
+              </div>
+            </div>
+            <div style="padding:8px 12px">
+              <div style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid var(--c-border)">
+                <span class="proj-link" style="margin-right:8px">26-3-014</span>
+                <span style="flex:1;font-size:12px">三国第二工場 配管改修</span>
+                <span class="num" style="font-family:var(--ff-mono);font-weight:600">¥1,240,000</span>
+              </div>
+              <div style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid var(--c-border)">
+                <span class="proj-link" style="margin-right:8px">26-1-006</span>
+                <span style="flex:1;font-size:12px">事務所棟リフォーム</span>
+                <span class="num" style="font-family:var(--ff-mono);font-weight:600">¥820,000</span>
+              </div>
+              <div style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid var(--c-border)">
+                <span class="proj-link" style="margin-right:8px">25-7-122</span>
+                <span style="flex:1;font-size:12px">店舗改装</span>
+                <span class="num" style="font-family:var(--ff-mono);font-weight:600">¥320,000</span>
+              </div>
+              <div style="display:flex;align-items:center;padding:8px 4px;border-bottom:1px solid var(--c-border)">
+                <span class="proj-link" style="margin-right:8px">25-3-098</span>
+                <span style="flex:1;font-size:12px">第1工場 給水管修繕</span>
+                <span class="num" style="font-family:var(--ff-mono);font-weight:600">¥450,000</span>
+              </div>
+              <div style="display:flex;align-items:center;padding:8px 4px">
+                <span class="proj-link" style="margin-right:8px">25-1-067</span>
+                <span style="flex:1;font-size:12px">○○ビル 排水改修</span>
+                <span class="num" style="font-family:var(--ff-mono);font-weight:600">¥680,000</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RIGHT: price history -->
+        <div style="display:flex;flex-direction:column;gap:12px;min-width:0">
+
+          <!-- Chart -->
+          <div class="price-chart">
+            <div class="head">
+              <div>
+                <div class="ttl">単価推移 — SUS配管布設・溶接（25A）</div>
+                <div style="font-size:11px;color:var(--c-text-muted)">¥/m · 過去 5年</div>
+              </div>
+              <div class="meta">
+                直近: <strong style="color:var(--c-text);font-family:var(--ff-mono);font-size:13px;font-weight:700">¥4,500</strong> /m
+                <span style="color:var(--c-danger);font-family:var(--ff-mono);margin-left:8px">+6.3% YoY</span>
+              </div>
+            </div>
+            <svg viewBox="0 0 600 160" preserveAspectRatio="none" style="width:100%;height:160px">
+              <!-- grid -->
+              <g stroke="var(--c-border)" stroke-dasharray="2 3" stroke-width="0.5">
+                <line x1="40" y1="20" x2="590" y2="20"/>
+                <line x1="40" y1="60" x2="590" y2="60"/>
+                <line x1="40" y1="100" x2="590" y2="100"/>
+                <line x1="40" y1="140" x2="590" y2="140"/>
+              </g>
+              <g font-size="9" fill="var(--c-text-subtle)" font-family="JetBrains Mono">
+                <text x="35" y="22" text-anchor="end">5,000</text>
+                <text x="35" y="62" text-anchor="end">4,500</text>
+                <text x="35" y="102" text-anchor="end">4,000</text>
+                <text x="35" y="142" text-anchor="end">3,500</text>
+              </g>
+              <!-- band -->
+              <path d="M50 130 L130 125 L210 110 L290 95 L370 95 L450 80 L530 70 L590 60 L590 80 L530 90 L450 100 L370 110 L290 115 L210 130 L130 140 L50 150 Z"
+                fill="var(--c-primary)" opacity="0.08"/>
+              <!-- avg line for 弊社 -->
+              <polyline points="50,130 130,125 210,110 290,95 370,95 450,80 530,70 590,60"
+                stroke="var(--c-primary)" stroke-width="2" fill="none"/>
+              <!-- competitor band -->
+              <polyline points="50,115 130,113 210,98 290,88 370,82 450,70 530,55 590,50"
+                stroke="var(--c-accent)" stroke-width="1.5" fill="none" stroke-dasharray="3 3"/>
+              <g fill="var(--c-primary)">
+                <circle cx="50" cy="130" r="3"/>
+                <circle cx="130" cy="125" r="3"/>
+                <circle cx="210" cy="110" r="3"/>
+                <circle cx="290" cy="95" r="3"/>
+                <circle cx="370" cy="95" r="3"/>
+                <circle cx="450" cy="80" r="3"/>
+                <circle cx="530" cy="70" r="3"/>
+                <circle cx="590" cy="60" r="4" stroke="var(--c-surface)" stroke-width="2"/>
+              </g>
+              <g font-size="9" fill="var(--c-text-subtle)" font-family="JetBrains Mono" text-anchor="middle">
+                <text x="50" y="155">2022</text>
+                <text x="210" y="155">2023</text>
+                <text x="370" y="155">2024</text>
+                <text x="530" y="155">2025</text>
+                <text x="590" y="155">26.5</text>
+              </g>
+              <!-- legend -->
+              <g font-size="9" font-family="Inter">
+                <rect x="430" y="5" width="10" height="2" fill="var(--c-primary)"/>
+                <text x="444" y="9" fill="var(--c-text-muted)">福井配管工業</text>
+                <rect x="510" y="5" width="10" height="2" fill="var(--c-accent)"/>
+                <text x="524" y="9" fill="var(--c-text-muted)">業界平均</text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- History table -->
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">過去単価履歴</div>
+                <div class="card-sub">23件中 · 「この単価を新しい見積に流用」で見積書ドラフトに追加</div>
+              </div>
+              <div class="actions">
+                <input class="input" placeholder="項目名で絞り込み" style="width:200px;font-size:12px"/>
+              </div>
+            </div>
+            <table class="hist-tbl">
+              <thead>
+                <tr>
+                  <th style="width:90px">日付</th>
+                  <th>項目</th>
+                  <th style="width:60px">仕様</th>
+                  <th style="width:50px" class="num">数量</th>
+                  <th style="width:46px">単位</th>
+                  <th style="width:80px" class="num">単価</th>
+                  <th style="width:64px">前回比</th>
+                  <th style="width:96px">案件</th>
+                  <th style="width:50px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="num">2026/05/10</td>
+                  <td>SUS配管布設・溶接</td>
+                  <td>25A</td>
+                  <td class="num">85</td>
+                  <td>m</td>
+                  <td class="num"><strong>¥4,500</strong></td>
+                  <td><span class="delta-up">▲ +6.3%</span></td>
+                  <td><a class="proj-link" href="#">26-3-014</a></td>
+                  <td><button class="btn btn-ghost btn-sm">流用</button></td>
+                </tr>
+                <tr>
+                  <td class="num">2026/05/10</td>
+                  <td>SUS配管布設・溶接</td>
+                  <td>50A</td>
+                  <td class="num">42</td>
+                  <td>m</td>
+                  <td class="num"><strong>¥6,800</strong></td>
+                  <td><span class="delta-up">▲ +4.6%</span></td>
+                  <td><a class="proj-link" href="#">26-3-014</a></td>
+                  <td><button class="btn btn-ghost btn-sm">流用</button></td>
+                </tr>
+                <tr>
+                  <td class="num">2026/05/10</td>
+                  <td>SUS304 既設配管撤去</td>
+                  <td>25A</td>
+                  <td class="num">85</td>
+                  <td>m</td>
+                  <td class="num"><strong>¥1,150</strong></td>
+                  <td><span class="delta-flat">フラット</span></td>
+                  <td><a class="proj-link" href="#">26-3-014</a></td>
+                  <td><button class="btn btn-ghost btn-sm">流用</button></td>
+                </tr>
+                <tr>
+                  <td class="num">2026/02/22</td>
+                  <td>SUS配管布設・溶接</td>
+                  <td>25A</td>
+                  <td class="num">62</td>
+                  <td>m</td>
+                  <td class="num"><strong>¥4,234</strong></td>
+                  <td><span class="delta-up">▲ +2.1%</span></td>
+                  <td><a class="proj-link" href="#">26-1-006</a></td>
+                  <td><button class="btn btn-ghost btn-sm">流用</button></td>
+                </tr>
+                <tr>
+                  <td class="num">2025/11/08</td>
+                  <td>給水管修繕（VP管）</td>
+                  <td>40A</td>
+                  <td class="num">28</td>
+                  <td>m</td>
+                  <td class="num"><strong>¥2,800</strong></td>
+                  <td><span class="delta-down">▼ -1.4%</span></td>
+                  <td><a class="proj-link" href="#">25-3-098</a></td>
+                  <td><button class="btn btn-ghost btn-sm">流用</button></td>
+                </tr>
+                <tr>
+                  <td class="num">2025/06/12</td>
+                  <td>SUS配管布設・溶接</td>
+                  <td>25A</td>
+                  <td class="num">120</td>
+                  <td>m</td>
+                  <td class="num"><strong>¥4,148</strong></td>
+                  <td><span class="delta-up">▲ +3.7%</span></td>
+                  <td><a class="proj-link" href="#">25-1-067</a></td>
+                  <td><button class="btn btn-ghost btn-sm">流用</button></td>
+                </tr>
+                <tr>
+                  <td class="num">2024/10/18</td>
+                  <td>排水管 改修（耐火2層管）</td>
+                  <td>75A</td>
+                  <td class="num">52</td>
+                  <td>m</td>
+                  <td class="num"><strong>¥3,200</strong></td>
+                  <td><span class="delta-flat">—</span></td>
+                  <td><a class="proj-link" href="#">24-5-088</a></td>
+                  <td><button class="btn btn-ghost btn-sm">流用</button></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

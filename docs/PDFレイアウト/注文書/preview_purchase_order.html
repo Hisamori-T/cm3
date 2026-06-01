@@ -1,0 +1,318 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>注文書</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        @page {
+            size: A4 landscape;
+            margin: 12mm 15mm;
+        }
+
+        body {
+            font-family: 'Noto Sans CJK JP', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 10pt;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 右上メタ情報 */
+        .meta-header {
+            position: absolute;
+            top: 0;
+            right: 0;
+            font-size: 9pt;
+        }
+        .meta-table {
+            border-collapse: collapse;
+        }
+        .meta-table td {
+            padding: 2px 10px;
+        }
+        
+        /* タイトル */
+        .title-container {
+            text-align: center;
+            margin-top: 10mm;
+            margin-bottom: 10mm;
+        }
+        .title {
+            font-size: 22pt;
+            font-weight: bold;
+            letter-spacing: 15px;
+            margin: 0;
+            display: inline-block;
+            border-bottom: 2px solid #000;
+            padding-bottom: 5px;
+        }
+
+        /* 2カラムレイアウト */
+        .main-content {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+            border-top: 1px solid #000;
+        }
+        
+        /* === 左カラム === */
+        .col-left {
+            display: table-cell;
+            width: 53%;
+            vertical-align: top;
+            padding-right: 15mm;
+            border-right: 1px solid #000;
+            padding-top: 5mm;
+        }
+        
+        /* 自社名（宛名位置） */
+        .own-company-area {
+            border-bottom: 1px solid #000;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .own-company-name {
+            font-size: 20pt;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin: 0;
+            display: inline-block;
+        }
+        .own-company-name .onchu {
+            font-size: 14pt;
+            font-weight: normal;
+            float: right;
+            margin-top: 8pt;
+        }
+        
+        .greeting {
+            text-align: center;
+            line-height: 1.6;
+            margin-top: 15px;
+            margin-bottom: 20px;
+        }
+
+        /* 案件情報テーブル */
+        .project-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11pt;
+        }
+        .project-table td {
+            padding: 8px 0;
+            border-bottom: 1px dotted #000;
+            vertical-align: middle;
+        }
+        .project-table .no {
+            width: 5%;
+            text-align: left;
+        }
+        .project-table .label {
+            width: 25%;
+            letter-spacing: 2px;
+        }
+        .project-table .value {
+            width: 70%;
+            padding-left: 10px;
+        }
+
+        /* 金額行 */
+        .amount-row td {
+            padding: 6px 0;
+        }
+        .amount-val {
+            text-align: right;
+            display: block;
+            padding-right: 20px; /* 右端のハイフン用余白 */
+            position: relative;
+        }
+        .amount-val::after {
+            content: "-";
+            position: absolute;
+            right: 0;
+        }
+
+        /* === 右カラム === */
+        .col-right {
+            display: table-cell;
+            width: 47%;
+            vertical-align: top;
+            padding-left: 10mm;
+            padding-top: 5mm;
+        }
+
+        /* 顧客記入欄 */
+        .customer-fill-area {
+            margin-bottom: 8mm;
+        }
+        .fill-row {
+            border-bottom: 1px solid #000;
+            height: 12mm;
+            position: relative;
+        }
+        .fill-label {
+            position: absolute;
+            bottom: 4px;
+            left: 5px;
+            font-size: 14pt;
+            letter-spacing: 5px;
+        }
+        .fill-seal {
+            position: absolute;
+            bottom: 4px;
+            right: 15px;
+            font-size: 14pt;
+        }
+
+        /* 約款 */
+        .terms-area {
+            font-size: 6.5pt;
+            line-height: 1.4;
+        }
+        .terms-title {
+            font-weight: bold;
+            font-size: 8pt;
+            margin-bottom: 5px;
+        }
+        .term-item {
+            margin-bottom: 6px;
+            text-align: justify;
+        }
+        
+    </style>
+</head>
+<body>
+
+    <div class="meta-header">
+        <table class="meta-table">
+            <tr>
+                <td style="text-align:right;">弊社工事番号：</td>
+                <td></td>
+            </tr>
+            <tr>
+                <td style="text-align:right;">2026年</td>
+                <td>3月10日</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="title-container">
+        <h1 class="title">注　文　書</h1>
+    </div>
+
+    <div class="main-content">
+        <!-- 左半分：案件情報 -->
+        <div class="col-left">
+            <div class="own-company-area">
+                <div class="own-company-name">株式会社 クラップ <span class="onchu">御中</span></div>
+            </div>
+            
+            <div class="greeting">
+                約定に従い下記の通り注文致しますから<br>
+                お請けの節は別紙請書を提出して下さい。
+            </div>
+
+            <table class="project-table">
+                <tr>
+                    <td class="no">1.</td>
+                    <td class="label">工 事 名 称</td>
+                    <td class="value">協和自工(株) 鉄骨庇増築工事</td>
+                </tr>
+                <tr>
+                    <td class="no">2.</td>
+                    <td class="label">工 事 場 所</td>
+                    <td class="value">福井県福井市上細江町24字御坊2番1</td>
+                </tr>
+                <tr class="amount-row">
+                    <td class="no">3.</td>
+                    <td class="label">工 事 代 金</td>
+                    <td class="value"><span class="amount-val">¥6,464,000</span></td>
+                </tr>
+                <tr class="amount-row">
+                    <td class="no"></td>
+                    <td class="label" style="text-align: center; letter-spacing: normal;">消費税等(10%)</td>
+                    <td class="value"><span class="amount-val">¥646,400</span></td>
+                </tr>
+                <tr class="amount-row">
+                    <td class="no"></td>
+                    <td class="label" style="text-align: center; letter-spacing: normal;">請負代金額</td>
+                    <td class="value"><span class="amount-val">¥7,110,400</span></td>
+                </tr>
+                <tr>
+                    <td class="no">4.</td>
+                    <td class="label">工 事 期 間</td>
+                    <td class="value">ご協議の上　　〜　　約3週間</td>
+                </tr>
+                <tr>
+                    <td class="no">5.</td>
+                    <td class="label">支 払 条 件</td>
+                    <td class="value">御協議の上</td>
+                </tr>
+                <tr>
+                    <td class="no">6.</td>
+                    <td class="label">工 事 内 容</td>
+                    <td class="value">添付工事内訳書の通り</td>
+                </tr>
+                <tr>
+                    <td class="no">7.</td>
+                    <td class="label">適　　　要</td>
+                    <td class="value"></td>
+                </tr>
+            </table>
+        </div>
+
+        <!-- 右半分：記入欄・約款 -->
+        <div class="col-right">
+            <div class="customer-fill-area">
+                <div class="fill-row">
+                    <span class="fill-label">住 所</span>
+                </div>
+                <div class="fill-row">
+                    <span class="fill-label">会社名</span>
+                </div>
+                <div class="fill-row">
+                    <span class="fill-label">氏 名</span>
+                    <span class="fill-seal">印</span>
+                </div>
+            </div>
+
+            <div class="terms-area">
+                <div class="terms-title">◆基本契約約款◆</div>
+                <div class="term-item">
+                    第1条（総則）注文者（以下「甲」という。）と請負者（以下「乙」という。）は、注文書及び注文請書に定めるもののほか、この約款に基づき、図面、仕様書並びに、監督員または甲の現場員の指示に従い、おのおの対等の立場に立って誠実に履行する。
+                </div>
+                <div class="term-item">
+                    第2条（条件変更等）工事内容及び請負代金の変更、若しくはそれによる工期の変更が必要なときは、甲乙協議して決定する。
+                </div>
+                <div class="term-item">
+                    第3条（危険負担）天災その他不可抗力により、工期を変更する必要があるとき、又は工事の既済部分について損害を生じたときは、乙は事実発生後すみやかにその状況を甲に通告することを要する。工期の延長日数又は損害額負担については、甲乙協議して定める。
+                </div>
+                <div class="term-item">
+                    第4条（賃金又は物価の変動に基づく請負代金の変更）工期内に賃金又は物価の変動により請負代金が不適当となり、これを変更する必要があると認められたときは、甲乙協議して請負代金額を変更する。
+                </div>
+                <div class="term-item">
+                    第5条（第三者に及ぼした損害）施工について請負の責に帰すべき事由により第三者に損害を及ぼしたときは、乙がその損害を負担する。
+                </div>
+                <div class="term-item">
+                    第6条（完成、検査）乙は、工事を完成したときは、甲に通知するものとし、甲は、乙の立会のもと遅滞なく完成検査を行う。甲又は発注者の検査に合格しないときは、乙は、遅滞なくこれを補修又は改造して甲の検査を受ける。
+                </div>
+                <div class="term-item">
+                    第7条（瑕疵担保）乙は工事目的物が土地の工作物である場合、引渡しの日から1年間瑕疵担保責任を負う。
+                </div>
+                <div class="term-item">
+                    第8条（紛争の解決）甲乙間に紛争を生じたときは、当事者の双方の合意により選定した第三者又は建設業法による紛争審査会のあっせん又は調停により解決を図る。
+                </div>
+                <div class="term-item">
+                    第9条（補足）契約書ならびにこの約款に定めのない事項については、必要に応じ甲乙協議して定める。
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

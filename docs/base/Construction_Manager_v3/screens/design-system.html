@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>Design System — Construction Manager v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  body { background: var(--c-bg); padding: 24px 28px; }
+  .ds {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .ds-head { display: flex; align-items: flex-end; gap: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--c-border); }
+  .ds-logo {
+    width: 56px; height: 56px;
+    background: var(--c-primary);
+    color: #fff;
+    display: grid; place-items: center;
+    font-weight: 800;
+    border-radius: var(--r-md);
+    letter-spacing: 1px;
+  }
+  .ds-head h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+  .ds-head h1 small { display: block; font-weight: 500; font-size: 13px; color: var(--c-text-muted); margin-top: 4px;}
+  .ds-head .meta { margin-left: auto; font-size: 12px; color: var(--c-text-muted); text-align: right;}
+  .ds-head .meta strong { color: var(--c-text); font-family: var(--ff-mono); font-weight: 600; }
+
+  .ds-sec {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 18px 20px;
+    box-shadow: var(--sh-1);
+  }
+  .ds-sec h2 {
+    margin: 0 0 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .ds-sec h3 {
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .ds-sec .desc { color: var(--c-text-muted); font-size: 12px; margin-bottom: 16px; max-width: 60ch;}
+
+  /* Color swatches */
+  .colors-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .sw {
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .sw .chip { height: 64px; }
+  .sw .meta { padding: 8px 10px; font-size: 11px; }
+  .sw .meta .nm { font-weight: 600; }
+  .sw .meta .hx { font-family: var(--ff-mono); color: var(--c-text-muted); margin-top: 1px;}
+
+  /* Status badges */
+  .badge-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  /* Type spec */
+  .type-grid { display: grid; grid-template-columns: 80px 1fr 100px; gap: 18px 16px; align-items: baseline; }
+  .type-grid .label { font-family: var(--ff-mono); font-size: 11px; color: var(--c-text-muted); }
+  .type-grid .sample { color: var(--c-text); }
+  .type-grid .meta { font-family: var(--ff-mono); font-size: 11px; color: var(--c-text-muted); text-align: right;}
+
+  /* Component examples */
+  .cmp-grid { display: grid; gap: 20px; }
+  .cmp-row { display: grid; grid-template-columns: 180px 1fr; gap: 16px; align-items: flex-start; padding-bottom: 14px; border-bottom: 1px dashed var(--c-border); }
+  .cmp-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .cmp-label { font-size: 12px; }
+  .cmp-label strong { display: block; font-weight: 700; font-size: 13px; }
+  .cmp-label small { color: var(--c-text-muted); font-size: 11px; display: block; margin-top: 2px;}
+  .cmp-demo { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+  /* Stamps demo */
+  .stamps { display: flex; gap: 16px; align-items: flex-end; }
+  .stamp-spec { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 11px; color: var(--c-text-muted); font-family: var(--ff-mono); }
+
+  /* Approval bar variants demo */
+  .approval-mock {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--r-md);
+    font-size: 12px;
+  }
+  .approval-mock .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .approval-mock .steps { display: inline-flex; gap: 6px; margin-left: auto; font-size: 11px; }
+
+  /* Numeric demo */
+  .num-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .num-card {
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 8px 12px;
+  }
+  .num-card .k { font-family: var(--ff-sans); font-size: 11px; color: var(--c-text-muted); }
+  .num-card .v { font-size: 18px; font-weight: 700; margin-top: 2px; }
+  .num-card .v.neg { color: var(--c-danger); }
+  .num-card .v.zero { color: var(--c-text-muted); }
+
+  /* Theme switch top right */
+  .ds-theme {
+    position: fixed; top: 18px; right: 22px; z-index: 10;
+  }
+</style>
+</head>
+<body data-screen-label="Design System">
+
+<div class="ds-theme">
+  <div class="theme-switch" id="themeSwitch">
+    <button class="on" data-theme-set="light" title="ライト">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></svg>
+    </button>
+    <button data-theme-set="dark" title="ダーク">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="ds">
+
+  <!-- Header -->
+  <header class="ds-head">
+    <div class="ds-logo">CL</div>
+    <div>
+      <h1>Construction Manager v3<small>株式会社クラップ · 工事台帳Web化プロジェクト デザインシステム</small></h1>
+    </div>
+    <div class="meta">
+      <div>v1.0 / 2026.05.13</div>
+      <div><strong>Inter</strong> + <strong>Noto Sans JP</strong> + <strong>JetBrains Mono</strong></div>
+    </div>
+  </header>
+
+  <!-- Brand & Colors -->
+  <section class="ds-sec">
+    <h2>01 · ブランド</h2>
+    <h3>カラーパレット</h3>
+    <p class="desc">クラップ社のコーポレートネイビーを軸に、業務上の意味を持たせた控えめな配色。アクセントはティール（捺印の赤と明確に区別）。</p>
+
+    <div style="font-size:11px;color:var(--c-text-muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">ブランド / セマンティック</div>
+    <div class="colors-grid">
+      <div class="sw"><div class="chip" style="background:#1B2A52"></div><div class="meta"><div class="nm">Primary</div><div class="hx">#1B2A52</div></div></div>
+      <div class="sw"><div class="chip" style="background:#2A3A6B"></div><div class="meta"><div class="nm">Primary Hover</div><div class="hx">#2A3A6B</div></div></div>
+      <div class="sw"><div class="chip" style="background:#0E7C7B"></div><div class="meta"><div class="nm">Accent</div><div class="hx">#0E7C7B</div></div></div>
+      <div class="sw"><div class="chip" style="background:#C00000"></div><div class="meta"><div class="nm">Stamp / Danger</div><div class="hx">#C00000</div></div></div>
+      <div class="sw"><div class="chip" style="background:#F59E0B"></div><div class="meta"><div class="nm">Warning</div><div class="hx">#F59E0B</div></div></div>
+      <div class="sw"><div class="chip" style="background:#10B981"></div><div class="meta"><div class="nm">Success</div><div class="hx">#10B981</div></div></div>
+    </div>
+
+    <div style="height:18px"></div>
+
+    <div style="font-size:11px;color:var(--c-text-muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">ニュートラル</div>
+    <div class="colors-grid">
+      <div class="sw"><div class="chip" style="background:#FAFAF9;border-bottom:1px solid var(--c-border)"></div><div class="meta"><div class="nm">Background</div><div class="hx">#FAFAF9</div></div></div>
+      <div class="sw"><div class="chip" style="background:#FFFFFF;border-bottom:1px solid var(--c-border)"></div><div class="meta"><div class="nm">Surface</div><div class="hx">#FFFFFF</div></div></div>
+      <div class="sw"><div class="chip" style="background:#F4F4F2"></div><div class="meta"><div class="nm">Surface 2</div><div class="hx">#F4F4F2</div></div></div>
+      <div class="sw"><div class="chip" style="background:#E5E7EB"></div><div class="meta"><div class="nm">Border</div><div class="hx">#E5E7EB</div></div></div>
+      <div class="sw"><div class="chip" style="background:#6B7280"></div><div class="meta"><div class="nm">Text Muted</div><div class="hx">#6B7280</div></div></div>
+      <div class="sw"><div class="chip" style="background:#111827"></div><div class="meta"><div class="nm">Text</div><div class="hx">#111827</div></div></div>
+    </div>
+
+    <div style="height:18px"></div>
+
+    <div style="font-size:11px;color:var(--c-text-muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:8px">ステータス（7段階）</div>
+    <div class="badge-strip">
+      <span class="badge s-quote"><span class="dot"></span>見積中</span>
+      <span class="badge s-order"><span class="dot"></span>受注</span>
+      <span class="badge s-start"><span class="dot"></span>着工</span>
+      <span class="badge s-progress"><span class="dot"></span>施工中</span>
+      <span class="badge s-done"><span class="dot"></span>完工</span>
+      <span class="badge s-billed"><span class="dot"></span>請求済</span>
+      <span class="badge s-paid"><span class="dot"></span>入金済</span>
+    </div>
+    <div style="font-family:var(--ff-mono);font-size:11px;color:var(--c-text-subtle);margin-top:8px">
+      #9CA3AF · #3B82F6 · #06B6D4 · #F59E0B · #10B981 · #8B5CF6 · #059669
+    </div>
+  </section>
+
+  <!-- Typography -->
+  <section class="ds-sec">
+    <h2>02 · タイポグラフィ</h2>
+    <h3>サイズ階層</h3>
+    <p class="desc">本文 14px を基本。Web標準より少し小さく、Excel経験者にとって違和感のない情報密度を狙う。数値はすべて等幅で桁揃え。</p>
+
+    <div class="type-grid">
+      <div class="label">3xl / 28</div>
+      <div class="sample" style="font-size:28px;font-weight:700;letter-spacing:-0.01em">受注額 ¥45,800,000</div>
+      <div class="meta">700 / -1%</div>
+
+      <div class="label">2xl / 22</div>
+      <div class="sample" style="font-size:22px;font-weight:700">三国第二工場 配管改修</div>
+      <div class="meta">700</div>
+
+      <div class="label">xl / 18</div>
+      <div class="sample" style="font-size:18px;font-weight:600">QCDS 原価算定表</div>
+      <div class="meta">600</div>
+
+      <div class="label">lg / 16</div>
+      <div class="sample" style="font-size:16px;font-weight:500">案件詳細 — セクション見出し</div>
+      <div class="meta">500</div>
+
+      <div class="label">base / 14</div>
+      <div class="sample" style="font-size:14px">本文・入力テキスト・テーブル · 株式会社クラップ 福井県坂井市</div>
+      <div class="meta">400</div>
+
+      <div class="label">sm / 13</div>
+      <div class="sample" style="font-size:13px;color:var(--c-text-muted)">補助テキスト・サブラベル · 取決見通表</div>
+      <div class="meta">400</div>
+
+      <div class="label">xs / 11</div>
+      <div class="sample" style="font-size:11px;color:var(--c-text-subtle);letter-spacing:0.04em">CAPTION / KBD / SMALL META · 2026/05/13</div>
+      <div class="meta">600</div>
+
+      <div class="label">Mono / 14</div>
+      <div class="sample" style="font-family:var(--ff-mono);font-variant-numeric:tabular-nums">¥1,083,000　22.5%　26-3-014　2026/04/12〜2026/07/31</div>
+      <div class="meta">JBM 500</div>
+
+      <div class="label">Serif</div>
+      <div class="sample" style="font-family:var(--ff-serif);font-weight:600;font-size:18px">承　審　担　平等 · 中山 · 奴間</div>
+      <div class="meta">印影専用</div>
+    </div>
+  </section>
+
+  <!-- Components -->
+  <section class="ds-sec">
+    <h2>03 · コンポーネント</h2>
+    <h3>shadcn/ui ベース · 業務密度向け調整</h3>
+    <p class="desc">角丸は最大 8px。装飾は最小限。すべての操作はキーボードで完結する想定。</p>
+
+    <div class="cmp-grid">
+
+      <!-- Buttons -->
+      <div class="cmp-row">
+        <div class="cmp-label">
+          <strong>Button</strong>
+          <small>Primary / Secondary / Accent / Ghost · sm / md</small>
+        </div>
+        <div class="cmp-demo">
+          <button class="btn btn-primary">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+            新規案件
+          </button>
+          <button class="btn">編集</button>
+          <button class="btn btn-accent">承認する</button>
+          <button class="btn btn-ghost">キャンセル</button>
+          <button class="btn btn-primary btn-sm">保存</button>
+          <button class="btn btn-sm">PDF</button>
+        </div>
+      </div>
+
+      <!-- Inputs -->
+      <div class="cmp-row">
+        <div class="cmp-label">
+          <strong>Input / Select</strong>
+          <small>業務UI · パディング詰めめ（5px）</small>
+        </div>
+        <div class="cmp-demo">
+          <input class="input" placeholder="工事名" style="width:220px" value="三国第二工場 配管改修"/>
+          <select class="select" style="width:160px">
+            <option>株式会社協和自工</option>
+            <option>坂井市役所</option>
+          </select>
+          <input class="input num" placeholder="金額" style="width:140px" value="4,820,000"/>
+          <input class="input" placeholder="検索" style="width:160px"/>
+        </div>
+      </div>
+
+      <!-- Status badges -->
+      <div class="cmp-row">
+        <div class="cmp-label">
+          <strong>Status Badge</strong>
+          <small>20%透明度背景 + 濃いめ文字 · 必ず丸印 + テキスト</small>
+        </div>
+        <div class="cmp-demo">
+          <span class="badge s-quote"><span class="dot"></span>見積中</span>
+          <span class="badge s-order"><span class="dot"></span>受注</span>
+          <span class="badge s-start"><span class="dot"></span>着工</span>
+          <span class="badge s-progress"><span class="dot"></span>施工中</span>
+          <span class="badge s-done"><span class="dot"></span>完工</span>
+          <span class="badge s-billed"><span class="dot"></span>請求済</span>
+          <span class="badge s-paid"><span class="dot"></span>入金済</span>
+        </div>
+      </div>
+
+      <!-- Stamps -->
+      <div class="cmp-row">
+        <div class="cmp-label">
+          <strong>印影 (Stamp)</strong>
+          <small>赤丸 + 明朝体縦書き · 1〜4文字 · 帳票出力時の自動配置に共通</small>
+        </div>
+        <div class="cmp-demo stamps">
+          <div class="stamp-spec"><div class="stamp sm">平</div><span>sm 38px</span></div>
+          <div class="stamp-spec"><div class="stamp">平等</div><span>md 56px</span></div>
+          <div class="stamp-spec"><div class="stamp lg">奴間</div><span>lg 78px</span></div>
+          <div class="stamp-spec"><div class="stamp">中山<br/></div><span>2文字</span></div>
+        </div>
+      </div>
+
+      <!-- Approval bar -->
+      <div class="cmp-row">
+        <div class="cmp-label">
+          <strong>承認ステータスバー</strong>
+          <small>draft / pending / approved / rejected の4状態</small>
+        </div>
+        <div class="cmp-demo" style="flex-direction:column;align-items:stretch;width:100%;gap:6px">
+          <div class="approval-bar">
+            <span class="dot" style="background:var(--c-text-subtle);width:8px;height:8px;border-radius:50%"></span>
+            <strong>下書き</strong> — 承認依頼前
+            <span class="steps muted">担当 / 審査 / 承認</span>
+          </div>
+          <div class="approval-bar pending">
+            <span class="dot" style="background:var(--c-warn);width:8px;height:8px;border-radius:50%"></span>
+            <strong>承認待ち（2/3 完了）</strong> — 残り 承認: 奴間 正人
+            <span class="steps">✓ 担当 · ✓ 審査 · ◯ 承認</span>
+          </div>
+          <div class="approval-bar approved">
+            <span class="dot" style="background:var(--c-success);width:8px;height:8px;border-radius:50%"></span>
+            <strong>承認済み</strong> — 顧客提出可能
+            <span class="steps">✓ 担当 · ✓ 審査 · ✓ 承認</span>
+          </div>
+          <div class="approval-bar rejected">
+            <span class="dot" style="background:var(--c-danger);width:8px;height:8px;border-radius:50%"></span>
+            <strong>差戻し</strong> — コメント確認後に再依頼してください
+            <span class="steps">✓ 担当 · ✕ 審査</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Numeric -->
+      <div class="cmp-row">
+        <div class="cmp-label">
+          <strong>金額表示</strong>
+          <small>必ず3桁カンマ・等幅・¥前置 · マイナスは赤＋括弧 · ¥0は「—」</small>
+        </div>
+        <div class="cmp-demo" style="width:100%">
+          <div class="num-grid" style="width:100%">
+            <div class="num-card"><div class="k">通常</div><div class="v">¥4,820,000</div></div>
+            <div class="num-card"><div class="k">大きな金額</div><div class="v">¥45,800,000</div></div>
+            <div class="num-card"><div class="k">小さな金額</div><div class="v">¥1,024</div></div>
+            <div class="num-card"><div class="k">マイナス（差額）</div><div class="v neg">(¥1,000)</div></div>
+            <div class="num-card"><div class="k">ゼロ</div><div class="v zero">—</div></div>
+            <div class="num-card"><div class="k">パーセント</div><div class="v">22.5%</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Excel-like cell -->
+      <div class="cmp-row">
+        <div class="cmp-label">
+          <strong>Excelライク セル</strong>
+          <small>クリック=直接編集 · Tab右 · Enter下 · fx=計算式</small>
+        </div>
+        <div class="cmp-demo" style="width:100%">
+          <table class="xtable" style="width:520px">
+            <thead>
+              <tr><th style="width:30%">区分</th><th style="width:35%">計算式</th><th class="num" style="width:35%">金額</th></tr>
+            </thead>
+            <tbody>
+              <tr><td class="label">労災保険料</td><td style="color:var(--c-text-subtle);font-family:var(--ff-mono);font-size:11px">工事価格 × 0.1973%</td><td class="num computed">9,512</td></tr>
+              <tr><td class="label">雑費</td><td class="editable editing">夜間電気代</td><td class="num editable">18,215</td></tr>
+              <tr><td class="label">その他</td><td class="editable">—</td><td class="num editable">—</td></tr>
+              <tr><td class="total" colspan="2" style="text-align:right">小計</td><td class="num total">27,727</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sidebar nav item -->
+      <div class="cmp-row">
+        <div class="cmp-label">
+          <strong>Sidebar Nav</strong>
+          <small>左サイドバー · 折りたたみ可</small>
+        </div>
+        <div class="cmp-demo" style="background:var(--c-surface);border:1px solid var(--c-border);border-radius:var(--r-md);padding:6px;flex-direction:column;align-items:stretch;width:240px">
+          <div class="nav-item active">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+            ダッシュボード
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+            案件一覧 <span class="nav-badge">128</span>
+          </div>
+          <div class="nav-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Spacing & radius -->
+  <section class="ds-sec">
+    <h2>04 · スペーシング & 角丸</h2>
+    <h3>4px グリッド + 業務密度</h3>
+    <p class="desc">テーブル系は <code style="font-family:var(--ff-mono);font-size:11px">px-3 py-2</code>（12×8px）まで詰める。カードのパディングは 16px。角丸は最大 8px（rounded-2xl 以上は使わない）。</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+      <div>
+        <div style="font-size:11px;color:var(--c-text-muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Spacing</div>
+        <div style="display:flex;align-items:flex-end;gap:14px">
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:4px;height:4px;background:var(--c-primary);margin-bottom:6px"></div>4</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:8px;height:8px;background:var(--c-primary);margin-bottom:6px"></div>8</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:12px;height:12px;background:var(--c-primary);margin-bottom:6px"></div>12</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:16px;height:16px;background:var(--c-primary);margin-bottom:6px"></div>16</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:24px;height:24px;background:var(--c-primary);margin-bottom:6px"></div>24</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:32px;height:32px;background:var(--c-primary);margin-bottom:6px"></div>32</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:48px;height:48px;background:var(--c-primary);margin-bottom:6px"></div>48</div>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--c-text-muted);font-weight:600;letter-spacing:0.06em;text-transform:uppercase;margin-bottom:10px">Radius</div>
+        <div style="display:flex;align-items:flex-end;gap:14px">
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:40px;height:40px;background:var(--c-primary);border-radius:3px;margin-bottom:6px"></div>sm 3</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:40px;height:40px;background:var(--c-primary);border-radius:6px;margin-bottom:6px"></div>md 6</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:40px;height:40px;background:var(--c-primary);border-radius:8px;margin-bottom:6px"></div>lg 8</div>
+          <div style="text-align:center;font-family:var(--ff-mono);font-size:10px;color:var(--c-text-muted)"><div style="width:40px;height:40px;background:var(--c-primary);border-radius:999px;margin-bottom:6px"></div>pill</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Iconography & micro -->
+  <section class="ds-sec">
+    <h2>05 · アイコン / 細かいルール</h2>
+    <h3>Lucide · stroke-width 1.5</h3>
+    <p class="desc">装飾には使わず、ナビ・アクション・ステータス専用。線細め（1.5）で統一。</p>
+
+    <div style="display:flex;flex-wrap:wrap;gap:24px;color:var(--c-text)">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        home
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        list
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6M9 9h3"/></svg>
+        file
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        scan
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        check
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        search
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 113 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        edit
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        clock
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+        alert
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        user
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--c-text-muted);font-family:var(--ff-mono)">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        settings
+      </div>
+    </div>
+  </section>
+
+  <!-- Principles -->
+  <section class="ds-sec">
+    <h2>06 · 原則</h2>
+    <h3>このプロダクトで大切にすること</h3>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px">
+      <div style="border-left:3px solid var(--c-primary);padding:6px 14px;background:var(--c-surface-2);border-radius:0 var(--r-md) var(--r-md) 0">
+        <div style="font-weight:700;font-size:13px">数字を間違えない</div>
+        <div style="font-size:12px;color:var(--c-text-muted);margin-top:2px">金額は大きく・等幅・必ず3桁カンマ。確認ステップを挟む。</div>
+      </div>
+      <div style="border-left:3px solid var(--c-accent);padding:6px 14px;background:var(--c-surface-2);border-radius:0 var(--r-md) var(--r-md) 0">
+        <div style="font-weight:700;font-size:13px">「承認」は重い行為</div>
+        <div style="font-size:12px;color:var(--c-text-muted);margin-top:2px">印影=責任。承認ボタンは派手にせず、必ず内容確認を促す。</div>
+      </div>
+      <div style="border-left:3px solid var(--c-status-progress);padding:6px 14px;background:var(--c-surface-2);border-radius:0 var(--r-md) var(--r-md) 0">
+        <div style="font-weight:700;font-size:13px">Excelに違和感がない密度</div>
+        <div style="font-size:12px;color:var(--c-text-muted);margin-top:2px">テーブルは詰めめ、フィールドはグリッド整列、Tab/Enterで移動。</div>
+      </div>
+      <div style="border-left:3px solid var(--c-status-billed);padding:6px 14px;background:var(--c-surface-2);border-radius:0 var(--r-md) var(--r-md) 0">
+        <div style="font-weight:700;font-size:13px">現場とオフィスの感覚差</div>
+        <div style="font-size:12px;color:var(--c-text-muted);margin-top:2px">PCは情報密度MAX、モバイル（PWA）は閲覧・進捗・写真に集中。</div>
+      </div>
+    </div>
+  </section>
+
+  <div style="font-size:11px;color:var(--c-text-subtle);text-align:center;padding:16px 0">Construction Manager v3 · Design System v1.0 · 株式会社クラップ</div>
+</div>
+
+<script>
+  const themeSwitch = document.getElementById('themeSwitch');
+  themeSwitch.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-theme-set]');
+    if (!btn) return;
+    const theme = btn.dataset.themeSet;
+    document.documentElement.dataset.theme = theme;
+    themeSwitch.querySelectorAll('button').forEach(b => b.classList.toggle('on', b === btn));
+    try { window.parent.postMessage({ type: 'ds-theme', theme }, '*'); } catch(e) {}
+  });
+  (function() {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('theme');
+    if (t === 'dark') {
+      document.documentElement.dataset.theme = 'dark';
+      themeSwitch.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.themeSet === 'dark'));
+    }
+  })();
+</script>
+
+</body>
+</html>

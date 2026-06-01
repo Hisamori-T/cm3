@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S05 QCDS原価算定表 — Construction Manager v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* QCDS sectioning */
+  .qcds-tabs {
+    display: flex;
+    gap: 0;
+    margin: 0 0 12px;
+  }
+  .qcds-tabs .tab {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-right: none;
+    padding: 8px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .qcds-tabs .tab:first-child { border-top-left-radius: var(--r-md); border-bottom-left-radius: var(--r-md); }
+  .qcds-tabs .tab:last-child {
+    border-right: 1px solid var(--c-border);
+    border-top-right-radius: var(--r-md);
+    border-bottom-right-radius: var(--r-md);
+  }
+  .qcds-tabs .tab.on {
+    background: var(--c-primary);
+    border-color: var(--c-primary);
+    color: #fff;
+  }
+  .qcds-tabs .tab .pill {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    padding: 1px 6px;
+    border-radius: var(--r-pill);
+    font-family: var(--ff-mono);
+    font-size: 10px;
+  }
+  .qcds-tabs .tab:not(.on) .pill { background: var(--c-surface-3); color: var(--c-text-muted); }
+
+  /* Section card */
+  .sec {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  .sec-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--c-surface);
+    border-bottom: 1px solid var(--c-border);
+  }
+  .sec-head .badge-letter {
+    background: var(--c-primary);
+    color: #fff;
+    width: 22px; height: 22px;
+    border-radius: var(--r-sm);
+    display: grid; place-items: center;
+    font-weight: 800;
+    font-family: var(--ff-mono);
+    font-size: 12px;
+  }
+  .sec-head .tt {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
+  .sec-head .sub {
+    font-size: 11px;
+    color: var(--c-text-muted);
+  }
+  .sec-head .stat {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .sec-head .stat .v {
+    font-family: var(--ff-mono);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: 14px;
+  }
+  .sec-head .stat .k {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    margin-right: 4px;
+  }
+  .sec-head .caret {
+    width: 22px; height: 22px;
+    border-radius: var(--r-sm);
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    display: grid; place-items: center;
+    color: var(--c-text-muted);
+    cursor: pointer;
+  }
+
+  /* QCDS table */
+  .qtbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .qtbl th, .qtbl td {
+    border-bottom: 1px solid var(--c-border);
+    border-right: 1px solid var(--c-border);
+    padding: 5px 8px;
+    height: 28px;
+    vertical-align: middle;
+  }
+  .qtbl th {
+    background: var(--c-surface-2);
+    font-weight: 600;
+    color: var(--c-text-muted);
+    font-size: 11px;
+    text-align: left;
+    letter-spacing: 0.02em;
+  }
+  .qtbl td.no { color: var(--c-text-muted); font-family: var(--ff-mono); text-align: center; width: 34px; }
+  .qtbl td.num { text-align: right; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .qtbl td.editable { cursor: text; background: var(--c-surface); }
+  .qtbl td.editable:hover { background: var(--c-primary-50); }
+  .qtbl td.editing { outline: 2px solid var(--c-primary); outline-offset: -2px; position: relative; z-index: 1; background: var(--c-surface); }
+  .qtbl td.computed {
+    background: var(--c-surface-2);
+    color: var(--c-text);
+    position: relative;
+  }
+  .qtbl td.computed::before {
+    content: "fx";
+    position: absolute;
+    left: 4px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 9px;
+    color: var(--c-text-subtle);
+    font-style: italic;
+    font-family: var(--ff-mono);
+  }
+  .qtbl td.formula { color: var(--c-text-subtle); font-family: var(--ff-mono); font-size: 11px; font-style: italic; }
+  .qtbl tr.subtotal td { background: color-mix(in oklab, var(--c-primary) 6%, var(--c-surface)); font-weight: 700; }
+  .qtbl tr.grand td { background: color-mix(in oklab, var(--c-primary) 12%, var(--c-surface)); font-weight: 700; font-size: 13px; }
+  .qtbl tr.muted-row td { color: var(--c-text-subtle); }
+  .qtbl tr.muted-row td.editable { background: color-mix(in oklab, var(--c-text-subtle) 4%, var(--c-surface)); }
+
+  /* Section A 3-col layout */
+  .a-table {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+  .a-table > div { border-right: 1px solid var(--c-border); }
+  .a-table > div:last-child { border-right: none; }
+
+  /* Profit ladder (bottom) */
+  .ladder {
+    display: grid;
+    grid-template-columns: 60px 1fr 1fr 1fr;
+    gap: 0;
+    font-size: 12px;
+  }
+  .ladder > div {
+    border-bottom: 1px solid var(--c-border);
+    border-right: 1px solid var(--c-border);
+    padding: 7px 10px;
+    background: var(--c-surface);
+    min-height: 32px;
+    display: flex; align-items: center;
+  }
+  .ladder > div.label-col { background: var(--c-surface-2); color: var(--c-text-muted); font-weight: 600; justify-content: center; }
+  .ladder > div.col-header {
+    background: var(--c-primary);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    justify-content: center;
+    border-right: 1px solid color-mix(in oklab, var(--c-primary) 70%, #000);
+  }
+  .ladder > div.col-header:last-child { border-right: none; }
+  .ladder .ll { display: flex; flex-direction: column; line-height: 1.3; flex: 1;}
+  .ladder .ll .nm { font-size: 11px; color: var(--c-text-muted); }
+  .ladder .ll .vv { font-family: var(--ff-mono); font-weight: 700; font-size: 13px;}
+  .ladder .ll .pct { font-family: var(--ff-mono); font-size: 11px; color: var(--c-accent); margin-left: auto; }
+  .ladder .vrow { display: flex; align-items: baseline; gap: 8px; flex: 1;}
+  .ladder > div.highlight { background: color-mix(in oklab, var(--c-accent) 10%, var(--c-surface)); }
+
+  /* Price scenario table */
+  .scenario {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .scenario th, .scenario td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--c-border);
+    border-right: 1px solid var(--c-border);
+    text-align: right;
+    font-family: var(--ff-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  .scenario td:first-child, .scenario th:first-child { text-align: left; font-family: var(--ff-sans); }
+  .scenario th { background: var(--c-surface-2); color: var(--c-text-muted); font-weight: 600; font-size: 11px; }
+  .scenario tr.on td { background: color-mix(in oklab, var(--c-accent) 10%, var(--c-surface)); font-weight: 700; }
+  .scenario tr.on td:first-child { color: var(--c-accent); }
+
+  /* Top KPI strip */
+  .qkpi {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--sh-1);
+  }
+  .qkpi > div {
+    padding: 12px 14px;
+    border-right: 1px solid var(--c-border);
+  }
+  .qkpi > div:last-child { border-right: none; }
+  .qkpi .k { font-size: 11px; color: var(--c-text-muted); letter-spacing: 0.02em; font-weight: 600; }
+  .qkpi .v { font-family: var(--ff-mono); font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; margin-top: 2px;}
+  .qkpi .v .yen { font-size: 11px; font-weight: 500; color: var(--c-text-muted); margin-right: 2px;}
+  .qkpi .p { font-size: 11px; color: var(--c-accent); font-family: var(--ff-mono); margin-top: 2px;}
+  .qkpi .p.danger { color: var(--c-danger); }
+  .qkpi > div.target { background: color-mix(in oklab, var(--c-accent) 6%, var(--c-surface)); }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .toolbar h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+</style>
+</head>
+<body data-screen-label="S05 QCDS">
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6M9 9h3"/></svg>
+        見積書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3"/></svg>
+        注文書
+      </div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg>
+        QCDS
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="#" style="color:var(--c-text-muted);text-decoration:none">案件一覧</a>
+        <span class="sep">/</span>
+        <a href="#" style="color:var(--c-text-muted);text-decoration:none">三国第二工場 配管改修</a>
+        <span class="sep">/</span>
+        <strong>QCDS</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <span style="font-size:11px;color:var(--c-text-muted)">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:-1px"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        自動保存 · 5分前
+      </span>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+        PDF
+      </button>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+        Excel
+      </button>
+      <button class="btn btn-primary btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+        保存
+      </button>
+    </header>
+
+    <main class="page">
+
+      <!-- Header -->
+      <div class="toolbar">
+        <h1>QCDS 原価算定表</h1>
+        <span class="meta">三国第二工場 配管改修 · <span class="num">26-3-014</span> · 作成日 2026/04/08</span>
+        <div class="spacer"></div>
+        <div class="qcds-tabs">
+          <button class="tab on">実行予算書（簡易版） <span class="pill">確定</span></button>
+          <button class="tab">改訂実行予算書 <span class="pill">下書き</span></button>
+        </div>
+      </div>
+
+      <!-- Top KPI -->
+      <div class="qkpi">
+        <div>
+          <div class="k">工事価格（顧客）</div>
+          <div class="v"><span class="yen">¥</span>4,820,000</div>
+          <div class="p">税込 ¥5,302,000</div>
+        </div>
+        <div>
+          <div class="k">直接工事費（A）</div>
+          <div class="v"><span class="yen">¥</span>3,150,000</div>
+          <div class="p">直工率 65.4%</div>
+        </div>
+        <div>
+          <div class="k">経費（B）</div>
+          <div class="v"><span class="yen">¥</span>491,400</div>
+          <div class="p">10.2%</div>
+        </div>
+        <div>
+          <div class="k">実行予算 合計</div>
+          <div class="v"><span class="yen">¥</span>3,737,000</div>
+          <div class="p">実行比率 77.5%</div>
+        </div>
+        <div class="target">
+          <div class="k">営業利益①</div>
+          <div class="v"><span class="yen">¥</span>1,083,000</div>
+          <div class="p">営利率 22.5%</div>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <!-- Section A: 直接工事 -->
+      <div class="sec">
+        <div class="sec-head">
+          <span class="badge-letter">A</span>
+          <div>
+            <div class="tt">直接工事</div>
+            <div class="sub">外注 / 資材 / その他 · 業者見積から自動取込可</div>
+          </div>
+          <div class="stat">
+            <span><span class="k">外注計</span><span class="v">¥2,648,000</span></span>
+            <span><span class="k">資材計</span><span class="v">¥422,000</span></span>
+            <span><span class="k">その他計</span><span class="v">¥80,000</span></span>
+            <span><span class="k">A 計</span><span class="v" style="color:var(--c-accent)">¥3,150,000</span></span>
+          </div>
+          <button class="btn btn-ghost btn-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+            スキャンから取込
+          </button>
+          <button class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 15l-6-6-6 6"/></svg></button>
+        </div>
+
+        <div class="a-table">
+          <!-- 外注 -->
+          <div>
+            <table class="qtbl">
+              <thead>
+                <tr>
+                  <th style="width:30px">No</th>
+                  <th>外注業者名</th>
+                  <th class="num" style="width:96px">予算</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="no">1</td><td class="editable">北陸電気工業</td><td class="editable num">680,000</td></tr>
+                <tr><td class="no">2</td><td class="editable">三国塗装</td><td class="editable num">420,000</td></tr>
+                <tr><td class="no">3</td><td class="editable">福井配管工業</td><td class="editable num editing">1,250,000</td></tr>
+                <tr><td class="no">4</td><td class="editable">坂井保温</td><td class="editable num">340,000</td></tr>
+                <tr><td class="no">5</td><td class="editable">小松鉄工所</td><td class="editable num">280,000</td></tr>
+                <tr><td class="no">6</td><td class="editable">三建運輸</td><td class="editable num">180,000</td></tr>
+                <tr class="muted-row"><td class="no">7</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">8</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">…</td><td class="editable" style="color:var(--c-text-subtle)">26行まで拡張可</td><td class="editable num">—</td></tr>
+                <tr class="subtotal">
+                  <td colspan="2" style="text-align:right">A-1 外注取決め計</td>
+                  <td class="num">2,648,000</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- 資材 -->
+          <div>
+            <table class="qtbl">
+              <thead>
+                <tr>
+                  <th style="width:30px">No</th>
+                  <th>資材業者名</th>
+                  <th class="num" style="width:96px">予算</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="no">1</td><td class="editable">福井鋼管 ㈱</td><td class="editable num">312,000</td></tr>
+                <tr><td class="no">2</td><td class="editable">敦賀バルブ商会</td><td class="editable num">75,000</td></tr>
+                <tr><td class="no">3</td><td class="editable">三浦工材</td><td class="editable num">35,000</td></tr>
+                <tr class="muted-row"><td class="no">4</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">5</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">6</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">7</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">8</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">…</td><td class="editable" style="color:var(--c-text-subtle)">行追加</td><td class="editable num">—</td></tr>
+                <tr class="subtotal">
+                  <td colspan="2" style="text-align:right">A-2 資材計</td>
+                  <td class="num">422,000</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <!-- その他 -->
+          <div>
+            <table class="qtbl">
+              <thead>
+                <tr>
+                  <th style="width:30px">No</th>
+                  <th>その他</th>
+                  <th class="num" style="width:96px">予算</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td class="no">1</td><td class="editable">外注設計料</td><td class="editable num">35,000</td></tr>
+                <tr><td class="no">2</td><td class="editable">外注積算料</td><td class="editable num">25,000</td></tr>
+                <tr><td class="no">3</td><td class="editable">外注企画料</td><td class="editable num">20,000</td></tr>
+                <tr class="muted-row"><td class="no">4</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">5</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr><td class="no">30</td><td class="editable">予備費</td><td class="editable num">—</td></tr>
+                <tr><td class="no">31</td><td class="editable">産業廃棄物処理費</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">…</td><td class="editable" style="color:var(--c-text-subtle)">行追加</td><td class="editable num">—</td></tr>
+                <tr class="muted-row"><td class="no">…</td><td class="editable">—</td><td class="editable num">—</td></tr>
+                <tr class="subtotal">
+                  <td colspan="2" style="text-align:right">A-3 その他計</td>
+                  <td class="num">80,000</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- A grand -->
+        <table class="qtbl" style="border-top:1.5px solid var(--c-border-strong)">
+          <tbody>
+            <tr class="grand">
+              <td style="width:60%;border-right:1px solid var(--c-border);padding-left:14px">A 直接工事費合計　A = 1 + 2 + 3</td>
+              <td style="width:160px;text-align:right">工事費</td>
+              <td class="num" style="width:90px">65.4%</td>
+              <td class="num" style="width:120px">¥3,150,000</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <!-- Section B: 経費関係 -->
+      <div class="sec">
+        <div class="sec-head">
+          <span class="badge-letter" style="background:var(--c-accent)">B</span>
+          <div>
+            <div class="tt">経費関係</div>
+            <div class="sub">現場経費 + 事業部経費</div>
+          </div>
+          <div class="stat">
+            <span><span class="k">現場経費</span><span class="v">¥58,200</span></span>
+            <span><span class="k">事業部経費</span><span class="v">¥433,200</span></span>
+            <span><span class="k">B 計</span><span class="v" style="color:var(--c-accent)">¥491,400</span></span>
+          </div>
+          <button class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 15l-6-6-6 6"/></svg></button>
+        </div>
+
+        <table class="qtbl">
+          <thead>
+            <tr>
+              <th style="width:38px">No</th>
+              <th>振替項目</th>
+              <th style="width:200px">計算式</th>
+              <th>備考</th>
+              <th class="num" style="width:110px">金額</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" style="background:color-mix(in oklab,var(--c-accent) 8%,var(--c-surface));color:var(--c-text);font-weight:700;font-size:11px;letter-spacing:0.05em;text-transform:uppercase">■ 現場経費</td></tr>
+            <tr><td class="no">1</td><td class="editable">労災保険料</td><td class="formula">工事価格 × 0.1973%</td><td class="muted">—</td><td class="computed num">9,512</td></tr>
+            <tr><td class="no">2</td><td class="editable">工事保険・賠償責任保険</td><td class="formula">請負金 × 0.2095%</td><td class="muted">—</td><td class="computed num">10,103</td></tr>
+            <tr><td class="no">3</td><td class="editable">請負金に関する契約印紙代</td><td class="formula">印紙税テーブル</td><td class="muted">自動算定（500万〜1,000万）</td><td class="computed num">10,000</td></tr>
+            <tr><td class="no">4</td><td class="editable">売上の領収書</td><td class="formula">— </td><td class="muted">自動算定</td><td class="computed num">200</td></tr>
+            <tr><td class="no">5</td><td class="editable">特殊保険</td><td class="formula">請負金 生産物 0.0110%</td><td class="muted">必要に応じ</td><td class="editable num">530</td></tr>
+            <tr><td class="no">6</td><td class="editable">事務用品・通信交通費</td><td class="formula">工事価格 × 0.2%</td><td class="muted">—</td><td class="computed num">9,640</td></tr>
+            <tr><td class="no">7</td><td class="editable">雑費</td><td class="formula">—</td><td class="editable">夜間作業電気代</td><td class="editable num">18,215</td></tr>
+            <tr class="subtotal">
+              <td colspan="4" style="text-align:right">現場経費 小計 (1)</td>
+              <td class="num">58,200</td>
+            </tr>
+
+            <tr><td colspan="5" style="background:color-mix(in oklab,var(--c-warn) 10%,var(--c-surface));color:var(--c-text);font-weight:700;font-size:11px;letter-spacing:0.05em;text-transform:uppercase">■ 事業部経費</td></tr>
+            <tr><td class="no">1</td><td class="editable">現場担当者給与</td><td class="formula">工事価格 × 3.0% （自動）</td><td class="muted">実際の現場人件費 ※1</td><td class="computed num">144,600</td></tr>
+            <tr><td class="no">2</td><td class="editable">工事部経費（共通）</td><td class="formula">工事価格 × 0.0% （自動）</td><td class="muted">—</td><td class="computed num">0</td></tr>
+            <tr><td class="no">3</td><td class="editable">共通経費</td><td class="formula">工事価格 × 3.0% （自動）</td><td class="muted">—</td><td class="computed num">144,600</td></tr>
+            <tr><td class="no">4</td><td class="editable">その他</td><td class="formula">—</td><td class="editable">部署内移動・打合せ</td><td class="editable num">144,000</td></tr>
+            <tr class="subtotal">
+              <td colspan="4" style="text-align:right">事業部経費 小計 (2)</td>
+              <td class="num">433,200</td>
+            </tr>
+            <tr class="grand">
+              <td colspan="4" style="text-align:right;padding-right:14px">B 経費関係合計　①現場経費＋(1) ＋ ②事業部経費＋(2)</td>
+              <td class="num">491,400</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <!-- Profit ladder -->
+      <div class="sec">
+        <div class="sec-head">
+          <span class="badge-letter" style="background:var(--c-status-progress)">利</span>
+          <div>
+            <div class="tt">直工・工事原価 階段</div>
+            <div class="sub">A + B から直工率・原価率・粗利率を自動計算</div>
+          </div>
+          <div class="stat">
+            <span><span class="k">粗利</span><span class="v" style="color:var(--c-accent)">¥1,083,000</span></span>
+            <span><span class="k">粗利率</span><span class="v" style="color:var(--c-accent)">22.5%</span></span>
+          </div>
+        </div>
+        <div class="ladder">
+          <div class="col-header" style="background:var(--c-surface-2);color:var(--c-text);font-weight:600">区分</div>
+          <div class="col-header">直工</div>
+          <div class="col-header">工事原価Ⅰ (A+B経費①)</div>
+          <div class="col-header">工事原価Ⅱ (A+B経費②)</div>
+
+          <div class="label-col">直工費</div>
+          <div><div class="ll"><span class="nm">直工原価</span><span class="vv">¥3,150,000</span></div></div>
+          <div><div class="ll"><span class="nm">工事原価</span><span class="vv">¥3,208,200</span></div></div>
+          <div><div class="ll"><span class="nm">工事原価</span><span class="vv">¥3,583,200</span></div></div>
+
+          <div class="label-col">直工率</div>
+          <div><div class="ll"><span class="nm">原価率</span><span class="vv">65.4%</span></div></div>
+          <div><div class="ll"><span class="nm">原価率</span><span class="vv">66.6%</span></div></div>
+          <div><div class="ll"><span class="nm">原価率</span><span class="vv">74.3%</span></div></div>
+
+          <div class="label-col highlight">直工利益</div>
+          <div class="highlight"><div class="ll"><span class="nm">直工利益</span><span class="vv">¥1,670,000</span></div></div>
+          <div class="highlight"><div class="ll"><span class="nm">粗利益</span><span class="vv">¥1,611,800</span></div></div>
+          <div class="highlight"><div class="ll"><span class="nm">粗利益</span><span class="vv">¥1,236,800</span></div></div>
+
+          <div class="label-col highlight" style="border-bottom:none">直工利益率</div>
+          <div class="highlight" style="border-bottom:none"><div class="ll"><span class="nm">直工利益率</span><span class="vv" style="color:var(--c-accent)">34.6%</span></div></div>
+          <div class="highlight" style="border-bottom:none"><div class="ll"><span class="nm">粗利率</span><span class="vv" style="color:var(--c-accent)">33.4%</span></div></div>
+          <div class="highlight" style="border-bottom:none"><div class="ll"><span class="nm">粗利率</span><span class="vv" style="color:var(--c-accent)">25.7%</span></div></div>
+        </div>
+      </div>
+
+      <div style="height:12px"></div>
+
+      <!-- Section C + Price scenario -->
+      <div class="pd-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+
+        <div class="sec">
+          <div class="sec-head">
+            <span class="badge-letter" style="background:var(--c-status-billed)">C</span>
+            <div>
+              <div class="tt">その他経費</div>
+              <div class="sub">一般管理費 + 金利</div>
+            </div>
+            <div class="stat">
+              <span><span class="k">C 計</span><span class="v">¥96,400</span></span>
+            </div>
+          </div>
+          <table class="qtbl">
+            <thead>
+              <tr>
+                <th style="width:36px">No</th>
+                <th>項目</th>
+                <th style="width:140px">計算式</th>
+                <th class="num" style="width:110px">金額</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="no">1</td><td class="editable">一般管理費</td><td class="formula">工事価格 × 2.0%</td><td class="computed num">96,400</td></tr>
+              <tr><td class="no">2</td><td class="editable">金利</td><td class="formula">支払条件で記入</td><td class="editable num">—</td></tr>
+              <tr><td class="no">3</td><td class="editable">—</td><td class="formula">—</td><td class="editable num">—</td></tr>
+              <tr class="subtotal">
+                <td colspan="3" style="text-align:right">C 計</td>
+                <td class="num">96,400</td>
+              </tr>
+              <tr class="grand">
+                <td colspan="3" style="text-align:right">実行予算 合計 (A+B経費①) + C</td>
+                <td class="num">3,304,600</td>
+              </tr>
+              <tr class="grand">
+                <td colspan="3" style="text-align:right">実行予算 合計 (A+B経費②) + C</td>
+                <td class="num">3,679,600</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="sec">
+          <div class="sec-head">
+            <span class="badge-letter" style="background:var(--c-status-done)">$</span>
+            <div>
+              <div class="tt">顧客提出価格試算表</div>
+              <div class="sub">実行比率ごとの工事価格・営業利益</div>
+            </div>
+          </div>
+          <table class="scenario">
+            <thead>
+              <tr>
+                <th>実行比率</th>
+                <th>工事原価Ⅰ</th>
+                <th>工事価格</th>
+                <th>営業利益①</th>
+                <th>営利率</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>103% → 粗利益0</td>
+                <td>3,304,600</td>
+                <td>3,403,738</td>
+                <td>0</td>
+                <td>0.0%</td>
+              </tr>
+              <tr>
+                <td>100% → 営利0</td>
+                <td>3,304,600</td>
+                <td>3,304,600</td>
+                <td>0</td>
+                <td>0.0%</td>
+              </tr>
+              <tr>
+                <td>99% → 1.0%</td>
+                <td>3,304,600</td>
+                <td>3,338,000</td>
+                <td>33,400</td>
+                <td>1.0%</td>
+              </tr>
+              <tr>
+                <td>98% → 2.0%</td>
+                <td>3,304,600</td>
+                <td>3,372,000</td>
+                <td>67,400</td>
+                <td>2.0%</td>
+              </tr>
+              <tr>
+                <td>97% → 3.0%</td>
+                <td>3,304,600</td>
+                <td>3,406,800</td>
+                <td>102,200</td>
+                <td>3.0%</td>
+              </tr>
+              <tr class="on">
+                <td>顧客提出 (77.5%)</td>
+                <td>3,304,600</td>
+                <td>4,820,000</td>
+                <td>1,083,000</td>
+                <td>22.5%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <div style="height:12px"></div>
+
+      <!-- Cash flow -->
+      <div class="sec">
+        <div class="sec-head">
+          <span class="badge-letter" style="background:var(--c-status-paid)">¥</span>
+          <div>
+            <div class="tt">入出金予定表</div>
+            <div class="sub">単位：千円 / 暦月にて記入</div>
+          </div>
+          <button class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 15l-6-6-6 6"/></svg></button>
+        </div>
+        <table class="qtbl">
+          <thead>
+            <tr>
+              <th style="width:120px">区分</th>
+              <th class="num">4月</th>
+              <th class="num">5月</th>
+              <th class="num">6月</th>
+              <th class="num">7月</th>
+              <th class="num">8月</th>
+              <th class="num">9月</th>
+              <th class="num">10月</th>
+              <th class="num">11月</th>
+              <th class="num">合計</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>請負出来高</td>
+              <td class="editable num">800</td>
+              <td class="editable num">1,200</td>
+              <td class="editable num">1,400</td>
+              <td class="editable num">1,420</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="computed num">4,820</td>
+            </tr>
+            <tr>
+              <td>入金（現金）</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">800</td>
+              <td class="editable num">1,200</td>
+              <td class="editable num">1,400</td>
+              <td class="editable num">1,420</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="computed num">4,820</td>
+            </tr>
+            <tr>
+              <td>入金（手形）</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="computed num">0</td>
+            </tr>
+            <tr>
+              <td>出金（現金）</td>
+              <td class="editable num">330</td>
+              <td class="editable num">930</td>
+              <td class="editable num">828</td>
+              <td class="editable num">885</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="computed num">2,973</td>
+            </tr>
+            <tr>
+              <td>出金（手形）</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="editable num">—</td>
+              <td class="computed num">0</td>
+            </tr>
+            <tr class="grand">
+              <td>収支累計</td>
+              <td class="num">▲330</td>
+              <td class="num">▲1,260</td>
+              <td class="num">▲1,288</td>
+              <td class="num">▲973</td>
+              <td class="num">427</td>
+              <td class="num">1,847</td>
+              <td class="num">1,847</td>
+              <td class="num">1,847</td>
+              <td class="num">1,847</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="height:16px"></div>
+      <div style="font-size:11px;color:var(--c-text-subtle);text-align:right">2026年2月1日 改訂版テンプレート準拠</div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('theme');
+    if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

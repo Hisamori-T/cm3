@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>御見積書</title>
+    <style>
+        @page {
+            /* A4横向き、余白指定 */
+            size: A4 landscape;
+            margin: 12mm 15mm;
+            background-color: #ffffff;
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            /* Noto Sans CJK JPを明示的に指定 */
+            font-family: 'Noto Sans CJK JP', 'Helvetica Neue', Arial, sans-serif;
+            color: #000000;
+            margin: 0;
+            padding: 0;
+            font-size: 11pt;
+            line-height: 1.6;
+        }
+
+        /* -------------------------------------
+           最上段メタ情報（工事番号・日付）
+        ------------------------------------- */
+        .meta-header {
+            text-align: right;
+            font-size: 10pt;
+            margin-bottom: 5mm;
+        }
+        .meta-table {
+            margin-left: auto;
+            border-collapse: collapse;
+        }
+        .meta-table td {
+            padding: 2px 5px;
+        }
+        .meta-table .label {
+            text-align: right;
+        }
+        .meta-table .value {
+            text-align: left;
+            padding-left: 15px;
+        }
+
+        /* -------------------------------------
+           タイトル
+        ------------------------------------- */
+        .title-container {
+            text-align: center;
+            margin-bottom: 25mm;
+        }
+        .title {
+            font-size: 22pt;
+            font-weight: bold;
+            /* 文字間隔を広げて「御 見 積 書」を表現 */
+            letter-spacing: 15px;
+            margin: 0;
+            padding-bottom: 5px;
+        }
+        .title-line {
+            border-top: 2px solid #000000;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        /* -------------------------------------
+           メインコンテンツ（WeasyPrint用 2カラム構造）
+           ※flex, gridは使用不可のためtableを使用
+        ------------------------------------- */
+        .main-content {
+            display: table;
+            width: 100%;
+            table-layout: fixed;
+        }
+        .column-left {
+            display: table-cell;
+            width: 62%;
+            vertical-align: top;
+            padding-right: 25px;
+        }
+        .column-right {
+            display: table-cell;
+            width: 38%;
+            vertical-align: top;
+            padding-left: 15px;
+        }
+
+        /* -------------------------------------
+           左カラム
+        ------------------------------------- */
+        .client-name {
+            font-size: 14pt;
+            font-weight: bold;
+            border-bottom: 1px solid #000000;
+            padding-bottom: 2px;
+            margin-bottom: 5pt;
+        }
+        .client-name .suffix {
+            float: right;
+            font-size: 12pt;
+            font-weight: normal;
+        }
+        .greeting-text {
+            font-size: 10pt;
+            margin-bottom: 20pt;
+            line-height: 1.4;
+        }
+
+        /* 見積金額 */
+        .amount-row {
+            border-bottom: 2px solid #000000;
+            padding-bottom: 4px;
+            margin-bottom: 3pt;
+            font-size: 13pt;
+            font-weight: bold;
+        }
+        .amount-value {
+            font-size: 15pt;
+            float: right;
+            letter-spacing: 1px;
+        }
+        .tax-note {
+            font-size: 9.5pt;
+            margin-bottom: 20pt;
+            padding-left: 2px;
+        }
+
+        /* 工事条件（下線付き項目リスト） */
+        .condition-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .condition-table td {
+            padding: 6pt 0 3pt 0;
+            vertical-align: top;
+        }
+        .condition-table tr {
+            border-bottom: 1px solid #000000;
+        }
+        .condition-label {
+            font-weight: bold;
+            width: 120pt;
+            letter-spacing: 2px;
+        }
+        .condition-label-wide {
+            font-weight: bold;
+            width: 120pt;
+        }
+        
+        /* 備考欄（下線なし） */
+        .condition-table tr.no-border {
+            border-bottom: none;
+        }
+        .remarks-content {
+            line-height: 1.5;
+        }
+
+        /* -------------------------------------
+           右カラム
+        ------------------------------------- */
+        .company-container {
+            padding-left: 20px;
+        }
+        
+        /* CSSによるロゴの簡易再現（画像置換可能） */
+        .company-logo-area {
+            margin-bottom: 8mm;
+            height: 40pt;
+        }
+        .logo-text-main {
+            font-family: 'Arial Black', sans-serif;
+            font-size: 26pt;
+            font-weight: 900;
+            color: #0a194f;
+            line-height: 1;
+            display: inline-block;
+            letter-spacing: -1px;
+        }
+        .logo-text-sub {
+            font-family: 'Arial', sans-serif;
+            font-size: 7.5pt;
+            font-weight: bold;
+            color: #0a194f;
+            letter-spacing: 2.5px;
+            border-top: 2px solid #0a194f;
+            margin-top: -2px;
+            padding-top: 1px;
+            width: 110pt;
+        }
+
+        /* 自社情報 */
+        .company-name {
+            font-size: 16pt;
+            font-weight: bold;
+            margin-bottom: 4pt;
+        }
+        .company-details {
+            font-size: 9pt;
+            line-height: 1.4;
+            margin-bottom: 15mm;
+        }
+
+        /* 捺印欄（3マス） */
+        .stamp-table-wrapper {
+            width: 100%;
+            text-align: right;
+            margin-bottom: 15mm;
+        }
+        .stamp-table {
+            border-collapse: collapse;
+            margin-left: auto;
+        }
+        .stamp-table th {
+            border: 1px solid #000000;
+            width: 50pt;
+            font-size: 9pt;
+            font-weight: normal;
+            text-align: center;
+            padding: 2px 0;
+            background-color: #ffffff;
+        }
+        .stamp-table td {
+            border: 1px solid #000000;
+            height: 50pt;
+            width: 50pt;
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        /* サンプル印影（Jinja2で分岐・非表示化可能） */
+        .stamp-circle {
+            border: 1px solid #ff0000;
+            border-radius: 50%;
+            width: 38pt;
+            height: 38pt;
+            margin: auto;
+            color: #ff0000;
+            font-size: 9pt;
+            font-weight: bold;
+            line-height: 1.1;
+            padding-top: 7pt;
+            text-align: center;
+        }
+
+        /* 担当者連絡先 */
+        .contact-box {
+            font-size: 9.5pt;
+            line-height: 1.5;
+            padding-left: 5px;
+        }
+        .contact-box .title-msg {
+            margin-bottom: 10pt;
+        }
+        .contact-info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5pt;
+        }
+        .contact-info-table td {
+            padding: 4pt 0;
+            vertical-align: top;
+        }
+        .contact-info-label {
+            width: 50pt;
+        }
+        .contact-info-value {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="meta-header">
+        <table class="meta-table">
+            <tr>
+                <td class="label">弊社工事番号：</td>
+                <td class="value">026-1-002</td>
+            </tr>
+            <tr>
+                <td class="label">2026年</td>
+                <td class="value">3月10日</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="title-container">
+        <h1 class="title">御見積書</h1>
+        <div class="title-line"></div>
+    </div>
+
+    <div class="main-content">
+        <div class="column-left">
+            <div class="client-name">
+                協和自工 株式会社
+                <span class="suffix">御中</span>
+            </div>
+            <div class="greeting-text">
+                下記の通り御見積申し上げます。<br>
+                何卒ご用命のほどお願い申し上げます。
+            </div>
+
+            <div class="amount-row">
+                <span class="amount-label">御 見 積 金 額 ：</span>
+                <span class="amount-value">¥7,260,000 -</span>
+            </div>
+            <div class="tax-note">
+                上記金額には、消費税10%を含んでおります。
+            </div>
+
+            <table class="condition-table">
+                <tr>
+                    <td class="condition-label">工 事 名 称</td>
+                    <td>： 協和自工(株) 鉄骨庇増築工事</td>
+                </tr>
+                <tr>
+                    <td class="condition-label">工 事 場 所</td>
+                    <td>： 福井県福井市上細江町24字御坊2番1</td>
+                </tr>
+                <tr>
+                    <td class="condition-label-wide">見 積 有 効 期 限</td>
+                    <td>： 30日間</td>
+                </tr>
+                <tr>
+                    <td class="condition-label">支 払 条 件</td>
+                    <td>： 御協議の上</td>
+                </tr>
+                <tr>
+                    <td class="condition-label">工 期</td>
+                    <td>： ご協議の上 〜 約3週間</td>
+                </tr>
+                <tr class="no-border">
+                    <td class="condition-label">備 考</td>
+                    <td class="remarks-content">： 工場建設が2010年以降の建築物ですと、アスベスト調査は省かれます。<br>
+                       &nbsp;&nbsp;&nbsp;設計費・確認申請費は含んでおりません。</td>
+                </tr>
+            </table>
+        </div>
+        
+        <div class="column-right">
+            <div class="company-container">
+                <div class="company-logo-area">
+                    <div class="logo-text-main">CLAP</div>
+                    <div class="logo-text-sub">CORPORATION</div>
+                </div>
+                
+                <div class="company-name">株式会社 クラップ</div>
+                <div class="company-details">
+                    〒913-0043 福井県坂井市三国町錦3丁目4-2<br>
+                    TEL.0776-81-8330 FAX.0776-81-8331
+                </div>
+
+                <div class="stamp-table-wrapper">
+                    <table class="stamp-table">
+                        <thead>
+                            <tr>
+                                <th>承 認</th>
+                                <th>審 査</th>
+                                <th>担 当</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><div class="stamp-circle">奴間</div></td>
+                                <td><div class="stamp-circle">奴間</div></td>
+                                <td><div class="stamp-circle">大塚</div></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="contact-box">
+                    <div class="title-msg">この見積書についてのご用命、お問い合わせは<br>下記担当者へ連絡をお願いします。</div>
+                    <table class="contact-info-table">
+                        <tr>
+                            <td class="contact-info-label">担当者：</td>
+                            <td class="contact-info-value">大塚 俊彦</td>
+                        </tr>
+                        <tr>
+                            <td class="contact-info-label">連絡先：</td>
+                            <td class="contact-info-value">080-2950-2518</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S11 業者見積スキャン — Construction Manager v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Upload area */
+  .drop {
+    background: var(--c-surface);
+    border: 1.5px dashed var(--c-border-strong);
+    border-radius: var(--r-lg);
+    padding: 36px 28px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .drop.hot {
+    background: var(--c-primary-50);
+    border-color: var(--c-primary);
+    border-style: solid;
+  }
+  .drop .ico {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--c-primary-50);
+    color: var(--c-primary);
+    display: grid; place-items: center;
+  }
+  [data-theme="dark"] .drop .ico { background: var(--c-surface-3); }
+  .drop .ico svg { width: 28px; height: 28px; stroke-width: 1.5; }
+  .drop h2 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+  }
+  .drop p {
+    margin: 0;
+    color: var(--c-text-muted);
+    font-size: 13px;
+  }
+  .drop .formats {
+    display: flex; gap: 6px; flex-wrap: wrap; justify-content: center;
+    font-size: 11px; color: var(--c-text-subtle); font-family: var(--ff-mono);
+  }
+  .drop .formats span {
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    padding: 1px 8px;
+    border-radius: var(--r-pill);
+  }
+
+  /* Linked project picker */
+  .ctx {
+    display: flex; align-items: center; gap: 14px;
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+  }
+  .ctx .k { font-size: 11px; color: var(--c-text-muted); font-weight: 600; }
+  .ctx .v {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-weight: 600; font-size: 13px;
+    background: var(--c-surface); border: 1px solid var(--c-border);
+    border-radius: var(--r-md); padding: 4px 10px;
+  }
+  .ctx .v .pn { font-family: var(--ff-mono); font-size: 11px; color: var(--c-text-muted); font-weight: 500; }
+  .ctx .change { margin-left: auto; }
+
+  /* Job list */
+  .jl-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 90px 1fr 130px 80px 80px;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--c-border);
+    font-size: 12px;
+  }
+  .jl-head {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    border-top-left-radius: var(--r-lg);
+    border-top-right-radius: var(--r-lg);
+  }
+  .jl-row:last-child { border-bottom: none; }
+  .jl-row:hover:not(.jl-head) { background: var(--c-surface-2); cursor: pointer; }
+  .jl-row .ic {
+    width: 28px; height: 28px;
+    display: grid; place-items: center;
+    background: var(--c-surface-2);
+    border-radius: var(--r-sm);
+    border: 1px solid var(--c-border);
+    color: var(--c-text-muted);
+  }
+  .jl-row .ic.pdf { background: color-mix(in oklab,var(--c-danger) 14%,var(--c-surface)); color: var(--c-danger); }
+  .jl-row .ic.img { background: color-mix(in oklab,var(--c-status-billed) 14%,var(--c-surface)); color: var(--c-status-billed); }
+  .jl-row .ic.xls { background: color-mix(in oklab,var(--c-success) 14%,var(--c-surface)); color: var(--c-success); }
+  .jl-row .ic svg { width: 14px; height: 14px; stroke-width: 1.6; }
+  .jl-row .name { font-weight: 500; }
+  .jl-row .name small { display: block; color: var(--c-text-muted); font-size: 11px; font-weight: 400; margin-top: 1px; font-family: var(--ff-mono); }
+
+  /* Progress bar */
+  .progress {
+    width: 100%; height: 5px;
+    background: var(--c-surface-3);
+    border-radius: var(--r-pill);
+    overflow: hidden;
+  }
+  .progress > i {
+    display: block; height: 100%;
+    background: var(--c-primary);
+    border-radius: var(--r-pill);
+    position: relative;
+  }
+  .progress.processing > i {
+    background: linear-gradient(90deg, var(--c-status-start), var(--c-primary));
+    animation: shimmer 1.4s linear infinite;
+    background-size: 200% 100%;
+  }
+  @keyframes shimmer {
+    0% { background-position: 0% 0; }
+    100% { background-position: -200% 0; }
+  }
+  .progress-meta {
+    font-size: 11px;
+    color: var(--c-text-muted);
+    font-family: var(--ff-mono);
+    margin-top: 4px;
+  }
+
+  /* Status pills (job-status, not project-status) */
+  .jstatus {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; font-weight: 600;
+    padding: 2px 8px 2px 6px;
+    border-radius: var(--r-pill);
+  }
+  .jstatus .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .jstatus.pending { color: var(--c-text-muted); background: var(--c-surface-2); }
+  .jstatus.pending .dot { background: var(--c-text-muted); }
+  .jstatus.processing { color: var(--c-status-start); background: color-mix(in oklab, var(--c-status-start) 14%, var(--c-surface)); }
+  .jstatus.processing .dot { background: var(--c-status-start); animation: pulse 1.3s ease-in-out infinite; }
+  .jstatus.succeeded { color: var(--c-success); background: color-mix(in oklab, var(--c-success) 14%, var(--c-surface)); }
+  .jstatus.succeeded .dot { background: var(--c-success); }
+  .jstatus.failed { color: var(--c-danger); background: var(--c-danger-bg); }
+  .jstatus.failed .dot { background: var(--c-danger); }
+  @keyframes pulse { 0%,100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.4); opacity: 0.6; } }
+
+  /* Conf badge */
+  .conf {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px;
+    font-family: var(--ff-mono);
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: var(--r-pill);
+  }
+  .conf.h { color: var(--c-success); background: color-mix(in oklab, var(--c-success) 14%, var(--c-surface)); }
+  .conf.m { color: #b45309; background: var(--c-warn-bg); }
+  .conf.l { color: var(--c-danger); background: var(--c-danger-bg); }
+
+  /* KPI strip */
+  .scan-kpis {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .skpi {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 12px 14px;
+    box-shadow: var(--sh-1);
+  }
+  .skpi .k { font-size: 11px; color: var(--c-text-muted); font-weight: 600; }
+  .skpi .v {
+    font-family: var(--ff-mono);
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    margin-top: 4px;
+  }
+  .skpi .v .unit { font-size: 12px; font-weight: 500; color: var(--c-text-muted); margin-left: 4px;}
+  .skpi .sub { font-size: 11px; color: var(--c-text-muted); margin-top: 2px; }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .toolbar h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+
+  .tips {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: var(--c-info-bg);
+    border-radius: var(--r-md);
+    border-left: 3px solid var(--c-info);
+    font-size: 12px;
+    color: var(--c-text);
+    line-height: 1.6;
+  }
+  .tips strong { font-weight: 700; }
+  [data-theme="dark"] .tips { background: color-mix(in oklab, var(--c-info) 14%, var(--c-surface)); }
+  /* Bulk action bar */
+  .bulk-bar {
+    position: sticky;
+    top: var(--header-h);
+    z-index: 5;
+    background: var(--c-primary);
+    color: #fff;
+    border-radius: var(--r-lg);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    box-shadow: var(--sh-2);
+    animation: bulkSlide 0.18s ease-out;
+  }
+  @keyframes bulkSlide { from { transform: translateY(-6px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .bulk-bar .count {
+    font-weight: 700;
+    font-size: 13px;
+  }
+  .bulk-bar .count .num {
+    font-family: var(--ff-mono);
+    background: rgba(255,255,255,0.18);
+    padding: 1px 8px;
+    border-radius: var(--r-pill);
+    margin-right: 6px;
+  }
+  .bulk-bar .spacer { flex: 1; }
+  .bulk-bar .b-btn {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #fff;
+    padding: 5px 12px;
+    border-radius: var(--r-md);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .bulk-bar .b-btn:hover { background: rgba(255,255,255,0.22); }
+  .bulk-bar .b-btn svg { width: 13px; height: 13px; stroke-width: 1.7; }
+  .bulk-bar .b-btn.danger { background: var(--c-danger); border-color: var(--c-danger); }
+  .bulk-bar .b-btn.danger:hover { background: #e21f1f; }
+  .bulk-bar .b-clear {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    padding: 2px;
+    margin-left: -4px;
+  }
+  .bulk-bar .b-clear:hover { color: #fff; }
+
+  /* Cell checkbox column */
+  .jl-row .cell-check {
+    display: grid; place-items: center;
+  }
+  .jl-row .cell-check input { accent-color: var(--c-primary); width: 15px; height: 15px; cursor: pointer; }
+  .jl-row.selected { background: var(--c-primary-50) !important; }
+  [data-theme="dark"] .jl-row.selected { background: color-mix(in oklab,var(--c-primary) 18%,var(--c-surface)) !important; }
+  .jl-row .name-link {
+    color: var(--c-text);
+    text-decoration: none;
+    display: block;
+  }
+  .jl-row:hover .name-link { color: var(--c-primary); }
+  .delete-btn {
+    width: 26px; height: 26px;
+    background: transparent;
+    border: 1px solid var(--c-border);
+    color: var(--c-text-muted);
+    border-radius: var(--r-md);
+    cursor: pointer;
+    display: inline-grid; place-items: center;
+  }
+  .delete-btn:hover { background: var(--c-danger-bg); border-color: var(--c-danger); color: var(--c-danger); }
+  .delete-btn svg { width: 13px; height: 13px; stroke-width: 1.6; }
+
+  /* Undo toast */
+  .toast {
+    position: fixed;
+    bottom: 22px; left: 50%;
+    transform: translateX(-50%);
+    background: var(--c-text);
+    color: var(--c-surface);
+    padding: 10px 16px;
+    border-radius: var(--r-md);
+    box-shadow: var(--sh-pop);
+    font-size: 13px;
+    display: flex; align-items: center; gap: 14px;
+    z-index: 100;
+  }
+  .toast .undo {
+    color: #c7d2fe;
+    background: transparent;
+    border: none;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+  }
+  .toast .x {
+    background: transparent;
+    border: none;
+    color: rgba(255,255,255,0.5);
+    cursor: pointer;
+    padding: 2px;
+  }
+
+  /* Update grid for checkbox column */
+  .jl-row {
+    grid-template-columns: 28px 36px 1fr 90px 1fr 130px 80px 96px !important;
+  }
+</style>
+</head>
+<body data-screen-label="S11 Scan Upload">
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6"/></svg>
+        見積書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3"/></svg>
+        注文書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg>
+        QCDS
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <strong>業者見積スキャン</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        履歴
+      </button>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        新規アップロード
+      </button>
+    </header>
+
+    <main class="page">
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <h1>業者見積スキャン</h1>
+        <span class="meta">PDF / 画像 / Excel を AI が読み取り、台帳・QCDS・見積書へ転記します</span>
+        <div class="spacer"></div>
+        <span style="font-size:11px;color:var(--c-text-muted);font-family:var(--ff-mono)">Gemini 2.5 Pro</span>
+      </div>
+
+      <!-- KPIs -->
+      <div class="scan-kpis">
+        <div class="skpi">
+          <div class="k">今月のスキャン</div>
+          <div class="v">42<span class="unit">件</span></div>
+          <div class="sub">先月比 +12件</div>
+        </div>
+        <div class="skpi">
+          <div class="k">平均処理時間</div>
+          <div class="v">28<span class="unit">秒</span></div>
+          <div class="sub">PDF 1ページあたり</div>
+        </div>
+        <div class="skpi">
+          <div class="k">平均信頼度</div>
+          <div class="v">94<span class="unit">%</span></div>
+          <div class="sub">直近100件平均</div>
+        </div>
+        <div class="skpi">
+          <div class="k">手入力削減</div>
+          <div class="v">68<span class="unit">%</span></div>
+          <div class="sub">Excel手入力比</div>
+        </div>
+      </div>
+
+      <!-- Drop zone -->
+      <div class="drop" id="drop">
+        <div class="ico">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+        </div>
+        <h2>業者見積をここにドロップ</h2>
+        <p>または <a href="#" style="color:var(--c-primary);font-weight:600;text-decoration:none">ファイルを選択</a> / フォルダごとドラッグも可</p>
+        <div class="formats">
+          <span>PDF</span><span>JPG / PNG / HEIC</span><span>XLSX / XLS</span><span>最大 20MB / 5ファイル同時</span>
+        </div>
+      </div>
+
+      <!-- Linked project -->
+      <div class="ctx">
+        <span class="k">紐付け先</span>
+        <span class="v">
+          <span class="pn">26-3-014</span>
+          三国第二工場 配管改修
+        </span>
+        <span style="color:var(--c-text-muted);font-size:11px">解析後、この案件のQCDS/取決見通表に自動転記候補が並びます</span>
+        <button class="btn btn-ghost btn-sm change">変更</button>
+      </div>
+
+      <!-- Tips -->
+      <div class="tips">
+        <strong>💡 解析精度を上げるコツ</strong>　
+        ・印鑑がかぶっていない見積書を選ぶ
+        ・スキャンは 300dpi 以上
+        ・手書き訂正は読み取れない場合があるので赤線で囲うと精度UP
+      </div>
+
+      <div style="height:20px"></div>
+
+      <!-- Recent jobs -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">処理ジョブ</div>
+            <div class="card-sub">直近 30日 · 完了したジョブは結果ページに移動します</div>
+          </div>
+          <div class="actions">
+            <div class="seg" style="display:inline-flex;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--r-md);padding:2px">
+              <button class="btn btn-ghost btn-sm" style="font-weight:600">すべて<span style="margin-left:6px;font-family:var(--ff-mono);color:var(--c-text-muted)">12</span></button>
+              <button class="btn btn-ghost btn-sm">処理中<span style="margin-left:6px;color:var(--c-status-start)">3</span></button>
+              <button class="btn btn-ghost btn-sm">未レビュー<span style="margin-left:6px;color:var(--c-warn)">2</span></button>
+              <button class="btn btn-ghost btn-sm">完了</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="jl-row jl-head">
+          <div></div>
+          <div></div>
+          <div>ファイル名 / 業者</div>
+          <div>形式</div>
+          <div>進捗</div>
+          <div>ステータス</div>
+          <div style="text-align:right">信頼度</div>
+          <div style="text-align:right">操作</div>
+        </div>
+
+        <!-- Bulk action bar (shown when items selected) -->
+        <div class="bulk-bar" id="bulkBar" style="margin: 12px 14px 6px;display:flex">
+          <span class="count"><span class="num" id="bulkCount">2</span>件選択中</span>
+          <button class="b-clear" onclick="clearSel()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+          <span class="spacer"></span>
+          <button class="b-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            選択した案件に転記
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          <button class="b-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+            CSV出力
+          </button>
+          <button class="b-btn danger" onclick="deleteSel()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+            一括削除
+          </button>
+        </div>
+
+        <div class="jl-row selected">
+          <div class="cell-check"><input type="checkbox" checked/></div>
+          <div class="ic pdf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <div class="name">
+            北陸電気工業_配管工事見積.pdf
+            <small>北陸電気工業株式会社 · 5/13 14:02</small>
+          </div>
+          <div class="muted">PDF · 3p</div>
+          <div>
+            <div class="progress processing"><i style="width:62%"></i></div>
+            <div class="progress-meta">表構造を解析中… 62% · 残り 8秒</div>
+          </div>
+          <div><span class="jstatus processing"><span class="dot"></span>処理中</span></div>
+          <div style="text-align:right" class="muted">—</div>
+          <div style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm">中止</button>
+            <button class="delete-btn" title="削除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="jl-row selected">
+          <div class="cell-check"><input type="checkbox" checked/></div>
+          <div class="ic img">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          </div>
+          <div class="name">
+            福井配管_見積_20260512.jpg
+            <small>福井配管工業 · 5/13 13:48</small>
+          </div>
+          <div class="muted">JPG · 2.4MB</div>
+          <div>
+            <div class="progress processing"><i style="width:24%"></i></div>
+            <div class="progress-meta">OCR実行中… 24% · 残り 30秒</div>
+          </div>
+          <div><span class="jstatus processing"><span class="dot"></span>処理中</span></div>
+          <div style="text-align:right" class="muted">—</div>
+          <div style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm">中止</button>
+            <button class="delete-btn" title="削除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="jl-row">
+          <div class="cell-check"><input type="checkbox"/></div>
+          <div class="ic xls">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/></svg>
+          </div>
+          <div class="name">
+            三浦工材_見積書.xlsx
+            <small>三浦工材 · 5/13 11:22</small>
+          </div>
+          <div class="muted">XLSX</div>
+          <div>
+            <div class="progress"><i style="width:100%"></i></div>
+            <div class="progress-meta">8項目抽出 · 12秒で完了</div>
+          </div>
+          <div><span class="jstatus succeeded"><span class="dot"></span>レビュー待ち</span></div>
+          <div style="text-align:right"><span class="conf h">94%</span></div>
+          <div style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-primary btn-sm">確認 →</button>
+            <button class="delete-btn" title="削除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="jl-row">
+          <div class="cell-check"><input type="checkbox"/></div>
+          <div class="ic pdf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <div class="name">
+            三国塗装_塗装工事御見積.pdf
+            <small>三国塗装 · 5/13 09:15</small>
+          </div>
+          <div class="muted">PDF · 1p</div>
+          <div>
+            <div class="progress"><i style="width:100%"></i></div>
+            <div class="progress-meta">12項目抽出 · 17秒で完了</div>
+          </div>
+          <div><span class="jstatus succeeded"><span class="dot"></span>レビュー待ち</span></div>
+          <div style="text-align:right"><span class="conf m">78%</span></div>
+          <div style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-primary btn-sm">確認 →</button>
+            <button class="delete-btn" title="削除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="jl-row">
+          <div class="cell-check"><input type="checkbox"/></div>
+          <div class="ic pdf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <div class="name">
+            敦賀バルブ商会_見積.pdf
+            <small>敦賀バルブ商会 · 5/12 16:08</small>
+          </div>
+          <div class="muted">PDF · 2p</div>
+          <div>
+            <div class="progress"><i style="width:100%"></i></div>
+            <div class="progress-meta">転記済 · QCDS A-2 資材へ</div>
+          </div>
+          <div><span class="jstatus succeeded"><span class="dot"></span>完了</span></div>
+          <div style="text-align:right"><span class="conf h">96%</span></div>
+          <div style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm">詳細</button>
+            <button class="delete-btn" title="削除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="jl-row">
+          <div class="cell-check"><input type="checkbox"/></div>
+          <div class="ic img">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+          </div>
+          <div class="name">
+            坂井保温_FAX見積_スキャン.png
+            <small>坂井保温 · 5/12 11:34</small>
+          </div>
+          <div class="muted">PNG · 3.2MB</div>
+          <div>
+            <div class="progress"><i style="width:100%;background:var(--c-danger)"></i></div>
+            <div class="progress-meta" style="color:var(--c-danger)">画像が不鮮明 · 一部の数値が認識不可</div>
+          </div>
+          <div><span class="jstatus failed"><span class="dot"></span>要再撮影</span></div>
+          <div style="text-align:right"><span class="conf l">42%</span></div>
+          <div style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm">再試行</button>
+            <button class="delete-btn" title="削除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+
+        <div class="jl-row">
+          <div class="cell-check"><input type="checkbox"/></div>
+          <div class="ic pdf">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+          </div>
+          <div class="name">
+            小松鉄工所_鉄骨見積.pdf
+            <small>小松鉄工所 · 5/10 14:48</small>
+          </div>
+          <div class="muted">PDF · 2p</div>
+          <div>
+            <div class="progress"><i style="width:100%"></i></div>
+            <div class="progress-meta">転記済 · 取決見通表 No.5 行へ</div>
+          </div>
+          <div><span class="jstatus succeeded"><span class="dot"></span>完了</span></div>
+          <div style="text-align:right"><span class="conf h">92%</span></div>
+          <div style="text-align:right;display:flex;gap:4px;justify-content:flex-end">
+            <button class="btn btn-ghost btn-sm">詳細</button>
+            <button class="delete-btn" title="削除"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="height:16px"></div>
+      <div style="font-size:11px;color:var(--c-text-subtle);text-align:right">解析結果は必ず人がレビューしてから台帳に反映されます · 自動転記はされません</div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    const t = params.get('theme');
+    if (t === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+  // Drop zone hot-state demo
+  const drop = document.getElementById('drop');
+  ['dragenter','dragover'].forEach(e => drop.addEventListener(e, ev => {ev.preventDefault(); drop.classList.add('hot');}));
+  ['dragleave','drop'].forEach(e => drop.addEventListener(e, ev => {ev.preventDefault(); drop.classList.remove('hot');}));
+</script>
+
+<!-- Undo toast example (would normally be triggered by deleteSel) -->
+<div class="toast" id="toast" style="display:none">
+  <span><strong style="font-family:var(--ff-mono)">2件</strong>のジョブを削除しました</span>
+  <button class="undo" onclick="undoDelete()">元に戻す</button>
+  <button class="x" onclick="hideToast()"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+</div>
+<script>
+  function clearSel(){ document.querySelectorAll('.jl-row.selected').forEach(r=>{r.classList.remove('selected');const cb=r.querySelector('input[type=checkbox]');if(cb)cb.checked=false}); document.getElementById('bulkBar').style.display='none'; }
+  function deleteSel(){
+    const toast = document.getElementById('toast');
+    toast.style.display = 'flex';
+    setTimeout(hideToast, 3000);
+  }
+  function hideToast(){ document.getElementById('toast').style.display='none'; }
+  function undoDelete(){ hideToast(); }
+</script>
+</body>
+</html>

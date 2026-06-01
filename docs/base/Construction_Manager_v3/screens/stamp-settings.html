@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S18 印影設定 — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&family=Noto+Serif+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Settings layout */
+  .settings-shell {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 22px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .set-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-right: 14px;
+    border-right: 1px solid var(--c-border);
+  }
+  .set-nav .sec-title {
+    font-size: 10px; color: var(--c-text-subtle);
+    font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 6px 8px 4px;
+  }
+  .set-nav a {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px;
+    border-radius: var(--r-md);
+    color: var(--c-text-muted);
+    font-size: 13px;
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .set-nav a:hover { background: var(--c-surface-2); color: var(--c-text); }
+  .set-nav a.active { background: var(--c-primary-50); color: var(--c-primary); font-weight: 600;}
+  [data-theme="dark"] .set-nav a.active { color: #fff; }
+  .set-nav a svg { width: 14px; height: 14px; stroke-width: 1.5; flex: 0 0 14px;}
+
+  .set-main h1 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -0.01em;}
+  .set-main h1 + p { margin: 0 0 22px; color: var(--c-text-muted); font-size: 13px; line-height: 1.55;}
+
+  /* Form layout */
+  .stamp-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 22px;
+  }
+
+  .form-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 18px 20px;
+  }
+
+  .field {
+    margin-bottom: 16px;
+  }
+  .field:last-child { margin-bottom: 0; }
+  .field-label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-text-muted);
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+  .field-hint {
+    font-size: 11px; color: var(--c-text-subtle);
+    margin-top: 4px;
+  }
+  .field-hint code { font-family: var(--ff-mono); background: var(--c-surface-2); padding: 1px 4px; border-radius: 3px;}
+
+  /* Text input — big */
+  .stamp-input {
+    width: 100%;
+    background: var(--c-surface);
+    border: 1.5px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", serif;
+    font-size: 22px;
+    color: var(--c-text);
+    text-align: center;
+    letter-spacing: 6px;
+  }
+  .stamp-input:focus { outline: 2px solid var(--c-primary); outline-offset: -1px; border-color: var(--c-primary); }
+  .char-counter {
+    font-family: var(--ff-mono);
+    color: var(--c-text-muted);
+    font-size: 11px;
+    margin-top: 4px;
+    text-align: right;
+  }
+  .char-counter strong { color: var(--c-text); }
+
+  /* Style picker */
+  .styles {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .style-opt {
+    border: 1.5px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 14px;
+    cursor: pointer;
+    background: var(--c-surface);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .style-opt:hover { border-color: var(--c-border-strong); }
+  .style-opt.on {
+    border-color: var(--c-primary);
+    background: var(--c-primary-50);
+  }
+  [data-theme="dark"] .style-opt.on { background: color-mix(in oklab, var(--c-primary) 18%, var(--c-surface)); }
+  .style-opt .nm { font-size: 12px; font-weight: 600; }
+  .style-opt .desc { font-size: 10px; color: var(--c-text-muted); }
+
+  /* Style demos */
+  .style-stamp {
+    width: 52px; height: 52px;
+    display: grid; place-items: center;
+    font-family: "Hiragino Mincho ProN", serif;
+    font-weight: 600;
+    font-size: 14px;
+    letter-spacing: 2px;
+    writing-mode: vertical-rl;
+    line-height: 1;
+  }
+  .style-stamp.circle-red {
+    border: 2.5px solid #C00000;
+    color: #C00000;
+    border-radius: 50%;
+  }
+  .style-stamp.circle-navy {
+    border: 2.5px solid #1B2A52;
+    color: #1B2A52;
+    border-radius: 50%;
+  }
+  .style-stamp.square-red {
+    border: 2.5px solid #C00000;
+    color: #C00000;
+  }
+  .style-stamp.square-navy {
+    border: 2.5px solid #1B2A52;
+    color: #1B2A52;
+  }
+
+  /* Preview panel */
+  .preview-card {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 18px;
+    text-align: center;
+  }
+  .preview-stage {
+    background: repeating-conic-gradient(var(--c-surface-2) 0% 25%, var(--c-surface) 0% 50%) 50% / 16px 16px;
+    border: 1px dashed var(--c-border-strong);
+    border-radius: var(--r-md);
+    padding: 30px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 14px;
+  }
+  .live-stamp {
+    width: 200px; height: 200px;
+    border: 10px solid var(--c-stamp);
+    color: var(--c-stamp);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: "Hiragino Mincho ProN", serif;
+    font-weight: 600;
+    font-size: 72px;
+    letter-spacing: 8px;
+    writing-mode: vertical-rl;
+    line-height: 1;
+    background: rgba(255, 255, 255, 0.85);
+    filter: drop-shadow(0 2px 6px rgba(192, 0, 0, 0.18));
+  }
+  .live-stamp.two-char { font-size: 64px; }
+  .live-stamp.three-char { font-size: 50px; }
+  .live-stamp.four-char { font-size: 40px; }
+  [data-theme="dark"] .live-stamp { background: rgba(255,255,255,0.92); }
+
+  .preview-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--c-text-muted);
+    padding-top: 12px;
+    border-top: 1px solid var(--c-border);
+  }
+  .preview-meta .k { display: block; font-weight: 600; color: var(--c-text-subtle); letter-spacing: 0.04em; text-transform: uppercase; font-size: 10px;}
+  .preview-meta .v { font-family: var(--ff-mono); font-weight: 600; color: var(--c-text); font-size: 13px; margin-top: 1px;}
+
+  /* Mini contexts (where stamps appear) */
+  .contexts {
+    margin-top: 22px;
+  }
+  .contexts h3 {
+    font-size: 13px;
+    font-weight: 700;
+    margin: 0 0 10px;
+    color: var(--c-text);
+  }
+  .contexts h3 small { color: var(--c-text-muted); font-weight: 400; font-size: 11px;}
+  .ctx-row {
+    display: grid;
+    grid-template-columns: 80px 1fr;
+    gap: 16px;
+    align-items: center;
+    padding: 14px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    margin-bottom: 10px;
+    background: var(--c-surface);
+  }
+  .ctx-row:last-child { margin-bottom: 0; }
+  .ctx-row .ctx-stamp-frame {
+    background: #fff;
+    border: 1px solid #333;
+    height: 60px;
+    display: grid; grid-template-rows: auto 1fr;
+  }
+  [data-theme="dark"] .ctx-row .ctx-stamp-frame { background: var(--c-surface-2); border-color: var(--c-border-strong); }
+  .ctx-row .ctx-stamp-frame .role-l {
+    background: #f5f5f3;
+    border-bottom: 1px solid #333;
+    text-align: center;
+    font-size: 9px; font-weight: 700;
+    padding: 2px 0;
+    color: #111;
+    letter-spacing: 2px;
+  }
+  [data-theme="dark"] .ctx-row .ctx-stamp-frame .role-l { background: var(--c-surface-3); color: var(--c-text); border-color: var(--c-border-strong); }
+  .ctx-row .ctx-stamp-frame .body-c { display: grid; place-items: center; padding: 4px; }
+  .ctx-row .ctx-name { font-weight: 600; font-size: 13px; }
+  .ctx-row .ctx-name small { display: block; font-weight: 400; color: var(--c-text-muted); font-size: 11px; margin-top: 1px;}
+
+  .stamp-tiny {
+    width: 32px; height: 32px;
+    border: 1.5px solid var(--c-stamp);
+    color: var(--c-stamp);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-family: "Hiragino Mincho ProN", serif;
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 1px;
+    writing-mode: vertical-rl;
+    line-height: 1;
+  }
+
+  /* Actions */
+  .actions-bar {
+    display: flex; gap: 10px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--c-border);
+  }
+  .actions-bar .spacer { flex: 1; }
+
+  /* Status / saved */
+  .saved-meta {
+    font-size: 11px; color: var(--c-text-muted);
+    display: flex; align-items: center; gap: 6px;
+    margin-bottom: 18px;
+  }
+  .saved-meta .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--c-success); }
+</style>
+</head>
+<body data-screen-label="S18 Stamp Settings">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6"/></svg>
+        見積書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">設定</div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        設定
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <a href="#" style="color:var(--c-text-muted);text-decoration:none">設定</a>
+        <span class="sep">/</span>
+        <strong>印影</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <span class="saved-meta" style="margin:0">
+        <span class="dot"></span>
+        最終保存 5/12 09:00
+      </span>
+    </header>
+
+    <main class="page">
+
+      <div class="settings-shell">
+
+        <!-- Settings sub-nav -->
+        <nav class="set-nav">
+          <div class="sec-title">プロフィール</div>
+          <a href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0112 0v1"/></svg>
+            基本情報
+          </a>
+          <a href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            パスワード
+          </a>
+          <a class="active" href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/></svg>
+            印影
+          </a>
+          <a href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+            通知
+          </a>
+
+          <div class="sec-title" style="margin-top:14px">表示</div>
+          <a href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+            テーマ
+          </a>
+          <a href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"/><path d="M2 12h20"/></svg>
+            言語
+          </a>
+        </nav>
+
+        <!-- Main -->
+        <div class="set-main">
+          <h1>印影</h1>
+          <p>承認・審査・担当の捺印として帳票（PDF / Excel）に自動配置される印影を設定します。<br/>
+          フォントは明朝体、文字は縦書きで自動レンダリングされます。</p>
+
+          <div class="stamp-grid">
+
+            <div>
+              <!-- Form -->
+              <div class="form-card">
+                <div class="field">
+                  <label class="field-label">表示文字</label>
+                  <input class="stamp-input" id="charInput" type="text" value="平等" maxlength="4" oninput="updatePreview()"/>
+                  <div class="char-counter"><strong id="charCount">2</strong> / 4 文字</div>
+                  <div class="field-hint">姓・名・苗字略称など。<code>1〜4文字</code>。空白は不可。</div>
+                </div>
+
+                <div class="field">
+                  <label class="field-label">スタイル</label>
+                  <div class="styles" id="styles">
+                    <div class="style-opt on" data-style="circle-red" onclick="setStyle(this)">
+                      <div class="style-stamp circle-red">平</div>
+                      <div class="nm">赤丸</div>
+                      <div class="desc">標準・公式書類向け</div>
+                    </div>
+                    <div class="style-opt" data-style="circle-navy" onclick="setStyle(this)">
+                      <div class="style-stamp circle-navy">平</div>
+                      <div class="nm">紺丸</div>
+                      <div class="desc">社内文書向け</div>
+                    </div>
+                    <div class="style-opt" data-style="square-red" onclick="setStyle(this)">
+                      <div class="style-stamp square-red">平</div>
+                      <div class="nm">赤角</div>
+                      <div class="desc">部署印タイプ</div>
+                    </div>
+                    <div class="style-opt" data-style="square-navy" onclick="setStyle(this)">
+                      <div class="style-stamp square-navy">平</div>
+                      <div class="nm">紺角</div>
+                      <div class="desc">補助印タイプ</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="field">
+                  <label class="field-label">役職表示（任意・印影下に表示）</label>
+                  <input class="input" type="text" placeholder="例：営業 / 部長代理" value="営業" style="font-size:13px"/>
+                  <div class="field-hint">承認待ち一覧などで印影と一緒に表示されます。帳票には表示されません。</div>
+                </div>
+              </div>
+
+              <div class="actions-bar">
+                <button class="btn">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 0015 6.7L21 16M21 3v5h-5"/></svg>
+                  リセット
+                </button>
+                <span class="spacer"></span>
+                <button class="btn btn-ghost">キャンセル</button>
+                <button class="btn btn-primary">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                  保存
+                </button>
+              </div>
+
+              <!-- Contexts -->
+              <div class="contexts">
+                <h3>この印影が表示される場所 <small>（保存後の見え方プレビュー）</small></h3>
+
+                <div class="ctx-row">
+                  <div class="ctx-stamp-frame">
+                    <div class="role-l">担　当</div>
+                    <div class="body-c"><div class="stamp-tiny" id="ctx1">平等</div></div>
+                  </div>
+                  <div class="ctx-name">
+                    見積書 PDF / Excel
+                    <small>承認・審査・担当の3枠 · 帳票出力時に自動配置</small>
+                  </div>
+                </div>
+
+                <div class="ctx-row">
+                  <div class="ctx-stamp-frame">
+                    <div class="role-l">担　当</div>
+                    <div class="body-c"><div class="stamp-tiny" id="ctx2">平等</div></div>
+                  </div>
+                  <div class="ctx-name">
+                    注文書・請求書 PDF / Excel
+                    <small>同じ印影が複数帳票に使われます</small>
+                  </div>
+                </div>
+
+                <div class="ctx-row">
+                  <div class="ctx-stamp-frame" style="background:var(--c-surface-2);border-color:var(--c-border)">
+                    <div class="role-l">担　当</div>
+                    <div class="body-c"><div class="stamp-tiny" id="ctx3" style="font-size:9px;width:24px;height:24px;border-width:1px">平等</div></div>
+                  </div>
+                  <div class="ctx-name">
+                    見積書 / 案件詳細 画面内の承認ステータス
+                    <small>Web画面での承認状況表示</small>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Preview -->
+            <div>
+              <div class="preview-card">
+                <div style="font-size:11px;font-weight:700;color:var(--c-text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:14px">ライブプレビュー</div>
+                <div class="preview-stage">
+                  <div class="live-stamp two-char" id="liveStamp">平等</div>
+                </div>
+                <div class="preview-meta">
+                  <div>
+                    <span class="k">サイズ</span>
+                    <span class="v">200 × 200 px</span>
+                  </div>
+                  <div>
+                    <span class="k">文字色</span>
+                    <span class="v" id="metaColor">#C00000</span>
+                  </div>
+                  <div>
+                    <span class="k">フォント</span>
+                    <span class="v" style="font-size:11px">Noto Serif JP</span>
+                  </div>
+                  <div>
+                    <span class="k">透過</span>
+                    <span class="v">PNG (RGBA)</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:12px;padding:12px 14px;background:var(--c-info-bg);border-radius:var(--r-md);font-size:12px;line-height:1.6;border-left:3px solid var(--c-info)">
+                <strong>📌 重要</strong><br/>
+                これは社内承認用のデジタル印影です。<br/>
+                顧客提出物の <strong>法的な押印</strong> は別途、紙印刷後に手押し or 実印鑑で対応してください。
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+
+  let currentStyle = 'circle-red';
+
+  function updatePreview() {
+    const v = document.getElementById('charInput').value.trim().slice(0, 4);
+    const count = v.length || 0;
+    document.getElementById('charCount').textContent = count;
+    const live = document.getElementById('liveStamp');
+    live.textContent = v || '\u00A0';
+    live.classList.remove('two-char', 'three-char', 'four-char');
+    if (count === 2) live.classList.add('two-char');
+    if (count === 3) live.classList.add('three-char');
+    if (count === 4) live.classList.add('four-char');
+    ['ctx1','ctx2','ctx3'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = v || '\u00A0';
+    });
+  }
+
+  function setStyle(el) {
+    document.querySelectorAll('.style-opt').forEach(o => o.classList.remove('on'));
+    el.classList.add('on');
+    currentStyle = el.dataset.style;
+    const live = document.getElementById('liveStamp');
+    const colors = {
+      'circle-red':  { color: '#C00000', radius: '50%' },
+      'circle-navy': { color: '#1B2A52', radius: '50%' },
+      'square-red':  { color: '#C00000', radius: '4px' },
+      'square-navy': { color: '#1B2A52', radius: '4px' },
+    };
+    const cfg = colors[currentStyle];
+    live.style.borderColor = cfg.color;
+    live.style.color = cfg.color;
+    live.style.borderRadius = cfg.radius;
+    live.style.filter = `drop-shadow(0 2px 6px ${cfg.color}30)`;
+    document.getElementById('metaColor').textContent = cfg.color;
+
+    // Update context stamps too
+    ['ctx1','ctx2','ctx3'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.borderColor = cfg.color;
+        el.style.color = cfg.color;
+        el.style.borderRadius = cfg.radius === '4px' ? '2px' : '50%';
+      }
+    });
+  }
+</script>
+
+</body>
+</html>

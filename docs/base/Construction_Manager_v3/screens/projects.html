@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S03 案件一覧 — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Filter bar */
+  .fbar {
+    display: flex;
+    gap: 8px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .fbar .group {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .fbar .lbl { font-size: 11px; color: var(--c-text-muted); font-weight: 600; letter-spacing: 0.04em;}
+  .fbar .pill {
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 4px 10px;
+    font-size: 12px;
+    color: var(--c-text);
+    cursor: pointer;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .fbar .pill.on { background: var(--c-primary-50); border-color: var(--c-primary); color: var(--c-primary); font-weight: 600; }
+  [data-theme="dark"] .fbar .pill.on { color: #fff; background: color-mix(in oklab, var(--c-primary) 25%, var(--c-surface)); }
+  .fbar .pill .x { color: var(--c-text-subtle); }
+  .fbar .pill.add { border-style: dashed; color: var(--c-text-muted); }
+  .fbar .sep { width: 1px; height: 18px; background: var(--c-border); }
+  .fbar .search-box {
+    flex: 1; min-width: 200px;
+    display: flex; align-items: center; gap: 6px;
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 4px 10px;
+    background: var(--c-surface);
+  }
+  .fbar .search-box svg { color: var(--c-text-muted); flex: 0 0 12px; }
+  .fbar .search-box input { border: none; outline: none; flex: 1; background: transparent; color: var(--c-text); font-size: 13px;}
+  .fbar .spacer { flex: 1; }
+
+  /* Table */
+  .ptbl {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 13px;
+  }
+  .ptbl thead th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-align: left;
+    border-bottom: 1px solid var(--c-border);
+    padding: 9px 12px;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+  .ptbl thead th.sort { cursor: pointer; }
+  .ptbl thead th.sort svg { vertical-align: -2px; margin-left: 3px; opacity: 0.7;}
+  .ptbl thead th.num { text-align: right; }
+  .ptbl tbody td {
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: middle;
+  }
+  .ptbl tbody tr:hover td { background: var(--c-surface-2); cursor: pointer; }
+  .ptbl tbody td.num { text-align: right; font-family: var(--ff-mono); font-variant-numeric: tabular-nums; }
+  .ptbl .pn { font-family: var(--ff-mono); font-size: 12px; color: var(--c-text-muted); font-weight: 500; }
+  .ptbl .nm { font-weight: 500; }
+  .ptbl .nm small { display: block; color: var(--c-text-muted); font-size: 11px; font-weight: 400; margin-top: 2px;}
+  .ptbl .charge-ava {
+    width: 22px; height: 22px;
+    background: var(--c-primary);
+    color: #fff;
+    border-radius: 50%;
+    display: inline-grid; place-items: center;
+    font-size: 10px; font-weight: 700;
+    margin-right: 6px;
+    vertical-align: -6px;
+  }
+  .ptbl tr.alert td { background: color-mix(in oklab, var(--c-warn) 6%, var(--c-surface)); }
+  .ptbl tr.alert:hover td { background: color-mix(in oklab, var(--c-warn) 12%, var(--c-surface)); }
+  .ptbl tr.alert td:first-child {
+    border-left: 3px solid var(--c-warn);
+    padding-left: 9px;
+  }
+
+  /* Toolbar (top of page) */
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .toolbar h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+
+  /* Bulk-mini KPI */
+  .listkpis {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .lkpi {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 10px 12px;
+  }
+  .lkpi .k { font-size: 10px; color: var(--c-text-muted); font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;}
+  .lkpi .v { font-family: var(--ff-mono); font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .lkpi .sub { font-size: 10px; color: var(--c-text-muted); }
+
+  /* Density toggle */
+  .density-bar {
+    display: flex; gap: 6px; align-items: center;
+    font-size: 11px;
+    color: var(--c-text-muted);
+  }
+  .seg-density {
+    display: inline-flex;
+    background: var(--c-surface-2);
+    border: 1px solid var(--c-border);
+    padding: 2px;
+    border-radius: var(--r-md);
+  }
+  .seg-density button {
+    background: transparent;
+    border: none;
+    padding: 3px 8px;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--c-text-muted);
+    border-radius: var(--r-sm);
+  }
+  .seg-density button.on { background: var(--c-surface); color: var(--c-text); box-shadow: var(--sh-1); font-weight: 600;}
+
+  /* Footer pagination */
+  .pagi {
+    display: flex; align-items: center; gap: 6px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--c-border);
+    font-size: 12px;
+    color: var(--c-text-muted);
+  }
+  .pagi .spacer { flex: 1; }
+  .pagi button {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    color: var(--c-text);
+    padding: 3px 9px;
+    border-radius: var(--r-md);
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .pagi button.on { background: var(--c-primary); border-color: var(--c-primary); color: #fff; font-weight: 600; }
+  .pagi button:hover:not(.on) { background: var(--c-surface-2); }
+</style>
+</head>
+<body data-screen-label="S03 Project List">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z"/><path d="M9 13h6M9 17h6M9 9h3"/></svg>
+        見積書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3"/></svg>
+        注文書
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 4v16"/></svg>
+        QCDS
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン <span class="nav-badge" style="background:var(--c-status-progress);color:#fff">3</span>
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="3"/><path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/></svg>
+        業者マスタ
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+        承認待ち <span class="nav-badge" style="background:var(--c-warn);color:#fff">2</span>
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <strong>案件一覧</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5M12 15V3"/></svg>
+        CSV出力
+      </button>
+      <button class="btn btn-primary">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+        新規案件
+      </button>
+    </header>
+
+    <main class="page">
+
+      <div class="toolbar">
+        <h1>案件一覧</h1>
+        <span class="meta">2026年度 · 全128件</span>
+        <div class="spacer"></div>
+        <div class="density-bar">
+          表示密度
+          <div class="seg-density">
+            <button>コンパクト</button>
+            <button class="on">標準</button>
+            <button>ゆったり</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- mini KPI -->
+      <div class="listkpis">
+        <div class="lkpi"><div class="k">表示中</div><div class="v">42 <span style="font-size:11px;color:var(--c-text-muted)">/ 128</span></div><div class="sub">フィルタ適用</div></div>
+        <div class="lkpi"><div class="k">合計受注額</div><div class="v">¥18.4M</div><div class="sub">税抜</div></div>
+        <div class="lkpi"><div class="k">合計粗利</div><div class="v" style="color:var(--c-success)">¥3.42M</div><div class="sub">粗利率 18.6%</div></div>
+        <div class="lkpi"><div class="k">進行中</div><div class="v">23</div><div class="sub">うち施工中 12</div></div>
+        <div class="lkpi"><div class="k">期限アラート</div><div class="v" style="color:var(--c-warn)">3</div><div class="sub">工期超過/未請求</div></div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="fbar">
+        <div class="search-box">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input placeholder="工事名・発注者・工事番号で検索"/>
+        </div>
+        <span class="sep"></span>
+        <span class="lbl">年度</span>
+        <span class="pill on">2026</span>
+        <span class="lbl">ステータス</span>
+        <span class="pill on"><span class="dot" style="width:6px;height:6px;background:var(--c-status-progress);border-radius:50%"></span>施工中</span>
+        <span class="pill on"><span class="dot" style="width:6px;height:6px;background:var(--c-status-start);border-radius:50%"></span>着工</span>
+        <span class="pill add">+ 追加</span>
+        <span class="lbl">担当</span>
+        <span class="pill on">平等</span>
+        <span class="pill add">+ 追加</span>
+        <span class="spacer"></span>
+        <button class="btn btn-ghost btn-sm">フィルタクリア</button>
+        <button class="btn btn-ghost btn-sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/></svg>
+          保存
+        </button>
+      </div>
+
+      <!-- Table -->
+      <div class="card" style="padding:0;overflow:hidden">
+        <table class="ptbl">
+          <thead>
+            <tr>
+              <th style="width:30px"></th>
+              <th class="sort" style="width:106px">工事番号 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg></th>
+              <th>工事名 / 発注者</th>
+              <th style="width:110px">ステータス</th>
+              <th class="num sort" style="width:120px">受注額 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12l-7 7-7-7M12 19V5"/></svg></th>
+              <th class="num" style="width:80px">粗利率</th>
+              <th style="width:120px">担当</th>
+              <th style="width:96px">更新日</th>
+              <th style="width:80px;text-align:right">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-3-014</span></td>
+              <td><div class="nm">三国第二工場 配管改修工事<small>株式会社協和自工 · 福井県坂井市</small></div></td>
+              <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+              <td class="num">¥4,820,000</td>
+              <td class="num" style="color:var(--c-success);font-weight:600">22.5%</td>
+              <td><span class="charge-ava">平</span>平等</td>
+              <td class="num">5/13</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr class="alert">
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-1-008</span></td>
+              <td><div class="nm">福井支店 内装工事<small>株式会社平和建設 · 福井県福井市　⚠ 工期超過 6日</small></div></td>
+              <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+              <td class="num">¥3,150,000</td>
+              <td class="num" style="color:var(--c-success);font-weight:600">23.1%</td>
+              <td><span class="charge-ava">平</span>平等</td>
+              <td class="num">5/12</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-5-011</span></td>
+              <td><div class="nm">A棟外壁塗装<small>三国観光ホテル · 福井県坂井市</small></div></td>
+              <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+              <td class="num">¥2,840,000</td>
+              <td class="num" style="color:var(--c-success);font-weight:600">21.7%</td>
+              <td><span class="charge-ava" style="background:var(--c-status-progress)">山</span>山田</td>
+              <td class="num">5/12</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-3-013</span></td>
+              <td><div class="nm">工場内間仕切壁撤去工事（再）<small>協和自工株式会社 · 福井県坂井市</small></div></td>
+              <td><span class="badge s-start"><span class="dot"></span>着工</span></td>
+              <td class="num">¥1,780,000</td>
+              <td class="num">19.4%</td>
+              <td><span class="charge-ava">平</span>平等</td>
+              <td class="num">5/11</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr class="alert">
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-2-007</span></td>
+              <td><div class="nm">坂井市役所 庁舎屋上防水<small>坂井市役所　⚠ 請求書未発行 32日経過</small></div></td>
+              <td><span class="badge s-done"><span class="dot"></span>完工</span></td>
+              <td class="num">¥6,200,000</td>
+              <td class="num" style="color:var(--c-success);font-weight:600">25.9%</td>
+              <td><span class="charge-ava" style="background:var(--c-status-progress)">中</span>中山</td>
+              <td class="num">5/10</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-3-012</span></td>
+              <td><div class="nm">第3倉庫 床補修<small>株式会社協和自工 · 福井県坂井市</small></div></td>
+              <td><span class="badge s-start"><span class="dot"></span>着工</span></td>
+              <td class="num">¥1,420,000</td>
+              <td class="num">15.2%</td>
+              <td><span class="charge-ava" style="background:var(--c-status-progress)">中</span>中山</td>
+              <td class="num">5/9</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-1-006</span></td>
+              <td><div class="nm">事務所棟リフォーム<small>株式会社木下 · 福井県あわら市</small></div></td>
+              <td><span class="badge s-order"><span class="dot"></span>受注</span></td>
+              <td class="num">¥5,400,000</td>
+              <td class="num">17.5%</td>
+              <td><span class="charge-ava">平</span>平等</td>
+              <td class="num">5/8</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-3-011</span></td>
+              <td><div class="nm">第1工場 動力盤改修<small>協和自工株式会社 · 福井県坂井市</small></div></td>
+              <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+              <td class="num">¥980,000</td>
+              <td class="num">12.4%</td>
+              <td><span class="charge-ava">平</span>平等</td>
+              <td class="num">5/8</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr class="alert">
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">25-7-122</span></td>
+              <td><div class="nm">店舗改装<small>有限会社かわかみ　⚠ 入金未確認 62日経過</small></div></td>
+              <td><span class="badge s-billed"><span class="dot"></span>請求済</span></td>
+              <td class="num">¥1,240,000</td>
+              <td class="num" style="color:var(--c-success);font-weight:600">16.0%</td>
+              <td><span class="charge-ava" style="background:var(--c-status-progress)">中</span>中山</td>
+              <td class="num">5/7</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-5-010</span></td>
+              <td><div class="nm">B棟2階 LED照明更新<small>三国観光ホテル · 福井県坂井市</small></div></td>
+              <td><span class="badge s-quote"><span class="dot"></span>見積中</span></td>
+              <td class="num">¥720,000</td>
+              <td class="num muted">—</td>
+              <td><span class="charge-ava" style="background:var(--c-status-progress)">山</span>山田</td>
+              <td class="num">5/6</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-2-005</span></td>
+              <td><div class="nm">交流館 玄関タイル張替<small>坂井市役所 · 福井県坂井市</small></div></td>
+              <td><span class="badge s-done"><span class="dot"></span>完工</span></td>
+              <td class="num">¥860,000</td>
+              <td class="num">14.8%</td>
+              <td><span class="charge-ava" style="background:var(--c-status-progress)">中</span>中山</td>
+              <td class="num">5/2</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+            <tr>
+              <td><input type="checkbox"/></td>
+              <td><span class="pn">26-3-009</span></td>
+              <td><div class="nm">資材倉庫 屋根葺き替え<small>協和自工株式会社 · 福井県坂井市</small></div></td>
+              <td><span class="badge s-paid"><span class="dot"></span>入金済</span></td>
+              <td class="num">¥3,580,000</td>
+              <td class="num" style="color:var(--c-success);font-weight:600">19.8%</td>
+              <td><span class="charge-ava">平</span>平等</td>
+              <td class="num">4/28</td>
+              <td style="text-align:right"><button class="btn btn-ghost btn-sm">…</button></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="pagi">
+          <span>1 - 12 / 42 件</span>
+          <span class="spacer"></span>
+          <button>‹</button>
+          <button class="on">1</button>
+          <button>2</button>
+          <button>3</button>
+          <span style="color:var(--c-text-subtle)">…</span>
+          <button>4</button>
+          <button>›</button>
+          <span class="sep" style="width:1px;height:18px;background:var(--c-border);margin:0 6px"></span>
+          <span>1ページあたり</span>
+          <select class="select" style="width:auto;padding:3px 6px;font-size:12px">
+            <option>12</option><option>24</option><option>50</option><option>100</option>
+          </select>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

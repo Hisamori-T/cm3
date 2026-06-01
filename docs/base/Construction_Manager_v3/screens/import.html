@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="light">
+<head>
+<meta charset="UTF-8" />
+<title>S15 Excel インポート — Construction Manager v3</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/tokens.css">
+<style>
+  /* Stepper */
+  .stepper {
+    display: flex;
+    gap: 4px;
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-lg);
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    align-items: center;
+  }
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: var(--r-md);
+    font-size: 12px;
+    color: var(--c-text-muted);
+  }
+  .step .ic {
+    width: 22px; height: 22px;
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 700;
+    font-size: 11px;
+    font-family: var(--ff-mono);
+    border: 1.5px solid var(--c-border);
+  }
+  .step.done { color: var(--c-success); }
+  .step.done .ic { background: var(--c-success); color: #fff; border-color: var(--c-success); }
+  .step.done .ic::after { content: "✓"; }
+  .step.done .ic span { display: none; }
+  .step.cur { color: var(--c-primary); font-weight: 700;}
+  .step.cur .ic { background: var(--c-primary); color: #fff; border-color: var(--c-primary); }
+  .step .sep { color: var(--c-text-subtle); margin: 0 4px; }
+  .step-arrow { color: var(--c-text-subtle); margin: 0 2px;}
+
+  /* Drop area same as scan */
+  .drop {
+    background: var(--c-surface);
+    border: 1.5px dashed var(--c-border-strong);
+    border-radius: var(--r-lg);
+    padding: 32px 28px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .drop .ico {
+    width: 56px; height: 56px;
+    border-radius: 50%;
+    background: var(--c-primary-50);
+    color: var(--c-primary);
+    display: grid; place-items: center;
+  }
+  [data-theme="dark"] .drop .ico { background: var(--c-surface-3); }
+  .drop h2 { margin: 0; font-size: 16px; font-weight: 700;}
+  .drop p { margin: 0; font-size: 12px; color: var(--c-text-muted);}
+
+  /* Result summary */
+  .summary-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .sstrip {
+    background: var(--c-surface);
+    border: 1px solid var(--c-border);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+    border-left: 3px solid var(--c-border);
+  }
+  .sstrip.success { border-left-color: var(--c-success); }
+  .sstrip.warn { border-left-color: var(--c-warn); }
+  .sstrip.danger { border-left-color: var(--c-danger); }
+  .sstrip.info { border-left-color: var(--c-info); }
+  .sstrip .k { font-size: 11px; color: var(--c-text-muted); font-weight: 600;}
+  .sstrip .v {
+    font-family: var(--ff-mono);
+    font-size: 22px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .sstrip.success .v { color: var(--c-success); }
+  .sstrip.warn .v { color: var(--c-warn); }
+  .sstrip.danger .v { color: var(--c-danger); }
+  .sstrip .sub { font-size: 11px; color: var(--c-text-muted); margin-top: 2px; }
+
+  /* Preview table */
+  .preview-tbl {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .preview-tbl thead th {
+    background: var(--c-surface-2);
+    color: var(--c-text-muted);
+    font-weight: 600;
+    font-size: 11px;
+    text-align: left;
+    border-bottom: 1px solid var(--c-border);
+    padding: 8px 10px;
+  }
+  .preview-tbl tbody td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--c-border);
+    vertical-align: middle;
+  }
+  .preview-tbl .num { text-align: right; font-family: var(--ff-mono); }
+  .preview-tbl tr.new td { background: color-mix(in oklab,var(--c-success) 6%,var(--c-surface));}
+  .preview-tbl tr.update td { background: color-mix(in oklab,var(--c-info) 6%,var(--c-surface));}
+  .preview-tbl tr.warn td { background: color-mix(in oklab,var(--c-warn) 8%,var(--c-surface));}
+  .preview-tbl tr.error td { background: color-mix(in oklab,var(--c-danger) 8%,var(--c-surface));}
+  .tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 1px 7px;
+    border-radius: var(--r-pill);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .tag.new { color: var(--c-success); background: color-mix(in oklab,var(--c-success) 14%,var(--c-surface)); }
+  .tag.update { color: var(--c-info); background: color-mix(in oklab,var(--c-info) 14%,var(--c-surface)); }
+  .tag.warn { color: var(--c-warn); background: color-mix(in oklab,var(--c-warn) 18%,var(--c-surface)); }
+  .tag.error { color: var(--c-danger); background: color-mix(in oklab,var(--c-danger) 18%,var(--c-surface)); }
+
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--c-surface-2);
+    border-radius: var(--r-md);
+    margin-bottom: 14px;
+  }
+  .file-info .ic {
+    width: 36px; height: 36px;
+    background: color-mix(in oklab,var(--c-success) 14%,var(--c-surface));
+    color: var(--c-success);
+    border-radius: var(--r-md);
+    display: grid; place-items: center;
+  }
+  .file-info .nm { font-weight: 600; }
+  .file-info .nm small { display: block; color: var(--c-text-muted); font-size: 11px; margin-top:1px; font-family: var(--ff-mono);}
+
+  .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    margin-bottom: 14px;
+  }
+  .toolbar h1 { font-size: 18px; font-weight: 700; margin: 0; }
+  .toolbar .meta { color: var(--c-text-muted); font-size: 12px; }
+  .toolbar .spacer { flex: 1; }
+
+  /* Validation cards */
+  .errors-card {
+    background: var(--c-danger-bg);
+    border-left: 3px solid var(--c-danger);
+    border-radius: var(--r-md);
+    padding: 10px 14px;
+    margin-bottom: 14px;
+  }
+  .errors-card .ttl {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--c-danger);
+    margin-bottom: 4px;
+  }
+  .errors-card .row {
+    font-size: 12px;
+    color: var(--c-text);
+    line-height: 1.55;
+  }
+  .errors-card code {
+    font-family: var(--ff-mono);
+    background: var(--c-surface);
+    padding: 1px 4px;
+    border-radius: 2px;
+    color: var(--c-danger);
+  }
+</style>
+</head>
+<body data-screen-label="S15 Excel Import">
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-head">
+      <div class="logo-mark">CL</div>
+      <div class="brand">Construction Mgr<small>株式会社クラップ</small></div>
+    </div>
+    <div class="sidebar-section">
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12L12 4l9 8M5 10v10h14V10"/></svg>
+        ダッシュボード
+      </div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 5h18M3 12h18M3 19h18"/></svg>
+        案件一覧 <span class="nav-badge">128</span>
+      </div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">作業</div>
+      <div class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/><path d="M21 3l-9 9M14 3h7v7"/></svg>
+        業者見積スキャン
+      </div>
+      <div class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/></svg>
+        Excelインポート
+      </div>
+    </div>
+    <div class="sidebar-foot">
+      <div class="avatar">平</div>
+      <div class="user-meta">平等 久盛<small>営業 / 管理者</small></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumbs">
+        <strong>Excel インポート</strong>
+      </div>
+      <div class="topbar-spacer"></div>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        履歴
+      </button>
+      <button class="btn btn-ghost btn-sm">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>
+        テンプレートDL
+      </button>
+    </header>
+
+    <main class="page">
+      <div class="toolbar">
+        <h1>Excel 工事台帳 インポート</h1>
+        <span class="meta">既存Excel工事台帳をWebに取り込みます · dry-runモードで安全に確認</span>
+      </div>
+
+      <!-- Stepper -->
+      <div class="stepper">
+        <div class="step done"><span class="ic"><span>1</span></span>1. ファイル選択</div>
+        <svg class="step-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18l6-6-6-6"/></svg>
+        <div class="step cur"><span class="ic">2</span>2. dry-run プレビュー</div>
+        <svg class="step-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18l6-6-6-6"/></svg>
+        <div class="step"><span class="ic">3</span>3. 本番実行</div>
+        <svg class="step-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 18l6-6-6-6"/></svg>
+        <div class="step"><span class="ic">4</span>4. 完了</div>
+      </div>
+
+      <!-- File info -->
+      <div class="file-info">
+        <div class="ic">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/></svg>
+        </div>
+        <div class="nm">
+          工事台帳2026.xlsx
+          <small>3.4 MB · 解析: 5/13 15:42 · 4シート / 128案件 検出</small>
+        </div>
+        <span style="margin-left:auto;font-size:11px;color:var(--c-text-muted)">
+          <span style="display:inline-block;width:8px;height:8px;background:var(--c-warn);border-radius:50%;margin-right:5px"></span>
+          dry-run 中 · まだ保存されていません
+        </span>
+        <button class="btn btn-ghost btn-sm">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          ファイル変更
+        </button>
+      </div>
+
+      <!-- Result summary -->
+      <div class="summary-strip">
+        <div class="sstrip success">
+          <div class="k">新規追加</div>
+          <div class="v">42</div>
+          <div class="sub">案件 + 業者 + QCDS</div>
+        </div>
+        <div class="sstrip info">
+          <div class="k">更新（既存）</div>
+          <div class="v">86</div>
+          <div class="sub">変更行を検出</div>
+        </div>
+        <div class="sstrip warn">
+          <div class="k">警告</div>
+          <div class="v">7</div>
+          <div class="sub">確認推奨</div>
+        </div>
+        <div class="sstrip danger">
+          <div class="k">エラー</div>
+          <div class="v">3</div>
+          <div class="sub">先に解決が必要</div>
+        </div>
+      </div>
+
+      <!-- Errors first -->
+      <div class="errors-card">
+        <div class="ttl">⚠ エラー（3件） — 解決しないとインポートできません</div>
+        <div class="row">• <code>シート「工事台帳」R88</code> — 工事番号「<code>26-X-001</code>」が形式不正（<code>{年-社員番号-連番}</code> である必要があります）</div>
+        <div class="row">• <code>シート「QCDS」R42</code> — 発注者「<code>株式会社 ○○</code>」が業者マスタに未登録（事前登録するか自動作成を許可）</div>
+        <div class="row">• <code>シート「取決見通表」R15</code> — 金額に「<code>－</code>」（全角ハイフン）が含まれます</div>
+      </div>
+
+      <!-- Preview tabs + table -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <div class="card-title">プレビュー</div>
+            <div class="card-sub">行ごとに変化の種類が色分けされます · ⚠ チェックを外すと該当行はインポートされません</div>
+          </div>
+          <div class="actions">
+            <div class="seg" style="display:inline-flex;background:var(--c-surface-2);border:1px solid var(--c-border);border-radius:var(--r-md);padding:2px">
+              <button class="btn btn-ghost btn-sm" style="font-weight:600">すべて<span style="color:var(--c-text-muted);margin-left:6px">138</span></button>
+              <button class="btn btn-ghost btn-sm">新規<span style="color:var(--c-success);margin-left:6px">42</span></button>
+              <button class="btn btn-ghost btn-sm">更新<span style="color:var(--c-info);margin-left:6px">86</span></button>
+              <button class="btn btn-ghost btn-sm">警告<span style="color:var(--c-warn);margin-left:6px">7</span></button>
+              <button class="btn btn-ghost btn-sm">エラー<span style="color:var(--c-danger);margin-left:6px">3</span></button>
+            </div>
+          </div>
+        </div>
+
+        <table class="preview-tbl">
+          <thead>
+            <tr>
+              <th style="width:30px"><input type="checkbox" checked/></th>
+              <th style="width:80px">処理</th>
+              <th style="width:90px">工事番号</th>
+              <th>工事名 / 発注者</th>
+              <th style="width:90px">ステータス</th>
+              <th class="num" style="width:110px">受注額</th>
+              <th>メッセージ</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="error">
+              <td><input type="checkbox" disabled/></td>
+              <td><span class="tag error">エラー</span></td>
+              <td><span class="num" style="color:var(--c-danger)">26-X-001</span></td>
+              <td>新工場 基礎工事 / 株式会社○○</td>
+              <td><span class="badge s-quote"><span class="dot"></span>見積中</span></td>
+              <td class="num">¥8,500,000</td>
+              <td style="font-size:11px;color:var(--c-danger)">工事番号の形式不正。<code style="background:var(--c-surface);padding:1px 4px;border-radius:2px;font-family:var(--ff-mono)">26-3-088</code> のように修正してください</td>
+            </tr>
+            <tr class="new">
+              <td><input type="checkbox" checked/></td>
+              <td><span class="tag new">新規</span></td>
+              <td><span class="num">26-3-014</span></td>
+              <td>三国第二工場 配管改修 / 株式会社協和自工</td>
+              <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+              <td class="num">¥4,820,000</td>
+              <td style="font-size:11px;color:var(--c-text-muted)">取決見通表 5行 + QCDS A 12行を同時作成</td>
+            </tr>
+            <tr class="update">
+              <td><input type="checkbox" checked/></td>
+              <td><span class="tag update">更新</span></td>
+              <td><span class="num">26-1-008</span></td>
+              <td>福井支店 内装工事 / 株式会社平和建設</td>
+              <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+              <td class="num">¥3,150,000</td>
+              <td style="font-size:11px;color:var(--c-text-muted)">3フィールドが変更 · <strong>受注額 ¥3,000,000 → ¥3,150,000</strong></td>
+            </tr>
+            <tr class="warn">
+              <td><input type="checkbox" checked/></td>
+              <td><span class="tag warn">警告</span></td>
+              <td><span class="num">26-5-011</span></td>
+              <td>A棟外壁塗装 / 三国観光ホテル</td>
+              <td><span class="badge s-progress"><span class="dot"></span>施工中</span></td>
+              <td class="num">¥2,840,000</td>
+              <td style="font-size:11px;color:var(--c-warn)">取決見通表 R23 の支払先「三国塗装㈱」が業者マスタの「三国塗装 有限会社」と類似 · 同一視しますか？</td>
+            </tr>
+            <tr class="new">
+              <td><input type="checkbox" checked/></td>
+              <td><span class="tag new">新規</span></td>
+              <td><span class="num">26-3-015</span></td>
+              <td>第3倉庫 床補修 / 株式会社協和自工</td>
+              <td><span class="badge s-start"><span class="dot"></span>着工</span></td>
+              <td class="num">¥1,420,000</td>
+              <td style="font-size:11px;color:var(--c-text-muted)">—</td>
+            </tr>
+            <tr class="update">
+              <td><input type="checkbox" checked/></td>
+              <td><span class="tag update">更新</span></td>
+              <td><span class="num">26-2-007</span></td>
+              <td>坂井市役所 庁舎屋上防水 / 坂井市役所</td>
+              <td><span class="badge s-done"><span class="dot"></span>完工</span></td>
+              <td class="num">¥6,200,000</td>
+              <td style="font-size:11px;color:var(--c-text-muted)">ステータス変更 · <strong>施工中 → 完工</strong></td>
+            </tr>
+            <tr class="new">
+              <td><input type="checkbox" checked/></td>
+              <td><span class="tag new">新規</span></td>
+              <td><span class="num">26-1-006</span></td>
+              <td>事務所棟リフォーム / 株式会社木下</td>
+              <td><span class="badge s-order"><span class="dot"></span>受注</span></td>
+              <td class="num">¥5,400,000</td>
+              <td style="font-size:11px;color:var(--c-text-muted)">業者マスタに新規業者 1社が同時追加されます</td>
+            </tr>
+            <tr class="warn">
+              <td><input type="checkbox" checked/></td>
+              <td><span class="tag warn">警告</span></td>
+              <td><span class="num">25-7-122</span></td>
+              <td>店舗改装 / 有限会社かわかみ</td>
+              <td><span class="badge s-billed"><span class="dot"></span>請求済</span></td>
+              <td class="num">¥1,240,000</td>
+              <td style="font-size:11px;color:var(--c-warn)">入金未確認 62日経過 · ダッシュボードのアラートに残ります</td>
+            </tr>
+            <tr>
+              <td><input type="checkbox" checked/></td>
+              <td><span class="tag update">更新</span></td>
+              <td><span class="num">25-3-098</span></td>
+              <td>第1工場 給水管修繕 / 協和自工株式会社</td>
+              <td><span class="badge s-paid"><span class="dot"></span>入金済</span></td>
+              <td class="num">¥450,000</td>
+              <td style="font-size:11px;color:var(--c-text-muted)">変更なし — スキップ可能</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="padding:12px 16px;border-top:1px solid var(--c-border);display:flex;align-items:center;gap:10px;background:var(--c-surface-2)">
+          <span style="font-size:12px;color:var(--c-text-muted)">9 / 138 行を表示中</span>
+          <span style="flex:1"></span>
+          <button class="btn btn-ghost">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            戻る（再選択）
+          </button>
+          <button class="btn">エラー行を除外して保存</button>
+          <button class="btn btn-primary" disabled style="opacity:0.5;cursor:not-allowed">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            本番実行（エラー解決後）
+          </button>
+        </div>
+      </div>
+
+      <div style="margin-top:14px;font-size:11px;color:var(--c-text-subtle);text-align:right">
+        ※ dry-run は副作用がありません。本番実行を押すまでデータは変更されません。
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  (function() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('theme') === 'dark') document.documentElement.dataset.theme = 'dark';
+  })();
+</script>
+
+</body>
+</html>

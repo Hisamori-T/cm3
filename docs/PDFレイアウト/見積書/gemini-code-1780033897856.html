@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>内訳書</title>
+    <style>
+        /* ページ全体の設定（A4横、フッター自動生成） */
+        @page {
+            size: A4 landscape;
+            margin: 15mm;
+            @bottom-center {
+                content: "株式会社クラップ";
+                font-size: 10pt;
+                font-family: 'Noto Sans CJK JP', sans-serif;
+            }
+            @bottom-right {
+                content: "P － " counter(page);
+                font-size: 10pt;
+                font-family: 'Noto Sans CJK JP', sans-serif;
+            }
+        }
+
+        body {
+            font-family: 'Noto Sans CJK JP', 'Helvetica Neue', Arial, sans-serif;
+            font-size: 10pt;
+            color: #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 改ページ制御 */
+        .page-break {
+            page-break-before: always;
+        }
+
+        /* 表の基本スタイル */
+        table.grid-table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed; /* 列幅を固定 */
+        }
+        
+        table.grid-table th, 
+        table.grid-table td {
+            border: 1px solid #000;
+            height: 28px; /* 行の高さをExcelライクに固定 */
+            vertical-align: middle;
+            padding: 0 6px;
+        }
+
+        /* ヘッダーのスタイル */
+        table.grid-table th {
+            text-align: center;
+            font-weight: normal;
+            letter-spacing: 2px;
+        }
+
+        /* 列幅の厳格なパーセンテージ指定 */
+        .col-code   { width: 3%; }
+        .col-name   { width: 24%; }
+        .col-spec   { width: 25%; }
+        .col-unit   { width: 5%; text-align: center; }
+        .col-qty    { width: 6%; text-align: right; }
+        .col-price  { width: 9%; text-align: right; }
+        .col-amount { width: 14%; text-align: right; }
+        .col-remark { width: 14%; text-align: left; }
+
+        /* セル内のテキスト配置調整 */
+        .align-center { text-align: center; }
+        .align-right  { text-align: right; }
+        .align-left   { text-align: left; }
+        
+        /* 合計行のスタイル */
+        .total-row td {
+            height: 32px;
+        }
+        .total-label {
+            text-align: center;
+            letter-spacing: 1em;
+            padding-right: -1em; /* letter-spacingのズレ補正 */
+        }
+    </style>
+</head>
+<body>
+
+    <table class="grid-table">
+        <thead>
+            <tr>
+                <th class="col-code"></th>
+                <th class="col-name">名　　　　称</th>
+                <th class="col-spec">仕　　　　様</th>
+                <th class="col-unit">単位</th>
+                <th class="col-qty">数 量</th>
+                <th class="col-price">単　　価</th>
+                <th class="col-amount">金　　額</th>
+                <th class="col-remark">摘　　要</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in summary.items %}
+            <tr>
+                <td class="align-center">{{ item.code }}</td>
+                <td class="align-left">{{ item.name }}</td>
+                <td class="align-left">{{ item.spec }}</td>
+                <td class="align-center">{{ item.unit }}</td>
+                <td class="align-right">{{ "%.1f"|format(item.qty) if item.qty else "" }}</td>
+                <td class="align-right">{{ "{:,}".format(item.price) if item.price else "" }}</td>
+                <td class="align-right">{{ "{:,}".format(item.amount) if item.amount else "" }}</td>
+                <td class="align-right">{{ "{:,}".format(item.remark_val) if item.remark_val else item.remark_str }}</td>
+            </tr>
+            {% endfor %}
+
+            {% for i in range(5) %}
+            <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            {% endfor %}
+
+            <tr class="total-row">
+                <td colspan="6" class="total-label">出精値引き</td>
+                <td class="align-right">{{ "{:,}".format(summary.discount) }}</td>
+                <td></td>
+            </tr>
+            <tr class="total-row">
+                <td colspan="6" class="total-label">計</td>
+                <td class="align-right">{{ "{:,}".format(summary.subtotal) }}</td>
+                <td></td>
+            </tr>
+            <tr class="total-row">
+                <td colspan="6" class="total-label">消費税</td>
+                <td class="align-right">{{ "{:,}".format(summary.tax) }}</td>
+                <td></td>
+            </tr>
+            <tr class="total-row">
+                <td colspan="6" class="total-label">合 計</td>
+                <td class="align-right">{{ "{:,}".format(summary.total) }}</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+
+    {% for category in details %}
+    <div class="page-break"></div>
+
+    <table class="grid-table">
+        <thead>
+            <tr>
+                <th class="col-code"></th>
+                <th class="col-name">名　　　　称</th>
+                <th class="col-spec">仕　　　　様</th>
+                <th class="col-unit">単位</th>
+                <th class="col-qty">数 量</th>
+                <th class="col-price">単　　価</th>
+                <th class="col-amount">金　　額</th>
+                <th class="col-remark">摘　　要</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="align-center">{{ category.code }}</td>
+                <td class="align-left">{{ category.name }}</td>
+                <td></td><td></td><td></td><td></td><td></td><td></td>
+            </tr>
+
+            {% for row in category.rows %}
+            <tr>
+                <td></td>
+                <td class="align-left">{{ row.name }}</td>
+                <td class="align-left">{{ row.spec }}</td>
+                <td class="align-center">{{ row.unit }}</td>
+                <td class="align-right">{{ "%.1f"|format(row.qty) if row.qty else "" }}</td>
+                <td class="align-right">{{ "{:,}".format(row.price) if row.price else "" }}</td>
+                <td class="align-right">{{ "{:,}".format(row.amount) if row.amount else "" }}</td>
+                <td class="align-left">{{ row.remark }}</td>
+            </tr>
+            {% endfor %}
+
+            {% for i in range(3) %}
+            <tr><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+            {% endfor %}
+
+            <tr class="total-row">
+                <td colspan="3"></td>
+                <td colspan="3" class="total-label">小 計</td>
+                <td class="align-right">{{ "{:,}".format(category.subtotal) }}</td>
+                <td></td>
+            </tr>
+        </tbody>
+    </table>
+    {% endfor %}
+
+</body>
+</html>
