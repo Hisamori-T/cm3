@@ -2545,6 +2545,62 @@ Phase 1-A' の実装を進めていたが、ユーザー（ひさんさん）か
 
 ---
 
+## Session 2026-06-01 — Phase 1 ステップ2: 既存ページへの共通部品適用
+
+### 適用したページと内容
+
+| ページ | 変更 |
+|-------|------|
+| `projects/page.tsx` | `fmtYen` import、受注額インライン式を置換 |
+| `purchases/page.tsx` | `fmtYen` ローカル定義を削除して format.ts から import |
+| `projects/[id]/page.tsx` | `fmtYen` ローカル定義を削除 |
+| `projects/[id]/attendance/page.tsx` | `fmtYen` ローカル定義を削除 |
+| `projects/[id]/purchase/page.tsx` | `fmtYen` ローカル定義を削除 |
+| `projects/[id]/quote/page.tsx` | `const fmt = fmtYen` エイリアス化 |
+| `projects/[id]/invoice/page.tsx` | `const fmt = fmtYen` エイリアス化 |
+| `projects/[id]/estimate/page.tsx` | `const fmt = fmtYen` エイリアス化 |
+| `projects/[id]/invoice/[invoice_id]/page.tsx` | `const fmt = fmtYen` エイリアス化 |
+| `projects/[id]/quote/[quote_id]/page.tsx` | `const fmt = fmtYen` エイリアス化 |
+
+**スキップ（書式が異なる）:** `daily-report`, `dashboard`, `kanban`
+
+---
+
+## Session 2026-06-01 — Phase 3: Project モジュール移行
+
+### ステップ1-A: Backend modules/project/ 構築
+- `backend/app/modules/project/router.py` — projects.py の実体を移動
+- `backend/app/modules/project/kanban_router.py` — kanban.py の実体を移動
+- `backend/app/modules/project/comments_router.py` — comments.py の実体を移動
+- `backend/app/modules/project/models.py` — Project, ProjectComment re-export
+- `backend/app/modules/project/schemas.py` — ProjectCreate 等 re-export
+- `backend/app/api/v1/{projects,kanban,comments}.py` → re-export shim に変更
+
+### ステップ1-B: Frontend modules/project/ 構築
+- `frontend/src/modules/project/types.ts` — types/project.ts の re-export
+- `frontend/src/modules/project/ProjectStatusBadge.tsx` — 実体を移動（旧パスは re-export）
+- `frontend/src/modules/project/ProjectSubNav.tsx` — 実体を移動（旧パスは re-export）
+- `frontend/src/modules/project/CreateProjectModal.tsx` — 実体を移動（旧パスは re-export）
+
+### ステップ2: UI コンポーネント抽出
+- `frontend/src/modules/project/EditField.tsx` — page.tsx (734行) から抽出
+- `frontend/src/modules/project/EditSelect.tsx` — page.tsx から抽出
+- 各抽出後に Props 型整合性確認済み
+
+### 確認結果
+- `ALL MODULE IMPORTS OK`（コンテナ内で import チェーン確認）
+- `✓ Compiled successfully / Ready in 650ms`（TypeScript エラーなし）
+- `GET /api/v1/health → 200`（API 正常）
+
+### GitHub push
+- commit: dd60982
+- https://github.com/Hisamori-T/cm3 へ push 完了
+
+### 次のアクション
+- Phase 2（Customer, Vendor, Admin の葉モジュール）またはさらなる Phase 3 UI 抽出
+
+---
+
 ## Session 2026-06-01 — 発注書ページ追加修正
 
 ### 作業内容

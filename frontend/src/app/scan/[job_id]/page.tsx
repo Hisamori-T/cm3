@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { ProjectPickerCard } from "@/components/scan/ProjectPickerCard";
 import { apiFetch, tokenStore } from "@/lib/api-client";
+import { fmtNum } from "@/lib/format";
+import { confClass, confStyle, cellBg } from "@/modules/purchase/scanHelpers";
 import {
   ScanJobDetail, ScanResult, ScanResultItem,
   ScanResultItemUpdate, ScanResultUpdate,
@@ -22,31 +24,6 @@ interface EditableItem extends ScanResultItem { _edited: boolean; }
 interface ProjectOption { id: string; project_number: string; project_name: string; }
 interface QCDSOption { id: string; }
 
-function fmtNum(v: number | null | undefined, prefix = ""): string {
-  if (v == null) return "";
-  return prefix + v.toLocaleString("ja-JP");
-}
-
-function confClass(c: number | null | undefined): "h" | "m" | "l" | "" {
-  if (c == null) return "";
-  if (c >= 0.85) return "h";
-  if (c >= 0.60) return "m";
-  return "l";
-}
-
-function confStyle(cls: "h" | "m" | "l" | ""): React.CSSProperties {
-  if (cls === "h") return { color: "var(--c-success)", background: "color-mix(in oklab, var(--c-success) 14%, var(--c-surface))" };
-  if (cls === "m") return { color: "#b45309", background: "var(--c-warn-bg)" };
-  if (cls === "l") return { color: "var(--c-danger)", background: "var(--c-danger-bg)" };
-  return {};
-}
-
-function cellBg(c: number | null | undefined): string {
-  if (c == null) return "";
-  if (c < 0.6) return "color-mix(in oklab, var(--c-danger) 12%, var(--c-surface))";
-  if (c < 0.75) return "color-mix(in oklab, var(--c-warn) 14%, var(--c-surface))";
-  return "";
-}
 
 /** スキャン結果レビュー画面 */
 export default function ScanReviewPage() {
