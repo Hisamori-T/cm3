@@ -1,109 +1,27 @@
-"use client";
+﻿"use client";
 
-import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import type {
   DirectWorkInput,
-  ExpenseItemInput,
   ExpenseSection,
-  QCDSCalcFields,
   QCDSInput,
   QCDSResponse,
-  QCDSCategory,
 } from "@/types/qcds";
 import type { ScanResultItem } from "@/types/scan";
 import type { ProjectDetail } from "@/types/project";
 import { Button } from "@/components/ui/button";
+import { QCDSDirectWorkTable } from "@/modules/estimate/QCDSDirectWorkTable";
+import {
+  QCDSExpensePanel,
+  type LocalExpenseItem,
+  SYSTEM_CALC_MAP,
+  computedFormulaStr,
+} from "@/modules/estimate/QCDSExpensePanel";
 
-// ───────────────────────────────────────────────
-// 直接工事費 セクション定義
-// ───────────────────────────────────────────────
-const COLS: { category: QCDSCategory; label: string; subtotalLabel: string }[] = [
-  { category: "subcontract", label: "外注業者名", subtotalLabel: "A-1 外注取決計" },
-  { category: "material",    label: "資材業者名", subtotalLabel: "A-2 資材計" },
-  { category: "other",       label: "その他",     subtotalLabel: "A-3 その他計" },
-];
-
-const EMPTY_MIN = 4;
-
-// ───────────────────────────────────────────────
-// 経費行ローカル型（キーを持つ）
-// ───────────────────────────────────────────────
-interface LocalExpenseItem extends ExpenseItemInput {
-  _key: string;
-}
-
-// 自動計算フィールドのマッピング
-const SYSTEM_CALC_MAP: Record<string, (c: QCDSCalcFields) => number> = {
-  labor_insurance:              c => c.labor_insurance,
-  construction_insurance:       c => c.construction_insurance,
-  stamp_cost:                   c => c.stamp_cost,
-  receipt_cost:                 c => c.receipt_cost,
-  special_insurance:            c => c.special_insurance,
-  fixed_overhead:               c => c.fixed_overhead,
-  site_personnel_cost:          c => c.site_personnel_cost,
-  construction_dept_overhead:   c => c.construction_dept_overhead,
-  shared_overhead:              c => c.shared_overhead,
-  general_admin_cost:           c => c.general_admin_cost,
-};
-
-// システム項目の実効計算式文字列を生成（料率・金額を展開して表示）
-function computedFormulaStr(
-  systemKey: string,
-  calc: QCDSCalcFields,
-  header: {
-    labor_insurance_rate?: number;
-    construction_insurance_rate?: number;
-    special_insurance_rate?: number;
-    office_supplies?: number;
-    communication_cost?: number;
-    misc_cost?: number;
-    spare_cost?: number | null;
-    industrial_waste_cost?: number | null;
-    site_staff_salary_rate?: number;
-    common_overhead_rate?: number | null;
-    shared_overhead_rate?: number;
-    general_admin_rate?: number;
-  },
-  projectPrice: number,
-): string {
-  const pp = projectPrice;
-  const taxIncl = Math.round(pp * 1.1);
-  const r = (v: number) =>
-    `${(v * 100).toFixed(4).replace(/\.?0+$/, "")}%`;
-  const n = (v: number) => Math.round(v).toLocaleString();
-  switch (systemKey) {
-    case "labor_insurance":
-      return `工事価格 ¥${n(pp)} × ${r(header.labor_insurance_rate ?? 0)}`;
-    case "construction_insurance":
-      return `請負金(税込) ¥${n(taxIncl)} × ${r(header.construction_insurance_rate ?? 0)}`;
-    case "stamp_cost":
-      return `契約金額(税込) ¥${n(taxIncl)} → 第2号文書 自動計算`;
-    case "receipt_cost":
-      return `受取金額(税込) ¥${n(taxIncl)} → 第17号文書 自動計算`;
-    case "special_insurance":
-      return `工事価格 ¥${n(pp)} × ${r(header.special_insurance_rate ?? 0)}`;
-    case "fixed_overhead":
-      return `事務${n(header.office_supplies ?? 0)} + 通信${n(header.communication_cost ?? 0)} + 雑費${n(header.misc_cost ?? 0)}` +
-        (header.spare_cost ? ` + 予備費${n(header.spare_cost)}` : "") +
-        (header.industrial_waste_cost ? ` + 産廃${n(header.industrial_waste_cost)}` : "");
-    case "site_personnel_cost":
-      return `工事価格 ¥${n(pp)} × ${r(header.site_staff_salary_rate ?? 0)}`;
-    case "construction_dept_overhead":
-      return header.common_overhead_rate
-        ? `工事価格 ¥${n(pp)} × ${r(header.common_overhead_rate)}`
-        : "工事部経費率 未設定";
-    case "shared_overhead":
-      return `工事価格 ¥${n(pp)} × ${r(header.shared_overhead_rate ?? 0)}`;
-    case "general_admin_cost":
-      return `工事価格 ¥${n(pp)} × ${r(header.general_admin_rate ?? 0)}`;
-    default:
-      return "";
-  }
-}
 
 // ───────────────────────────────────────────────
 // ユーティリティ
@@ -123,9 +41,6 @@ function genKey() {
   return Math.random().toString(36).slice(2);
 }
 
-// ───────────────────────────────────────────────
-// 直接工事費 入力セル
-// ───────────────────────────────────────────────
 const EMPTY_WORK = (row_no: number): DirectWorkInput => ({
   row_no,
   work_type: null,
@@ -139,181 +54,6 @@ const EMPTY_WORK = (row_no: number): DirectWorkInput => ({
   note: null,
 });
 
-function getColIndices(
-  works: DirectWorkInput[],
-  category: QCDSCategory,
-): { idx: number; isFilled: boolean }[] {
-  const filled = works
-    .map((w, i) => ({ w, i }))
-    .filter(({ w }) => w.category === category || (category === "subcontract" && w.category == null && (w.vendor_name_snapshot || w.budget_amount != null)))
-    .map(({ i }) => ({ idx: i, isFilled: true }));
-  const available = works
-    .map((w, i) => ({ w, i }))
-    .filter(({ w }) => !w.category && !w.vendor_name_snapshot && !w.budget_amount)
-    .map(({ i }) => ({ idx: i, isFilled: false }));
-  const needed = Math.max(0, EMPTY_MIN - filled.length);
-  return [...filled, ...available.slice(0, needed)];
-}
-
-function TInput({
-  val, onChange, isNum, placeholder = "",
-}: {
-  val: string | number | null | undefined;
-  onChange: (v: string) => void;
-  isNum?: boolean;
-  placeholder?: string;
-}) {
-  return (
-    <input
-      type={isNum ? "number" : "text"}
-      value={val ?? ""}
-      placeholder={placeholder}
-      onChange={e => onChange(e.target.value)}
-      style={{
-        border: "none", background: "transparent", outline: "none",
-        width: "100%", fontSize: 12,
-        fontFamily: isNum ? "var(--ff-mono)" : undefined,
-        textAlign: isNum ? "right" : "left",
-        color: "var(--c-text)",
-      }}
-    />
-  );
-}
-
-// ───────────────────────────────────────────────
-// 経費行コンポーネント
-// ───────────────────────────────────────────────
-function ExpenseRow({
-  item,
-  rowIndex,
-  calcValue,
-  effectiveFormula,
-  onChange,
-  onDelete,
-}: {
-  item: LocalExpenseItem;
-  rowIndex: number;
-  calcValue?: number;
-  effectiveFormula?: string;
-  onChange: (patch: Partial<LocalExpenseItem>) => void;
-  onDelete?: () => void;
-}) {
-  const isSystem = !!item.system_key;
-  const hasOverride = item.amount_override !== null && item.amount_override !== undefined;
-  const displayAmt = hasOverride ? item.amount_override! : (calcValue ?? null);
-  const isAutoCalc = isSystem && !hasOverride;
-
-  return (
-    <tr>
-      <td className="no" style={{ fontSize: 11 }}>{rowIndex}</td>
-      <td className="editable">
-        <input
-          type="text"
-          value={item.item_name}
-          onChange={e => onChange({ item_name: e.target.value })}
-          style={{
-            border: "none", background: "transparent", outline: "none",
-            width: "100%", fontSize: 12, color: "var(--c-text)",
-          }}
-        />
-      </td>
-      <td className="editable">
-        {/* システム項目：実効計算式（料率・金額展開）を上段に常時表示 */}
-        {effectiveFormula && (
-          <div style={{
-            fontSize: 10,
-            color: "var(--c-accent)",
-            fontFamily: "var(--ff-mono)",
-            marginBottom: 1,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}>
-            {effectiveFormula}
-          </div>
-        )}
-        {/* 計算式メモ（自由編集可） */}
-        <input
-          type="text"
-          value={item.formula_description ?? ""}
-          placeholder={isSystem ? "（メモを追加）" : "計算式メモ"}
-          onChange={e => onChange({ formula_description: e.target.value || null })}
-          style={{
-            border: "none", background: "transparent", outline: "none",
-            width: "100%", fontSize: 11,
-            color: effectiveFormula ? "var(--c-text-subtle)" : "var(--c-text)",
-            fontStyle: effectiveFormula ? "italic" : "normal",
-          }}
-        />
-      </td>
-      <td
-        className={isAutoCalc ? "computed num" : "editable num"}
-        style={{ position: "relative" }}
-      >
-        {isAutoCalc ? (
-          /* 自動計算値：クリックで上書きモードへ */
-          <button
-            title="クリックして手動上書き"
-            onClick={() => onChange({ amount_override: calcValue ?? 0 })}
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              width: "100%", textAlign: "right", fontSize: 12,
-              fontFamily: "var(--ff-mono)", color: "var(--c-text-muted)",
-              padding: "0 2px",
-            }}
-          >
-            {displayAmt != null ? Math.round(displayAmt).toLocaleString() : "—"}
-          </button>
-        ) : (
-          /* 手動入力 */
-          <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-            <input
-              type="number"
-              value={item.amount_override ?? ""}
-              placeholder={isSystem && calcValue != null ? String(Math.round(calcValue)) : "0"}
-              onChange={e => onChange({ amount_override: e.target.value === "" ? null : Number(e.target.value) })}
-              style={{
-                border: "none", background: "transparent", outline: "none",
-                flex: 1, fontSize: 12, textAlign: "right",
-                fontFamily: "var(--ff-mono)", color: "var(--c-text)",
-                minWidth: 0,
-              }}
-            />
-            {isSystem && (
-              <button
-                title="自動計算に戻す"
-                onClick={() => onChange({ amount_override: null })}
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--c-text-subtle)", fontSize: 10, padding: "0 2px",
-                  flexShrink: 0,
-                }}
-              >
-                ↺
-              </button>
-            )}
-          </div>
-        )}
-      </td>
-      {/* カスタム行のみ削除ボタン */}
-      <td style={{ width: 24, padding: "0 2px", borderRight: "none" }}>
-        {item.is_custom && onDelete && (
-          <button
-            onClick={onDelete}
-            title="行を削除"
-            style={{
-              background: "none", border: "none", cursor: "pointer",
-              color: "var(--c-text-subtle)", fontSize: 13, lineHeight: 1,
-              display: "flex", alignItems: "center",
-            }}
-          >
-            ×
-          </button>
-        )}
-      </td>
-    </tr>
-  );
-}
 
 // ───────────────────────────────────────────────
 // ページ本体
@@ -594,8 +334,6 @@ export default function QCDSPage() {
   );
 
   // 行ナンバリング用カウンタ
-  let bSiteRowIdx = 0;
-  let bDeptRowIdx = 0;
   let cRowIdx = 0;
 
   return (
@@ -689,212 +427,19 @@ export default function QCDSPage() {
           </div>
         </div>
 
-        {/* 一括削除バー */}
-        {checkedWorkIds.size > 0 && (
-          <div style={{
-            display: "flex", alignItems: "center", gap: 10,
-            padding: "8px 14px", marginBottom: 8,
-            background: "color-mix(in oklab, var(--c-danger) 6%, var(--c-surface))",
-            border: "1px solid color-mix(in oklab, var(--c-danger) 25%, var(--c-border))",
-            borderRadius: "var(--r-md)", fontSize: 13,
-          }}>
-            <span style={{ fontWeight: 600, color: "var(--c-danger)" }}>{checkedWorkIds.size}行選択中</span>
-            <button
-              onClick={handleBulkDelete}
-              disabled={bulkDeleting}
-              style={{
-                padding: "4px 14px", fontSize: 12, fontWeight: 600,
-                background: "var(--c-danger)", color: "#fff",
-                border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
-              }}
-            >{bulkDeleting ? "削除中…" : "選択行を削除"}</button>
-            <button
-              onClick={() => setCheckedWorkIds(new Set())}
-              style={{ padding: "4px 10px", fontSize: 12, background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer" }}
-            >選択解除</button>
-          </div>
-        )}
-
-        <div className="a-table">
-          {COLS.map(({ category, label, subtotalLabel }) => {
-            const colItems = getColIndices(works, category);
-            const subtotal = colItems
-              .filter(ci => ci.isFilled)
-              .reduce((s, ci) => s + (works[ci.idx].budget_amount ?? 0), 0);
-            return (
-              <div key={category}>
-                <table className="qtbl">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 22, textAlign: "center", padding: "4px 2px" }}>
-                        <input
-                          type="checkbox"
-                          title="このカラムの全行を選択"
-                          checked={colItems.filter(ci => ci.isFilled && qcds?.direct_works.find(d => d.row_no === works[ci.idx].row_no))
-                            .every(ci => {
-                              const d = qcds?.direct_works.find(dw => dw.row_no === works[ci.idx].row_no);
-                              return d && checkedWorkIds.has(d.id);
-                            }) && colItems.filter(ci => ci.isFilled && qcds?.direct_works.find(d => d.row_no === works[ci.idx].row_no)).length > 0}
-                          onChange={e => {
-                            const dbIds = colItems
-                              .filter(ci => ci.isFilled)
-                              .map(ci => qcds?.direct_works.find(d => d.row_no === works[ci.idx].row_no)?.id)
-                              .filter(Boolean) as string[];
-                            setCheckedWorkIds(prev => {
-                              const next = new Set(prev);
-                              if (e.target.checked) dbIds.forEach(id => next.add(id));
-                              else dbIds.forEach(id => next.delete(id));
-                              return next;
-                            });
-                          }}
-                        />
-                      </th>
-                      <th style={{ width: 24 }}>No</th>
-                      <th>{label}</th>
-                      <th className="num" style={{ width: 96 }}>予算</th>
-                      <th style={{ width: 22 }} />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {colItems.map(({ idx, isFilled }, colI) => {
-                      const w = works[idx];
-                      const dbWork = qcds?.direct_works.find(d => d.row_no === w.row_no);
-                      const hasScan = !!dbWork?.source_scan_result_id;
-                      const isExpanded = dbWork ? expandedRows.has(dbWork.id) : false;
-                      return (
-                        <Fragment key={idx}>
-                          <tr className={!isFilled ? "muted-row" : ""} style={{ background: (dbWork && checkedWorkIds.has(dbWork.id)) ? "color-mix(in oklab, var(--c-danger) 5%, var(--c-surface))" : undefined }}>
-                            <td style={{ textAlign: "center", padding: "0 2px" }}>
-                              {dbWork && isFilled && (
-                                <input type="checkbox"
-                                  checked={checkedWorkIds.has(dbWork.id)}
-                                  onChange={e => setCheckedWorkIds(prev => {
-                                    const next = new Set(prev);
-                                    e.target.checked ? next.add(dbWork.id) : next.delete(dbWork.id);
-                                    return next;
-                                  })}
-                                />
-                              )}
-                            </td>
-                            <td className="no">
-                              {hasScan && dbWork ? (
-                                <button
-                                  onClick={() => toggleRow(dbWork.id, dbWork.source_scan_result_id!)}
-                                  style={{
-                                    background: "none", border: "none", cursor: "pointer",
-                                    color: "var(--c-accent)", fontSize: 10, width: "100%",
-                                  }}
-                                >
-                                  {isExpanded ? "▼" : "▶"}
-                                </button>
-                              ) : colI + 1}
-                            </td>
-                            <td className="editable">
-                              <TInput
-                                val={w.vendor_name_snapshot}
-                                onChange={v => updateWork(idx, {
-                                  vendor_name_snapshot: v || null,
-                                  ...(v && !w.category ? { category } : {}),
-                                })}
-                              />
-                            </td>
-                            <td className="editable num">
-                              <TInput
-                                val={w.budget_amount}
-                                onChange={v => updateWork(idx, {
-                                  budget_amount: v === "" ? null : Number(v),
-                                  ...(v && !w.category ? { category } : {}),
-                                })}
-                                isNum
-                              />
-                            </td>
-                            <td style={{ textAlign: "center", padding: "0 2px" }}>
-                              {dbWork && isFilled && (
-                                <button
-                                  onClick={() => handleDeleteWork(dbWork)}
-                                  title="この行を削除"
-                                  style={{
-                                    background: "none", border: "none", cursor: "pointer",
-                                    color: "var(--c-text-subtle, var(--c-text-muted))",
-                                    fontSize: 14, lineHeight: 1, padding: "2px 4px",
-                                    borderRadius: "var(--r-sm)",
-                                    opacity: 0.4,
-                                  }}
-                                  onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "1"; (e.currentTarget as HTMLButtonElement).style.color = "var(--c-danger)"; }}
-                                  onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = "0.4"; (e.currentTarget as HTMLButtonElement).style.color = "var(--c-text-muted)"; }}
-                                >×</button>
-                              )}
-                            </td>
-                          </tr>
-                          {isExpanded && dbWork && dbWork.source_scan_result_id && (
-                            <tr key={`${idx}-scan`}>
-                              <td
-                                colSpan={3}
-                                style={{ padding: "8px 12px", background: "var(--c-surface-2)" }}
-                              >
-                                {(scanItems[dbWork.source_scan_result_id] ?? []).length === 0 ? (
-                                  <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
-                                    読み込み中…
-                                  </span>
-                                ) : (
-                                  <table style={{ width: "100%", fontSize: 11, borderCollapse: "collapse" }}>
-                                    <thead>
-                                      <tr>
-                                        {["品名", "数量", "単価", "金額"].map(h => (
-                                          <th
-                                            key={h}
-                                            style={{
-                                              padding: "2px 6px",
-                                              textAlign: ["数量", "単価", "金額"].includes(h) ? "right" : "left",
-                                              background: "var(--c-surface)",
-                                              border: "1px solid var(--c-border)",
-                                              fontWeight: 600,
-                                              color: "var(--c-text-muted)",
-                                            }}
-                                          >
-                                            {h}
-                                          </th>
-                                        ))}
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {scanItems[dbWork.source_scan_result_id].map(item => (
-                                        <tr key={item.id}>
-                                          <td style={{ padding: "2px 6px", border: "1px solid var(--c-border)" }}>
-                                            {item.item_name ?? "—"}
-                                          </td>
-                                          <td style={{ padding: "2px 6px", textAlign: "right", border: "1px solid var(--c-border)", fontFamily: "var(--ff-mono)" }}>
-                                            {item.quantity ?? "—"}
-                                          </td>
-                                          <td style={{ padding: "2px 6px", textAlign: "right", border: "1px solid var(--c-border)", fontFamily: "var(--ff-mono)" }}>
-                                            {item.unit_price?.toLocaleString() ?? "—"}
-                                          </td>
-                                          <td style={{ padding: "2px 6px", textAlign: "right", border: "1px solid var(--c-border)", fontFamily: "var(--ff-mono)", fontWeight: 600 }}>
-                                            {item.amount != null ? `¥${item.amount.toLocaleString()}` : "—"}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                )}
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                    <tr className="subtotal">
-                      <td />
-                      <td colSpan={2} style={{ textAlign: "right" }}>{subtotalLabel}</td>
-                      <td className="num">{subtotal > 0 ? subtotal.toLocaleString() : "—"}</td>
-                      <td />
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
-        </div>
+        <QCDSDirectWorkTable
+          works={works}
+          qcds={qcds}
+          checkedWorkIds={checkedWorkIds}
+          setCheckedWorkIds={setCheckedWorkIds}
+          expandedRows={expandedRows}
+          scanItems={scanItems}
+          bulkDeleting={bulkDeleting}
+          updateWork={updateWork}
+          handleBulkDelete={handleBulkDelete}
+          handleDeleteWork={handleDeleteWork}
+          toggleRow={toggleRow}
+        />
 
         <table className="qtbl" style={{ borderTop: "1.5px solid var(--c-border-strong)" }}>
           <tbody>
@@ -914,123 +459,19 @@ export default function QCDSPage() {
         </table>
       </div>
 
-      {/* ─────────────────────────────────────────────
-          Section B: 経費関係（編集可能）
-      ───────────────────────────────────────────── */}
-      <div className="sec">
-        <div className="sec-head">
-          <span className="badge-letter" style={{ background: "var(--c-accent)" }}>B</span>
-          <div>
-            <div className="tt">経費関係</div>
-            <div className="sub">
-              振替項目・計算式は自由編集可。金額列の灰色値はクリックで上書き可。＋ボタンで行追加。
-            </div>
-          </div>
-          <div className="stat">
-            <span>
-              <span className="k">B 計</span>
-              <span className="v" style={{ color: "var(--c-accent)" }}>
-                {bTotal > 0 ? yen(bTotal) : "—"}
-              </span>
-            </span>
-          </div>
-        </div>
-
-        <table className="qtbl">
-          {expenseTableHead}
-          <tbody>
-            {/* ■ 現場経費 */}
-            <tr className="section-head"><td colSpan={5}>■ 現場経費</td></tr>
-            {bSiteItems.map(item => {
-              bSiteRowIdx++;
-              const cval = item.system_key && calc
-                ? (SYSTEM_CALC_MAP[item.system_key]?.(calc) ?? 0)
-                : undefined;
-              const ef = item.system_key && calc
-                ? computedFormulaStr(item.system_key, calc, header, price)
-                : undefined;
-              return (
-                <ExpenseRow
-                  key={item._key}
-                  item={item}
-                  rowIndex={bSiteRowIdx}
-                  calcValue={cval}
-                  effectiveFormula={ef || undefined}
-                  onChange={patch => updateExpenseItem(item._key, patch)}
-                  onDelete={() => deleteExpenseItem(item._key)}
-                />
-              );
-            })}
-            <tr>
-              <td colSpan={5} style={{ padding: "4px 8px", borderBottom: "none" }}>
-                <button
-                  onClick={() => addExpenseItem("B_site")}
-                  style={{
-                    background: "none", border: "none", cursor: "pointer",
-                    color: "var(--c-accent)", fontSize: 11, fontWeight: 600,
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}
-                >
-                  ＋ 行を追加（現場経費）
-                </button>
-              </td>
-            </tr>
-            <tr className="subtotal">
-              <td colSpan={3} style={{ textAlign: "right" }}>現場経費 小計</td>
-              <td className="num">{bSiteTotal > 0 ? numStr(bSiteTotal) : "—"}</td>
-              <td />
-            </tr>
-            {/* ■ 事業部経費 */}
-            <tr className="section-head"><td colSpan={5}>■ 事業部経費</td></tr>
-            {bDeptItems.map(item => {
-              bDeptRowIdx++;
-              const cval = item.system_key && calc
-                ? (SYSTEM_CALC_MAP[item.system_key]?.(calc) ?? 0)
-                : undefined;
-              const ef = item.system_key && calc
-                ? computedFormulaStr(item.system_key, calc, header, price)
-                : undefined;
-              return (
-                <ExpenseRow
-                  key={item._key}
-                  item={item}
-                  rowIndex={bDeptRowIdx}
-                  calcValue={cval}
-                  effectiveFormula={ef || undefined}
-                  onChange={patch => updateExpenseItem(item._key, patch)}
-                  onDelete={() => deleteExpenseItem(item._key)}
-                />
-              );
-            })}
-            <tr>
-              <td colSpan={5} style={{ padding: "4px 8px", borderBottom: "none" }}>
-                <button
-                  onClick={() => addExpenseItem("B_dept")}
-                  style={{
-                    background: "none", border: "none", cursor: "pointer",
-                    color: "var(--c-accent)", fontSize: 11, fontWeight: 600,
-                    display: "flex", alignItems: "center", gap: 4,
-                  }}
-                >
-                  ＋ 行を追加（事業部経費）
-                </button>
-              </td>
-            </tr>
-            <tr className="subtotal">
-              <td colSpan={3} style={{ textAlign: "right" }}>事業部経費 小計</td>
-              <td className="num">{bDeptTotal > 0 ? numStr(bDeptTotal) : "—"}</td>
-              <td />
-            </tr>
-            <tr className="grand">
-              <td colSpan={3} style={{ textAlign: "right", paddingRight: 14 }}>
-                B 経費関係合計
-              </td>
-              <td className="num">{bTotal > 0 ? numStr(bTotal) : "—"}</td>
-              <td />
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <QCDSExpensePanel
+        bSiteItems={bSiteItems}
+        bDeptItems={bDeptItems}
+        bSiteTotal={bSiteTotal}
+        bDeptTotal={bDeptTotal}
+        bTotal={bTotal}
+        calc={calc}
+        header={header}
+        price={price}
+        updateExpenseItem={updateExpenseItem}
+        deleteExpenseItem={deleteExpenseItem}
+        addExpenseItem={addExpenseItem}
+      />
 
       {/* Profit ladder */}
       <div className="sec">

@@ -2601,6 +2601,46 @@ Phase 1-A' の実装を進めていたが、ユーザー（ひさんさん）か
 
 ---
 
+## Session 2026-06-01 — Phase 4 & 5: Schedule / Site / Purchase モジュール移行
+
+### Phase 4: Schedule & Site モジュール構造確立
+- `backend/app/modules/schedule/` 新設（gantt_router, schedule_router — re-export 構造）
+- `backend/app/modules/site/` 新設（progress_router, daily_reports_router, attendance_router — re-export 構造）
+
+### Phase 5 ステップ1: scan.py (1,001行) を3ファイルに分割（最重要）
+
+**分割構成:**
+| ファイル | 内容 | 行数 |
+|---------|------|:----:|
+| `_shared.py` | `_job_to_read`, `_result_to_read`, 定数 | 共通ヘルパー |
+| `scan_upload.py` | POST /scan/upload, GET /scan/jobs, GET /scan/jobs/{id}, GET /scan/file/{id} | 4エンドポイント |
+| `scan_review.py` | GET/PATCH /scan/results/{id}, POST /confirm | 3エンドポイント |
+| `scan_transfer.py` | POST /apply, /transfer-to-qcds, /save-as-version, bulk-* | 7エンドポイント |
+
+**Celery 依存関係確認:**
+- `scan_tasks.py` は `ScanJob` モデルと `gemini_scanner` のみ参照
+- scan ルーターへの依存は一切なし → 分割後も完全に独立 ✅
+
+**旧 `api/v1/scan.py`:** 3ルーターを集約する re-export shim（14エンドポイント同数確認）
+
+### Phase 5 ステップ2: フロントエンド純粋関数抽出
+- `frontend/src/modules/purchase/scanHelpers.ts` 新設
+  - `confClass / confStyle / cellBg` を `scan/[job_id]/page.tsx` から抽出（state 非依存の純粋関数のみ）
+- `scan/[job_id]/page.tsx` の `fmtNum` を `lib/format.ts` から import に変更
+- 複雑な state コンポーネント（items table、split pane）は安全に抽出できないためスキップ
+
+### 確認結果
+- `ALL PHASE 4 & 5 IMPORTS OK` + `scan_router routes: 14`（コンテナ内検証）
+- `✓ Compiled successfully / Ready in 623ms`（TypeScript エラーなし）
+- `GET /api/v1/health → 200`
+- GitHub push: commit 5531a53
+
+### 次のアクション
+- Phase 2（Customer, Vendor, Admin 葉モジュール）の実装
+- `scan/[job_id]/page.tsx` の残り UI 抽出は、items table の state 整理後に実施予定
+
+---
+
 ## Session 2026-06-01 — 発注書ページ追加修正
 
 ### 作業内容
@@ -2664,5 +2704,62 @@ Phase 1-A' の実装を進めていたが、ユーザー（ひさんさん）か
 ### 次のアクション
 - 発注書に支払期日を設定して「発注する」→「納品済にする」→「支払済にする」の遷移を確認
 - カレンダーで支払期日の紫チップが表示されることを確認
+
+---
+
+## Session 2026-06-01 — Phase 6: Estimate モジュール分割（バックエンド完了 + フロント1件）
+
+### 作業内容
+
+**Phase 6-A（前セッション済み）**: `backend/app/modules/estimate/` ディレクトリ構造と `_helpers.py` 作成済み
+
+**Phase 6-B〜D: バックエンド quotes.py 分割**
+- `modules/estimate/routers/quote_core.py` — Quote CRUD（list/create/get/update）+ 承認スタンプ + 関連帳票生成（6エンドポイント）
+- `modules/estimate/routers/quote_versions.py` — 版CRUD + import-items + QCDS/見積反映 + 業者マスタ版作成（8エンドポイント）
+- `modules/estimate/routers/quote_sections.py` — 大項目CRUD + 単発明細CRUD + テンプレート適用（8エンドポイント）
+- 共通ヘルパー `_helpers.py`（前セッション作成済み）に全ルーターから import
+
+**Phase 6-E: re-export shim**
+- `backend/app/api/v1/quotes.py` を re-export shim に変換（3ルーターを include_router でマージ）
+- 既存コードの import パスは無変更で動作継続
+
+**Phase 6-F: quote_service.py 作成**
+- `modules/estimate/services/quote_service.py` に `create_initial_quote()` 関数を作成
+- `modules/project/router.py` の `create_project` 内インライン Quote 生成を `create_initial_quote()` 呼び出しに置き換え
+
+**Phase 6-G: import 検証**
+- コンテナ内で `estimate` モジュール全体の import テスト実施
+- `quote_core 6routes / quote_versions 8routes / quote_sections 8routes = 合計22エンドポイント`（元の quotes.py と同数）を確認
+
+**Phase 6-H: フロントエンド QCDSDirectWorkTable 抽出（1件）**
+- `frontend/src/modules/estimate/QCDSDirectWorkTable.tsx` 新規作成
+  - Props: `works / qcds / checkedWorkIds / setCheckedWorkIds / expandedRows / scanItems / bulkDeleting / updateWork / handleBulkDelete / handleDeleteWork / toggleRow`
+  - 一括削除バー + 3カラム直接工事費テーブル（外注/資材/その他）をカプセル化
+  - `COLS / EMPTY_MIN / getColIndices / TInput` ヘルパーもコンポーネントファイルに内包
+- `qcds/page.tsx` の修正:
+  - `Fragment / useRef / QCDSCategory` の未使用 import を削除
+  - 行692〜831（一括削除バー + `COLS.map` ブロック）を `<QCDSDirectWorkTable ...props />` に置き換え
+  - ページ行数: 1293行 → 1045行（248行削減）
+
+### 変更ファイル
+- 新規: `backend/app/modules/estimate/routers/quote_core.py`
+- 新規: `backend/app/modules/estimate/routers/quote_versions.py`
+- 新規: `backend/app/modules/estimate/routers/quote_sections.py`
+- 新規: `backend/app/modules/estimate/services/quote_service.py`
+- 変更: `backend/app/api/v1/quotes.py` — re-export shim に変換
+- 変更: `backend/app/modules/project/router.py` — `create_initial_quote()` 呼び出しに変更
+- 新規: `frontend/src/modules/estimate/QCDSDirectWorkTable.tsx`
+- 変更: `frontend/src/app/projects/[id]/qcds/page.tsx` — QCDSDirectWorkTable を使用
+
+### 次のアクション（Phase 6 続き）
+- **【Phase 6 残り】** フロントエンドの残り抽出（1コンポーネントずつ）:
+  - `QCDSExpensePanel` → `qcds/page.tsx` から経費行セクション（B-1/B-2）を抽出
+  - `SectionBlock` → `quote/[quote_id]/page.tsx` から大項目ブロックを抽出
+  - `ApprovalStamps` → 承認スタンプ3つを抽出
+  - `QuoteTotals` → 右パネル合計カードを抽出
+  - `ScanZone` → `estimate/page.tsx` から D&D ゾーン＋スキャン進捗を抽出
+  - `VersionCard` → 版カードを抽出
+- **【注意】** 各抽出後に `qcds` ページ・`quote/[quote_id]` ページ・`estimate` ページの動作確認を行ってから次に進む
+- **VPS デプロイ**: Phase 3〜6 の全バックエンド変更を本番に適用する前に、ローカルコンテナでリビルドテストを推奨
 
 ---

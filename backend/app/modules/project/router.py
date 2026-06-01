@@ -2,9 +2,6 @@
 
 移行先: app.modules.project.router
 旧パス: app.api.v1.projects（後方互換 re-export を維持）
-
-NOTE: create_project 内の Quote 自動生成ロジックは
-      Phase 6 (estimate モジュール) 移行時に estimate サービスへ委譲予定。
 """
 from __future__ import annotations
 
@@ -27,6 +24,7 @@ from app.models.project import Project
 from app.models.qcds import QCDS
 from app.models.quote import Quote, QuoteVersion
 from app.models.user import User
+from app.modules.estimate.services.quote_service import create_initial_quote
 from app.schemas.project import (
     EditHistoryItem,
     EditHistoryResponse,
@@ -128,9 +126,7 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ProjectListItem:
-    """新規案件を作成する。project_number を省略した場合は自動採番。
-    NOTE: Quote 自動生成ロジックは Phase 6 で estimate サービスへ委譲予定。
-    """
+    """新規案件を作成する。project_number を省略した場合は自動採番。"""
     if body.project_number:
         dup = (await db.execute(
             select(Project).where(Project.project_number == body.project_number)
@@ -169,26 +165,14 @@ async def create_project(
     db.add(project)
     await db.flush()
 
-    # 案件作成と同時に見積書（と最初の業者見積版）を自動生成する
-    quote = Quote(
-        id=uuid.uuid4(),
+    # 案件作成と同時に見積書（と最初の業者見積版）を自動生成する（estimate サービスに委譲）
+    await create_initial_quote(
         project_id=project.id,
-        quote_number=f"{project.project_number}-1",
-        project_name_snapshot=body.project_name,
-        project_location_snapshot=body.project_location,
-        validity_days=30,
+        project_number=project.project_number,
+        project_name=body.project_name,
+        project_location=body.project_location,
+        db=db,
     )
-    db.add(quote)
-    await db.flush()
-
-    first_version = QuoteVersion(
-        id=uuid.uuid4(),
-        quote_id=quote.id,
-        version_no=1,
-        markup_rate=1.0,
-        is_active=True,
-    )
-    db.add(first_version)
 
     await db.commit()
     await db.refresh(project, ["sales_person", "construction_person"])
