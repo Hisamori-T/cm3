@@ -8,6 +8,7 @@ import type { ProjectListItem, ProjectListResponse, ProjectStatus } from "@/type
 import { PROJECT_STATUS_LABEL } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { CreateProjectModal } from "@/components/projects/create-project-modal";
+import { fmtYen } from "@/lib/format";
 
 const STATUS_CLASS: Record<ProjectStatus, string> = {
   quote: "s-quote", ordered: "s-order", started: "s-start",
@@ -350,7 +351,7 @@ export default function ProjectsPage() {
                       </span>
                     </td>
                     <td className="num">
-                      {p.project_price != null ? `¥${p.project_price.toLocaleString()}` : "—"}
+                      {fmtYen(p.project_price)}
                     </td>
                     <td>
                       {p.sales_person_name ? (

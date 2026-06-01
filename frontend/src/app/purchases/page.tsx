@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
+import { fmtYen } from "@/lib/format";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -43,11 +44,6 @@ const STATUS_COLOR: Record<OrderStatus, { bg: string; fg: string }> = {
 };
 
 const STATUS_ORDER: OrderStatus[] = ["draft", "issued", "partial_delivered", "delivered", "completed"];
-
-function fmtYen(v: number | null | undefined): string {
-  if (v == null) return "—";
-  return `¥${Math.round(v).toLocaleString()}`;
-}
 
 // ── Main ──────────────────────────────────────────────────────
 

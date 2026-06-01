@@ -2506,6 +2506,45 @@ Phase 1-A' の実装を進めていたが、ユーザー（ひさんさん）か
 
 ---
 
+## Session 2026-06-01 — Phase 1-A: Shared 基盤構築（ステップ1完了）
+
+### 作業内容
+
+**Frontend 新規作成（既存ページ変更なし）**
+- `frontend/src/lib/format.ts` — fmtYen / fmtDateISO / fmtDateJP / fmtDateTime / fmtRelTime / fmtMinutes / fmtFileSize / fmtNum を集約
+- `frontend/src/components/ui/StatusBadge.tsx` — label+color props のバッジ共通コンポーネント + makeStatusBadge ファクトリ
+- `frontend/src/components/ui/Pagination.tsx` — page/perPage/total/onPrev/onNext の汎用ページネーション
+- `frontend/src/components/ui/DropZone.tsx` — D&D + クリックファイル選択の共通コンポーネント（scanning状態管理込み）
+- `frontend/src/components/ui/AuthImage.tsx` — 認証ヘッダー付き fetch → blob URL 表示コンポーネント（メモリリーク対策済み）
+
+**Backend 新規作成（`shared/` ディレクトリ）**
+- `backend/app/shared/models/base.py` — TimestampMixin
+- `backend/app/shared/models/enums.py` — 全 Enum（app.models.enums の実体）
+- `backend/app/shared/models/history.py` — EditHistory モデル
+- `backend/app/shared/schemas/common.py` — PaginatedResponse[T] 汎用スキーマ
+- `backend/app/shared/services/history.py` — 編集履歴記録ヘルパー
+- `backend/app/shared/services/project_number.py` — 工事番号採番
+- `backend/app/shared/services/notification.py` — Slack 通知
+
+**Backend 旧パス後方互換 re-export（既存コードは変更なし）**
+- `backend/app/models/base.py` → shared から re-export
+- `backend/app/models/enums.py` → shared から re-export（全 Enum）
+- `backend/app/models/history.py` → shared から re-export
+- `backend/app/services/history.py` → shared から re-export
+- `backend/app/services/project_number.py` → shared から re-export
+- `backend/app/services/notification.py` → shared から re-export
+
+### 確認結果
+- `ALL IMPORTS OK`（コンテナ内で新旧両パスの import を確認）
+- `GET /api/v1/health` → 200（API 起動正常）
+- 既存ページへの影響なし（app/ 配下は変更していない）
+
+### 次のアクション（ステップ2）
+- ひさんの承認後に既存ページへの適用を開始
+- 適用順序: projects/page.tsx → vendors/page.tsx → purchases/page.tsx の順に1画面ずつ
+
+---
+
 ## Session 2026-06-01 — 発注書ページ追加修正
 
 ### 作業内容

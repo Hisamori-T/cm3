@@ -13,6 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SiteSearch } from "@/components/client/SiteSearch";
 import type { SiteSearchValue } from "@/components/client/SiteSearch";
+import { fmtYen } from "@/lib/format";
+import { EditField } from "@/modules/project/EditField";
+import { EditSelect } from "@/modules/project/EditSelect";
 
 const STATUS_CLASS: Record<ProjectStatus, string> = {
   quote: "s-quote", ordered: "s-order", started: "s-start",
@@ -36,70 +39,11 @@ function formatDate(iso: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function fmtYen(v: number | null | undefined): string {
-  if (v == null) return "—";
-  return `¥${v.toLocaleString()}`;
-}
-
 function pctStr(val: number, base: number | null | undefined): string {
   if (!base || base === 0) return "—";
   return `${((val / base) * 100).toFixed(1)}%`;
 }
 
-function EditField({
-  label, value, onChange, type = "text",
-}: {
-  label: string; value: string; onChange: (v: string) => void; type?: string;
-}) {
-  return (
-    <>
-      <div className="k">{label}</div>
-      <div className="v">
-        <Input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-7 text-sm w-full"
-        />
-      </div>
-    </>
-  );
-}
-
-function EditSelect({
-  label, value, options, onChange,
-}: {
-  label: string; value: string;
-  options: { value: string; label: string }[];
-  onChange: (v: string) => void;
-}) {
-  return (
-    <>
-      <div className="k">{label}</div>
-      <div className="v">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            height: 28, width: "100%",
-            borderRadius: "var(--r-md)",
-            border: "1px solid var(--c-border)",
-            background: "var(--c-surface)",
-            color: "var(--c-text)",
-            padding: "0 8px",
-            fontSize: 13,
-            outline: "none",
-          }}
-        >
-          <option value="">—</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
-          ))}
-        </select>
-      </div>
-    </>
-  );
-}
 
 /** 案件詳細画面（S04）。 */
 export default function ProjectDetailPage() {

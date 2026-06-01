@@ -8,6 +8,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fmtYen } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // 型定義
@@ -99,7 +100,7 @@ interface QCDSSummary {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const getToken = () => typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") || "" : "";
-const fmt = (n: number | null | undefined) => n != null ? `¥${Math.round(n).toLocaleString()}` : "—";
+const fmt = fmtYen;
 
 // ---------------------------------------------------------------------------
 // 明細行コンポーネント

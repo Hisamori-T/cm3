@@ -7,6 +7,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fmtYen } from "@/lib/format";
 import {
   BILLING_METHOD_LABEL,
   INVOICE_STATUS_LABEL,
@@ -37,8 +38,7 @@ function LI({ label, children }: { label: string; children: React.ReactNode }) {
   );
 }
 
-const fmt = (n: number | null | undefined) =>
-  n != null ? `¥${Math.round(n).toLocaleString()}` : "—";
+const fmt = fmtYen;
 
 /** 請求書詳細ページ（Phase F: 分割請求・入金記録対応）。 */
 export default function InvoiceDetailPage() {

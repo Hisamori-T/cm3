@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
+import { fmtYen } from "@/lib/format";
 
 // ---------------------------------------------------------------------------
 // 型定義
@@ -67,8 +68,7 @@ interface PriceHistoryItem {
 // ユーティリティ
 // ---------------------------------------------------------------------------
 
-const fmt = (n: number | null | undefined) =>
-  n != null ? `¥${Math.round(n).toLocaleString()}` : "—";
+const fmt = fmtYen;
 
 const calcAmount = (quantity: number | null, unit_price: number | null) =>
   quantity != null && unit_price != null ? Math.round(quantity * unit_price) : null;

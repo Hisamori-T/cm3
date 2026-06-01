@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fmtYen } from "@/lib/format";
 
 interface Attendance {
   id: string;
@@ -31,11 +32,6 @@ interface Summary {
 interface Vendor {
   id: string;
   name: string;
-}
-
-function fmtYen(v: number | null): string {
-  if (v == null) return "—";
-  return `¥${v.toLocaleString()}`;
 }
 
 function currentYearMonth(): string {

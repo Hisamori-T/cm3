@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
+import { fmtYen } from "@/lib/format";
 import {
   INVOICE_STATUS_LABEL,
   InvoiceRead,
@@ -22,8 +23,7 @@ const STATUS_STYLE: Record<string, React.CSSProperties> = {
   cancelled: { background: "color-mix(in oklab, var(--c-text-muted) 14%, var(--c-surface))", color: "var(--c-text-muted)" },
 };
 
-const fmt = (n: number | null | undefined) =>
-  n != null ? `¥${Math.round(n).toLocaleString()}` : "—";
+const fmt = fmtYen;
 
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("ja-JP") : "—";

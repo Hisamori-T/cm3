@@ -1,21 +1,8 @@
-"""全モデル共通の Mixin クラス。"""
-from datetime import datetime
+"""全モデル共通の Mixin クラス。
 
-from sqlalchemy import DateTime, func
-from sqlalchemy.orm import Mapped, mapped_column
+後方互換 re-export: 新しいパスは app.shared.models.base
+既存コードはそのまま from app.models.base import TimestampMixin で動作する。
+"""
+from app.shared.models.base import TimestampMixin  # noqa: F401
 
-
-class TimestampMixin:
-    """created_at / updated_at を自動管理する Mixin。"""
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False,
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        onupdate=func.now(),
-        nullable=False,
-    )
+__all__ = ["TimestampMixin"]

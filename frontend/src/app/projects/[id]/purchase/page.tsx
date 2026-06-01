@@ -6,6 +6,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { fmtYen } from "@/lib/format";
 
 type OrderStatus = "draft" | "issued" | "partial_delivered" | "delivered" | "completed";
 
@@ -81,10 +82,6 @@ interface FormItem {
   amount: string;
 }
 
-function fmtYen(v: number): string {
-  return `¥${v.toLocaleString()}`;
-}
-
 const emptyItem = (): FormItem => ({
   item_name: "",
   spec: "",
@@ -112,6 +109,7 @@ export default function PurchasePage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // フォーム状態: null=非表示, "new"=新規, string=編集中orderのID
   const [formMode, setFormMode] = useState<"new" | string | null>(null);
@@ -173,6 +171,7 @@ export default function PurchasePage() {
   function closeForm() {
     setFormMode(null);
     setScanMsg("");
+    setFormError(null);
     if (pollRef.current) clearInterval(pollRef.current);
   }
 
@@ -259,14 +258,14 @@ export default function PurchasePage() {
   async function importScanItems(jobId: string) {
     try {
       const job = await apiFetch<{
-        result?: {
-          items?: Array<{ item_name: string; spec?: string | null; unit?: string | null; quantity?: number | null; unit_price?: number | null; amount?: number | null }>
-        }
+        results?: Array<{
+          items?: Array<{ item_name: string | null; spec?: string | null; unit?: string | null; quantity?: number | null; unit_price?: number | null; amount?: number | null }>
+        }>
       }>(`/api/v1/scan/jobs/${jobId}`);
-      const rawItems = job.result?.items ?? [];
+      const rawItems = (job.results?.[0]?.items ?? []).filter((i) => i.item_name);
       if (!rawItems.length) { setScanMsg("明細が見つかりませんでした"); return; }
       const newItems: FormItem[] = rawItems.map((i) => ({
-        item_name: i.item_name,
+        item_name: i.item_name ?? "",
         spec: i.spec || "",
         unit: i.unit || "式",
         quantity: String(i.quantity ?? 1),
@@ -309,6 +308,7 @@ export default function PurchasePage() {
 
   async function handleSave(issueAfter = false) {
     setSaving(true);
+    setFormError(null);
     try {
       let created: PurchaseOrder;
       if (formMode === "new") {
@@ -327,6 +327,9 @@ export default function PurchasePage() {
       }
       closeForm();
       await load();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "保存に失敗しました";
+      setFormError(msg);
     } finally {
       setSaving(false);
     }
@@ -501,6 +504,11 @@ export default function PurchasePage() {
               <div style={{ fontWeight: 700, fontSize: "var(--fs-base)" }}>合計: {fmtYen(subtotal + tax)}</div>
             </div>
 
+            {formError && (
+              <div style={{ marginBottom: "var(--sp-2)", padding: "var(--sp-2) var(--sp-3)", background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: "var(--radius-sm)", color: "#dc2626", fontSize: "var(--fs-sm)", fontWeight: 600 }}>
+                ⚠️ {formError}
+              </div>
+            )}
             <div style={{ display: "flex", gap: "var(--sp-2)", flexWrap: "wrap", alignItems: "center" }}>
               <Button onClick={() => handleSave(false)} disabled={saving || !form.vendor_id}>
                 {saving ? "保存中…" : "下書き保存"}
@@ -550,7 +558,7 @@ export default function PurchasePage() {
                     {(order.status === "delivered" || order.status === "partial_delivered") && !formMode && (
                       <button onClick={() => handleMarkPaid(order.id)} style={{ background: "#6d28d9", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-xs)" }}>支払済にする</button>
                     )}
-                    {!formMode && order.status !== "completed" && (
+                    {!formMode && order.status === "draft" && (
                       <button onClick={() => openEdit(order)} style={{ background: "none", border: "1px solid var(--c-border)", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-xs)", color: "var(--c-text)" }}>✏️ 修正</button>
                     )}
                     {!formMode && (
