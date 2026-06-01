@@ -14,6 +14,11 @@ import {
   type QuoteSection,
   type QuoteItem,
 } from "@/modules/estimate/SectionBlock";
+import {
+  ApprovalStamps,
+  type UserOption,
+} from "@/modules/estimate/ApprovalStamps";
+import { QuoteTotals } from "@/modules/estimate/QuoteTotals";
 
 // ---------------------------------------------------------------------------
 // 型定義
@@ -60,12 +65,6 @@ interface SectionTemplate {
   id: string;
   template_name: string;
   items: { section_code: string; section_name: string; display_order: number }[];
-}
-
-interface UserOption {
-  id: string;
-  full_name: string;
-  role: string;
 }
 
 interface QCDSCalc {
@@ -662,256 +661,39 @@ export default function QuoteDetailPage() {
 
         {/* ── 右カラム: スティッキー集計パネル ── */}
         <div style={{ position: "sticky", top: 12 }}>
-
-          {/* 合計カード */}
-          <div className="card" style={{ overflow: "hidden", marginBottom: 8 }}>
-            {/* 青ヘッダ */}
-            <div style={{
-              background: "var(--c-primary)", color: "#fff",
-              padding: "10px 14px",
-            }}>
-              <div style={{ fontSize: 10, opacity: 0.8, marginBottom: 2 }}>見積番号</div>
-              <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--ff-mono)" }}>
-                {quote.quote_number || "（未採番）"}
-              </div>
-            </div>
-
-            {/* 金額行 */}
-            <div style={{ padding: "10px 14px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>小計</span>
-                <span style={{ fontSize: 13, fontFamily: "var(--ff-mono)", fontWeight: 600 }}>{fmt(subtotal)}</span>
-              </div>
-              {/* 値引き（常時表示・クリックで編集） */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                <span style={{ fontSize: 11, color: "var(--c-danger)" }}>値引</span>
-                {editingDiscount ? (
-                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    <span style={{ fontSize: 12, color: "var(--c-danger)" }}>−¥</span>
-                    <input
-                      autoFocus
-                      type="number"
-                      value={discountInput}
-                      onChange={e => setDiscountInput(e.target.value)}
-                      onBlur={handleSaveDiscount}
-                      onKeyDown={e => { if (e.key === "Enter") handleSaveDiscount(); if (e.key === "Escape") setEditingDiscount(false); }}
-                      style={{ width: 90, fontSize: 12, fontFamily: "var(--ff-mono)", textAlign: "right", padding: "1px 4px", border: "1px solid var(--c-danger)", borderRadius: "var(--r-md)", background: "var(--c-surface)" }}
-                    />
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => { setDiscountInput(String(discount)); setEditingDiscount(true); }}
-                    style={{ fontSize: 13, fontFamily: "var(--ff-mono)", color: discount > 0 ? "var(--c-danger)" : "var(--c-text-muted)", background: "none", border: "1px dashed transparent", borderRadius: "var(--r-md)", padding: "1px 4px", cursor: "pointer" }}
-                    title="クリックして値引額を編集"
-                  >
-                    {discount > 0 ? `−${fmt(discount)}` : "＋ 値引を追加"}
-                  </button>
-                )}
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-                <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>消費税（10%）</span>
-                <span style={{ fontSize: 13, fontFamily: "var(--ff-mono)" }}>{fmt(tax)}</span>
-              </div>
-              <div style={{
-                display: "flex", justifyContent: "space-between", alignItems: "baseline",
-                borderTop: "2px solid var(--c-primary)", paddingTop: 8,
-              }}>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>合計（税込）</span>
-                <span style={{ fontSize: 20, fontWeight: 800, fontFamily: "var(--ff-mono)", color: "var(--c-primary)" }}>{fmt(total)}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* 粗利ゲージ */}
-          <div className="card" style={{ padding: "10px 14px", marginBottom: 8 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 600 }}>粗利率</span>
-              {grossMarginRate !== null ? (
-                <span style={{
-                  fontSize: 14, fontWeight: 700, fontFamily: "var(--ff-mono)",
-                  color: grossMarginRate >= 25 ? "var(--c-success)" : grossMarginRate >= 15 ? "var(--c-warning, #f59e0b)" : "var(--c-danger)",
-                }}>
-                  {grossMarginRate.toFixed(1)}%
-                </span>
-              ) : (
-                <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "var(--ff-mono)", color: "var(--c-text-muted)" }}>---</span>
-              )}
-            </div>
-            {grossMarginRate !== null ? (
-              <>
-                <div style={{ height: 6, borderRadius: 3, background: "var(--c-surface-2)", overflow: "hidden" }}>
-                  <div style={{
-                    height: "100%", borderRadius: 3,
-                    width: `${Math.min(100, Math.max(0, grossMarginRate))}%`,
-                    background: grossMarginRate >= 25 ? "var(--c-success)" : grossMarginRate >= 15 ? "#f59e0b" : "var(--c-danger)",
-                    transition: "width 0.4s ease",
-                  }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
-                  <span style={{ fontSize: 10, color: "var(--c-text-muted)" }}>原価（QCDS） {fmt(qcdsCost)}</span>
-                  <span style={{ fontSize: 10, color: "var(--c-text-muted)" }}>粗利 {fmt(grossProfit)}</span>
-                </div>
-              </>
-            ) : grossProfitMsg ? (
-              <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 2 }}>{grossProfitMsg}</div>
-            ) : null}
-          </div>
-
-          {/* 大項目別内訳 */}
-          {quote.sections.length > 0 && (
-            <div className="card" style={{ padding: "10px 14px", marginBottom: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: "var(--c-text-muted)" }}>大項目別内訳</div>
-              {quote.sections.map(section => {
-                const secTotal = sectionItems(section.id).reduce((s, i) => s + (i.amount ?? 0), 0);
-                const pct = subtotal > 0 ? (secTotal / subtotal) * 100 : 0;
-                return (
-                  <div key={section.id} style={{ marginBottom: 6 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                      <span style={{ fontSize: 11 }}>
-                        <span style={{ fontWeight: 700, color: "var(--c-primary)", marginRight: 4 }}>{section.section_letter}</span>
-                        {section.section_name}
-                      </span>
-                      <span style={{ fontSize: 11, fontFamily: "var(--ff-mono)" }}>{fmt(secTotal)}</span>
-                    </div>
-                    <div style={{ height: 3, borderRadius: 2, background: "var(--c-surface-2)", overflow: "hidden" }}>
-                      <div style={{ height: "100%", borderRadius: 2, width: `${pct}%`, background: "var(--c-primary)", opacity: 0.5 }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* 承認スタンプ欄 */}
-          <div className="card" style={{ padding: "10px 14px" }}>
-            <div style={{ fontSize: 11, fontWeight: 600, marginBottom: 8, color: "var(--c-text-muted)" }}>稟議承認</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-              {([
-                {
-                  label: "担当",
-                  stampType: "person_in_charge" as const,
-                  userId: quote.person_in_charge_id,
-                  at: quote.person_in_charge_confirmed_at,
-                  canStamp: ["staff", "manager", "admin", "super_admin", "member"].includes(user?.role ?? ""),
-                  requiredRole: "スタッフ以上",
-                },
-                {
-                  label: "確認",
-                  stampType: "reviewer" as const,
-                  userId: quote.reviewer_id,
-                  at: quote.reviewed_at,
-                  canStamp: ["manager", "admin", "super_admin"].includes(user?.role ?? ""),
-                  requiredRole: "上長・管理者",
-                },
-                {
-                  label: "承認",
-                  stampType: "approver" as const,
-                  userId: quote.approver_id,
-                  at: quote.approved_at,
-                  canStamp: ["admin", "super_admin"].includes(user?.role ?? ""),
-                  requiredRole: "管理者",
-                },
-              ]).map(({ label, stampType, userId, at, canStamp, requiredRole }) => {
-                const stampedUser = stampUsers.find(u => u.id === userId);
-                const isStamped = !!at;
-                const isActive = stampTarget === stampType;
-                return (
-                  <div key={stampType} style={{ position: "relative", textAlign: "center" }}>
-                    {/* スタンプ枠 */}
-                    <div style={{
-                      border: `1.5px solid ${isStamped ? "#C00000" : isActive ? "var(--c-primary)" : "var(--c-border)"}`,
-                      borderRadius: "var(--r-md)", padding: "6px 4px",
-                      opacity: canStamp ? 1 : 0.65,
-                    }}>
-                      <div style={{ fontSize: 10, color: "var(--c-text-muted)", marginBottom: 4 }}>{label}</div>
-                      <div
-                        onClick={() => {
-                          if (!canStamp) {
-                            showMsg(`「${label}」押印には${requiredRole}の権限が必要です`);
-                            return;
-                          }
-                          if (isStamped) {
-                            if (confirm(`「${label}」の押印を取り消しますか？`)) {
-                              handleStamp(stampType, userId!, false);
-                            }
-                          } else {
-                            setStampTarget(isActive ? null : stampType);
-                          }
-                        }}
-                        style={{
-                          width: 38, height: 38, borderRadius: "50%",
-                          border: `2px solid ${isStamped ? "#C00000" : canStamp ? "var(--c-border)" : "var(--c-border)"}`,
-                          borderStyle: canStamp ? "solid" : "dashed",
-                          margin: "0 auto",
-                          display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                          cursor: "pointer",
-                          background: isStamped ? "color-mix(in oklab, #C00000 8%, white)" : "transparent",
-                        }}
-                        title={canStamp ? (isStamped ? "クリックで取り消し" : "クリックして押印") : `${requiredRole}の権限が必要です`}
-                      >
-                        {isStamped && stampedUser ? (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: "#C00000", lineHeight: 1 }}>
-                            {stampedUser.full_name.slice(-1)}
-                          </span>
-                        ) : canStamp ? (
-                          <span style={{ fontSize: 9, color: "var(--c-text-muted)" }}>押印</span>
-                        ) : (
-                          <span style={{ fontSize: 8, color: "var(--c-text-muted)", lineHeight: 1.2, textAlign: "center" }}>
-                            {requiredRole}
-                          </span>
-                        )}
-                      </div>
-                      {isStamped && stampedUser && (
-                        <div style={{ fontSize: 8, color: "#C00000", marginTop: 3, fontWeight: 600 }}>
-                          {stampedUser.full_name}
-                        </div>
-                      )}
-                      {at && (
-                        <div style={{ fontSize: 8, color: "var(--c-text-muted)", marginTop: 1 }}>
-                          {new Date(at).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}
-                        </div>
-                      )}
-                    </div>
-                    {/* ユーザー選択ドロップダウン */}
-                    {isActive && (
-                      <>
-                        <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setStampTarget(null)} />
-                        <div style={{
-                          position: "absolute", top: "calc(100% + 4px)", left: "50%", transform: "translateX(-50%)",
-                          minWidth: 140,
-                          zIndex: 100, background: "var(--c-surface)",
-                          border: "1px solid var(--c-border)", borderRadius: "var(--r-md)",
-                          boxShadow: "0 8px 24px rgba(0,0,0,.15)", maxHeight: 200, overflowY: "auto",
-                        }}>
-                          <div style={{ padding: "6px 10px", fontSize: 10, color: "var(--c-text-muted)", borderBottom: "1px solid var(--c-border)" }}>
-                            押印者を選択
-                          </div>
-                          {stampUsers.length === 0 ? (
-                            <div style={{ padding: "10px", fontSize: 11, color: "var(--c-text-muted)", textAlign: "center" }}>
-                              ユーザー読込中...
-                            </div>
-                          ) : stampUsers.map(u => (
-                            <div
-                              key={u.id}
-                              onMouseDown={() => handleStamp(stampType, u.id, true)}
-                              style={{ padding: "8px 12px", fontSize: 12, cursor: "pointer", borderBottom: "1px solid var(--c-border)", whiteSpace: "nowrap" }}
-                              onMouseEnter={e => (e.currentTarget.style.background = "var(--c-surface-2)")}
-                              onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                            >
-                              {u.full_name}
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            {stampLoading && (
-              <div style={{ fontSize: 10, color: "var(--c-text-muted)", textAlign: "center", marginTop: 6 }}>押印中...</div>
-            )}
-          </div>
+          <QuoteTotals
+            quoteNumber={quote.quote_number}
+            sections={quote.sections}
+            subtotal={subtotal}
+            discount={discount}
+            tax={tax}
+            total={total}
+            grossMarginRate={grossMarginRate}
+            grossProfit={grossProfit}
+            grossProfitMsg={grossProfitMsg}
+            qcdsCost={qcdsCost}
+            editingDiscount={editingDiscount}
+            setEditingDiscount={setEditingDiscount}
+            discountInput={discountInput}
+            setDiscountInput={setDiscountInput}
+            handleSaveDiscount={handleSaveDiscount}
+            sectionItems={sectionItems}
+          />
+          <ApprovalStamps
+            personInChargeId={quote.person_in_charge_id}
+            personInChargeConfirmedAt={quote.person_in_charge_confirmed_at}
+            reviewerId={quote.reviewer_id}
+            reviewedAt={quote.reviewed_at}
+            approverId={quote.approver_id}
+            approvedAt={quote.approved_at}
+            stampUsers={stampUsers}
+            stampTarget={stampTarget}
+            setStampTarget={setStampTarget}
+            stampLoading={stampLoading}
+            userRole={user?.role ?? ""}
+            handleStamp={handleStamp}
+            showMsg={showMsg}
+          />
         </div>
       </div>
 

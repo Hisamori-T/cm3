@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
@@ -7,22 +7,14 @@ import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { fmtYen } from "@/lib/format";
+import { ScanZone, type ScanJob } from "@/modules/estimate/ScanZone";
+import { VersionCard, type EstimateVersion } from "@/modules/estimate/VersionCard";
 
 // ---------------------------------------------------------------------------
 // 型定義
 // ---------------------------------------------------------------------------
 
-interface QuoteVersion {
-  id: string;
-  version_no: number;
-  vendor_id: string | null;
-  vendor_name_snapshot: string | null;
-  markup_rate: number;
-  is_active: boolean;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
+type QuoteVersion = EstimateVersion;
 
 interface QuoteItem {
   id: string;
@@ -109,12 +101,7 @@ export default function EstimatePage() {
   // スキャン統合（複数ファイル対応）
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
-  const [scanJobs, setScanJobs] = useState<{
-    jobId: string;
-    fileName: string;
-    status: "uploading" | "analyzing" | "saving" | "done" | "error";
-    message: string;
-  }[]>([]);
+  const [scanJobs, setScanJobs] = useState<ScanJob[]>([]);
   const [scanMsg, setScanMsg] = useState<string | null>(null);
 
   // QCDSに反映ダイアログ
@@ -799,62 +786,14 @@ export default function EstimatePage() {
             </div>
           )}
 
-          {/* D&Dゾーン（ヘッダー直下） */}
-          <div
-            onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={e => {
-              e.preventDefault();
-              setIsDragging(false);
-              const files = Array.from(e.dataTransfer.files);
-              if (files.length) handleScanFiles(files);
-            }}
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              margin: "8px",
-              padding: "12px 8px",
-              border: `2px dashed ${isDragging ? "var(--c-primary)" : "var(--c-border)"}`,
-              borderRadius: "var(--r-md)",
-              textAlign: "center",
-              cursor: "pointer",
-              background: isDragging ? "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface))" : "transparent",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-              stroke={isDragging ? "var(--c-primary)" : "var(--c-text-muted)"}
-              strokeWidth="1.5" style={{ display: "block", margin: "0 auto 4px" }}>
-              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="12" y1="18" x2="12" y2="12" />
-              <polyline points="9 15 12 12 15 15" />
-            </svg>
-            <div style={{ fontSize: 11, fontWeight: 600, color: isDragging ? "var(--c-primary)" : "var(--c-text-muted)" }}>
-              {isDragging ? "ドロップしてスキャン開始" : "PDF / 画像をドロップ"}
-            </div>
-            <div style={{ fontSize: 10, color: "var(--c-text-muted)" }}>またはクリックして選択</div>
-          </div>
-          {scanJobs.filter(j => j.status !== "done").length > 0 && (
-            <div style={{ borderBottom: "1px solid var(--c-border)" }}>
-              {scanJobs.filter(j => j.status !== "done").map(job => (
-                <div key={job.jobId} style={{ padding: "6px 10px", display: "flex", alignItems: "center", gap: 6, borderBottom: "1px solid var(--c-border)", background: "var(--c-surface-2)" }}>
-                  {job.status !== "error" ? (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--c-primary)" strokeWidth="2.5"
-                      style={{ animation: "spin 1s linear infinite", flexShrink: 0 }}>
-                      <path d="M21 12a9 9 0 11-6.219-8.56" />
-                    </svg>
-                  ) : (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--c-danger)" strokeWidth="2.5" style={{ flexShrink: 0 }}>
-                      <circle cx="12" cy="12" r="10" /><path d="M15 9l-6 6M9 9l6 6" />
-                    </svg>
-                  )}
-                  <span style={{ fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, color: job.status === "error" ? "var(--c-danger)" : "var(--c-text-muted)" }}>
-                    {job.fileName.length > 16 ? job.fileName.slice(0, 14) + "…" : job.fileName}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* D&Dゾーン + スキャン進捗（左パネル） */}
+          <ScanZone
+            isDragging={isDragging}
+            setIsDragging={setIsDragging}
+            handleScanFiles={handleScanFiles}
+            fileInputRef={fileInputRef}
+            pendingScanJobs={scanJobs.filter(j => j.status !== "done")}
+          />
 
           {quote.versions.length === 0 && (
             <div style={{ padding: "12px", textAlign: "center", color: "var(--c-text-muted)", fontSize: 12, borderBottom: "1px solid var(--c-border)" }}>
@@ -862,59 +801,17 @@ export default function EstimatePage() {
             </div>
           )}
           {quote.versions.map(v => (
-            <div
+            <VersionCard
               key={v.id}
+              version={v}
+              isSelected={selectedVersionId === v.id}
               onClick={() => setSelectedVersionId(v.id)}
-                style={{
-                  padding: "10px 12px",
-                  borderBottom: "1px solid var(--c-border)",
-                  cursor: "pointer",
-                  background: selectedVersionId === v.id ? "var(--c-primary-50)" : "transparent",
-                  borderLeft: selectedVersionId === v.id ? "3px solid var(--c-primary)" : "3px solid transparent",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                  <span style={{
-                    fontSize: 11, fontWeight: 700,
-                    color: selectedVersionId === v.id ? "var(--c-primary)" : "var(--c-text)",
-                  }}>
-                    版 {v.version_no}
-                  </span>
-                  <span style={{
-                    fontSize: 10, padding: "1px 6px", borderRadius: "var(--r-pill)",
-                    background: v.is_active ? "var(--c-success-bg)" : "var(--c-surface-2)",
-                    color: v.is_active ? "var(--c-success)" : "var(--c-text-muted)",
-                  }}>
-                    {v.is_active ? "適用中" : "非適用"}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: "var(--c-text)", marginBottom: 2 }}>
-                  {v.vendor_name_snapshot || "（業者未設定）"}
-                </div>
-                <div style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
-                  掛率: ×{Number(v.markup_rate).toFixed(2)}
-                </div>
-                <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => { setQcdsReflectVer(v); setQcdsCategory("subcontract"); }}
-                    style={{ fontSize: 10, padding: "2px 6px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer", background: "var(--c-surface)", color: "var(--c-primary)" }}
-                  >QCDSに反映</button>
-                  <button
-                    onClick={() => { setQuoteReflectVer(v); setReflectMarkup(String(v.markup_rate)); setReflectSectionType("new"); setReflectSectionName(""); setReflectSectionId(""); }}
-                    style={{ fontSize: 10, padding: "2px 6px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer", background: "var(--c-surface)", color: "var(--c-accent)" }}
-                  >顧客見積に反映</button>
-                  <button
-                    onClick={() => handleToggleActive(v.id, v.is_active)}
-                    style={{ fontSize: 10, padding: "2px 6px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer", background: "var(--c-surface)", color: "var(--c-text-muted)" }}
-                  >{v.is_active ? "非適用に" : "適用に"}</button>
-                  <button
-                    onClick={() => handleDeleteVersion(v.id)}
-                    style={{ fontSize: 10, padding: "2px 6px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer", background: "var(--c-surface)", color: "var(--c-danger)" }}
-                  >削除</button>
-                </div>
-              </div>
-            )
-          )}
+              onQcdsReflect={() => { setQcdsReflectVer(v); setQcdsCategory("subcontract"); }}
+              onQuoteReflect={() => { setQuoteReflectVer(v); setReflectMarkup(String(v.markup_rate)); setReflectSectionType("new"); setReflectSectionName(""); setReflectSectionId(""); }}
+              onToggleActive={() => handleToggleActive(v.id, v.is_active)}
+              onDelete={() => handleDeleteVersion(v.id)}
+            />
+          ))}
 
         </div>
 
