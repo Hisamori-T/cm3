@@ -246,7 +246,6 @@ async def issue_acknowledgment(
         status=AcknowledgmentStatus.draft,
     )
     db.add(ack)
-    order.status = OrderStatus.acknowledged
     await db.commit()
     await db.refresh(ack)
     return _ack_to_read(ack)
@@ -270,6 +269,23 @@ async def unlink_order_from_quote(
     await db.commit()
     await db.refresh(order)
     return _to_read(order)
+
+
+@router.delete("/projects/{project_id}/orders/{order_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_order(
+    project_id: uuid.UUID,
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """注文書を削除する（関連する注文請書も cascade 削除）。"""
+    order = (await db.execute(
+        select(Order).where(Order.id == order_id, Order.project_id == project_id)
+    )).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="注文書が見つかりません")
+    await db.delete(order)
+    await db.commit()
 
 
 def _ack_to_read(a: Acknowledgment) -> AcknowledgmentRead:

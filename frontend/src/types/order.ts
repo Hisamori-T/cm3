@@ -1,10 +1,9 @@
-export type OrderStatus = "draft" | "sent" | "signed" | "acknowledged" | "cancelled";
+export type OrderStatus = "draft" | "sent" | "signed" | "cancelled";
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
   draft: "下書き",
   sent: "発行済み",
   signed: "サイン受領済",
-  acknowledged: "注文請書発行済",
   cancelled: "キャンセル",
 };
 

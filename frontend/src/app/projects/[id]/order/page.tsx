@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Download, Plus, Stamp, Unlink, ClipboardCheck } from "lucide-react";
+import { Download, Plus, Stamp, Unlink, ClipboardCheck, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,6 @@ const STATUS_STYLE: Record<string, React.CSSProperties> = {
   draft: { background: "var(--c-surface-2)", color: "var(--c-text-muted)" },
   sent: { background: "color-mix(in oklab, var(--c-primary) 14%, var(--c-surface))", color: "var(--c-primary)" },
   signed: { background: "color-mix(in oklab, var(--c-success) 14%, var(--c-surface))", color: "var(--c-success)" },
-  acknowledged: { background: "color-mix(in oklab, #7c3aed 14%, var(--c-surface))", color: "#7c3aed" },
   cancelled: { background: "color-mix(in oklab, var(--c-danger) 14%, var(--c-surface))", color: "var(--c-danger)" },
 };
 
@@ -49,6 +48,8 @@ export default function OrderPage() {
   const [issuingAck, setIssuingAck] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   // 注文書発行権限: 経理・管理者・社長（super_admin）のみ
   const canIssueOrder = ["admin", "super_admin", "accounting", "manager"].includes(user?.role ?? "");
@@ -162,6 +163,22 @@ export default function OrderPage() {
     finally { setUnlinking(false); setTimeout(() => setMsg(null), 3000); }
   }
 
+  async function handleDeleteSelected() {
+    if (checkedIds.size === 0) return;
+    if (!confirm(`選択した ${checkedIds.size} 件の注文書を削除しますか？\n※関連する注文請書も削除されます。`)) return;
+    setDeleting(true); setMsg(null);
+    try {
+      await Promise.all([...checkedIds].map(id =>
+        apiFetch(`/api/v1/projects/${projectId}/orders/${id}`, { method: "DELETE" })
+      ));
+      setCheckedIds(new Set());
+      if (selected && checkedIds.has(selected.id)) { setSelected(null); clearForm(); }
+      await loadOrders(selected && !checkedIds.has(selected.id) ? selected.id : undefined);
+      setMsg("削除しました");
+    } catch (e) { setMsg(`削除エラー: ${(e as Error).message}`); }
+    finally { setDeleting(false); setTimeout(() => setMsg(null), 3000); }
+  }
+
   async function handleStatusChange(newStatus: string) {
     if (!selected) return;
     const currentId = selected.id;
@@ -221,7 +238,6 @@ export default function OrderPage() {
   const taxAmount = amountExclTax ? Math.floor(parseFloat(amountExclTax) * 0.10) : null;
   const totalAmount = amountExclTax && taxAmount !== null ? parseFloat(amountExclTax) + taxAmount : null;
   const isLinked = selected?.linked_to_quote && selected?.quote_id;
-  const canIssueAck = selected?.status === "signed";
 
   return (
     <AppShell
@@ -314,14 +330,29 @@ export default function OrderPage() {
               borderBottom: "1px solid var(--c-border)",
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text)" }}>一覧</span>
-              <button
-                onClick={clearForm}
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-primary)", padding: 2 }}
-                title="新規作成"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text)" }}>
+                {checkedIds.size > 0 ? `${checkedIds.size}件選択中` : "一覧"}
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                {checkedIds.size > 0 && (
+                  <button
+                    onClick={handleDeleteSelected}
+                    disabled={deleting}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-danger)", padding: 2, display: "flex", alignItems: "center", gap: 3, fontSize: 11 }}
+                    title="選択した注文書を削除"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {deleting ? "削除中..." : `削除(${checkedIds.size})`}
+                  </button>
+                )}
+                <button
+                  onClick={clearForm}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-primary)", padding: 2 }}
+                  title="新規作成"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              </div>
             </div>
             {orders.length === 0 ? (
               <p style={{ padding: "16px", fontSize: 12, color: "var(--c-text-muted)", textAlign: "center" }}>
@@ -329,33 +360,51 @@ export default function OrderPage() {
               </p>
             ) : (
               orders.map((o) => (
-                <button
+                <div
                   key={o.id}
-                  onClick={() => selectOrder(o)}
                   style={{
-                    display: "block", width: "100%", textAlign: "left",
-                    padding: "10px 14px",
+                    display: "flex", alignItems: "stretch",
                     borderBottom: "1px solid var(--c-border)",
+                    borderLeft: selected?.id === o.id ? "2px solid var(--c-primary)" : "2px solid transparent",
                     background: selected?.id === o.id
                       ? "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface))"
                       : "none",
-                    borderLeft: selected?.id === o.id ? "2px solid var(--c-primary)" : "2px solid transparent",
-                    cursor: "pointer",
                   }}
                 >
-                  <p style={{ fontSize: 12, fontWeight: 500, color: "var(--c-text)" }}>{o.order_number}</p>
-                  <p style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 2 }}>
-                    {o.issue_date || "日付未定"}
-                  </p>
-                  <span style={{
-                    display: "inline-flex", marginTop: 4,
-                    padding: "1px 6px", borderRadius: "var(--r-pill)",
-                    fontSize: 10, fontWeight: 600,
-                    ...(STATUS_STYLE[o.status] || STATUS_STYLE.draft),
-                  }}>
-                    {ORDER_STATUS_LABEL[o.status] ?? o.status}
-                  </span>
-                </button>
+                  <label style={{ display: "flex", alignItems: "center", padding: "0 6px 0 10px", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={checkedIds.has(o.id)}
+                      onChange={(e) => {
+                        const next = new Set(checkedIds);
+                        e.target.checked ? next.add(o.id) : next.delete(o.id);
+                        setCheckedIds(next);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </label>
+                  <button
+                    onClick={() => selectOrder(o)}
+                    style={{
+                      flex: 1, textAlign: "left",
+                      padding: "10px 14px 10px 4px",
+                      background: "none", border: "none", cursor: "pointer",
+                    }}
+                  >
+                    <p style={{ fontSize: 12, fontWeight: 500, color: "var(--c-text)" }}>{o.order_number}</p>
+                    <p style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 2 }}>
+                      {o.issue_date || "日付未定"}
+                    </p>
+                    <span style={{
+                      display: "inline-flex", marginTop: 4,
+                      padding: "1px 6px", borderRadius: "var(--r-pill)",
+                      fontSize: 10, fontWeight: 600,
+                      ...(STATUS_STYLE[o.status] || STATUS_STYLE.draft),
+                    }}>
+                      {ORDER_STATUS_LABEL[o.status as keyof typeof ORDER_STATUS_LABEL] ?? o.status}
+                    </span>
+                  </button>
+                </div>
               ))
             )}
           </div>
@@ -396,7 +445,7 @@ export default function OrderPage() {
               <div className="card" style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontSize: 12, color: "var(--c-text-muted)" }}>ステータス</span>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {(["draft", "sent", "signed", "acknowledged", "cancelled"] as const).map((s) => (
+                  {(["draft", "sent", "signed", "cancelled"] as const).map((s) => (
                     <button
                       key={s}
                       onClick={() => handleStatusChange(s)}
@@ -412,17 +461,6 @@ export default function OrderPage() {
                       {ORDER_STATUS_LABEL[s]}
                     </button>
                   ))}
-                </div>
-                {canIssueAck && (
-                  <Button
-                    size="sm"
-                    style={{ marginLeft: "auto", background: "#7c3aed", color: "#fff" }}
-                    onClick={() => handleIssueAcknowledgment()}
-                    disabled={issuingAck}
-                  >
-                    {issuingAck ? "発行中..." : "注文請書を発行"}
-                  </Button>
-                )}
               </div>
             )}
 

@@ -58,7 +58,6 @@ class OrderStatus(str, enum.Enum):
     draft = "draft"
     sent = "sent"
     signed = "signed"
-    acknowledged = "acknowledged"
     cancelled = "cancelled"
 
 
