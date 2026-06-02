@@ -20,6 +20,8 @@ class OrderCreate(BaseModel):
     construction_period_start: date | None = None
     construction_period_end: date | None = None
     payment_condition: str | None = None
+    work_content: str | None = "添付工事内訳書の通り"
+    notes: str | None = None
     terms_and_conditions: str | None = None
 
 
@@ -41,6 +43,8 @@ class OrderRead(BaseModel):
     construction_period_start: date | None
     construction_period_end: date | None
     payment_condition: str | None
+    work_content: str | None
+    notes: str | None
     terms_and_conditions: str | None
     stamp_tax: float | None
     quote_id: uuid.UUID | None

@@ -897,152 +897,230 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
 
 # ── 注文書 / 注文請書 PDF ─────────────────────────────────────────────────────
 
-_CLAUSES = [
-    ("第1条（権利義務の譲渡禁止）",
-     "受注者は、この契約から生ずる権利義務を第三者に譲渡し、または承継させてはならない。"),
-    ("第2条（一括下請負の禁止）",
-     "受注者は、工事の全部または主要な部分を第三者に一括して下請負に付してはならない。"),
-    ("第3条（現場代理人）",
-     "受注者は、工事現場に現場代理人を置き、工事の施工および契約の履行に関する事項を処理しなければならない。"),
-    ("第4条（材料の品質）",
-     "工事に使用する材料は設計書に定めるものとし、設計書に定めのない場合は監理者の承認を受けた品質の材料を使用しなければならない。"),
-    ("第5条（工期の変更）",
-     "発注者は必要があると認めるときは、受注者と協議して工期を変更することができる。"),
-    ("第6条（損害の負担）",
-     "天災その他不可抗力による損害は発注者の負担とする。ただし受注者の故意または重大な過失による損害はこの限りでない。"),
-    ("第7条（検査）",
-     "受注者は工事完成後、発注者の検査を受けなければならない。検査合格後に工事完成と見なす。"),
-    ("第8条（引渡）",
-     "工事完成検査合格後、受注者は速やかに発注者に目的物を引き渡すものとする。"),
-    ("第9条（代金の支払）",
-     "発注者は目的物の引渡しを受けた後、受注者から適法な請求書の提出を受けた日から30日以内に請負代金を支払うものとする。"),
-]
+# 基本契約約款（サンプルHTMLに準拠）
+_ORDER_TERMS_HTML = """
+<div class="term-item">第1条（総則）注文者（以下「甲」という。）と請負者（以下「乙」という。）は、注文書及び注文請書に定めるもののほか、この約款に基づき、図面、仕様書並びに、監督員または甲の現場員の指示に従い、おのおの対等の立場に立って誠実に履行する。</div>
+<div class="term-item">第2条（条件変更等）工事内容及び請負代金の変更、若しくはそれによる工期の変更が必要なときは、甲乙協議して決定する。</div>
+<div class="term-item">第3条（危険負担）天災その他不可抗力により、工期を変更する必要があるとき、又は工事の既済部分について損害を生じたときは、乙は事実発生後すみやかにその状況を甲に通告することを要する。工期の延長日数又は損害額負担については、甲乙協議して定める。</div>
+<div class="term-item">第4条（賃金又は物価の変動に基づく請負代金の変更）工期内に賃金又は物価の変動により請負代金が不適当となり、これを変更する必要があると認められたときは、甲乙協議して請負代金額を変更する。</div>
+<div class="term-item">第5条（第三者に及ぼした損害）施工について請負の責に帰すべき事由により第三者に損害を及ぼしたときは、乙がその損害を負担する。</div>
+<div class="term-item">第6条（完成、検査）乙は、工事を完成したときは、甲に通知するものとし、甲は、乙の立会のもと遅滞なく完成検査を行う。甲又は発注者の検査に合格しないときは、乙は、遅滞なくこれを補修又は改造して甲の検査を受ける。</div>
+<div class="term-item">第7条（瑕疵担保）乙は工事目的物が土地の工作物である場合、引渡しの日から1年間瑕疵担保責任を負う。</div>
+<div class="term-item">第8条（紛争の解決）甲乙間に紛争を生じたときは、当事者の双方の合意により選定した第三者又は建設業法による紛争審査会のあっせん又は調停により解決を図る。</div>
+<div class="term-item">第9条（補足）契約書ならびにこの約款に定めのない事項については、必要に応じ甲乙協議して定める。</div>
+"""
+
+_ORDER_CSS = """
+* { box-sizing: border-box; }
+@page { size: A4 landscape; margin: 12mm 15mm; }
+body {
+    font-family: 'Noto Serif CJK JP', 'Noto Sans CJK JP', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 10pt; color: #000; margin: 0; padding: 0; position: relative;
+}
+.meta-header { position: absolute; top: 0; right: 0; font-size: 9pt; }
+.meta-table { border-collapse: collapse; }
+.meta-table td { padding: 2px 10px; }
+.title-container { text-align: center; margin-top: 10mm; margin-bottom: 10mm; }
+.title {
+    font-size: 22pt; font-weight: bold; letter-spacing: 15px;
+    margin: 0; display: inline-block;
+    border-bottom: 2px solid #000; padding-bottom: 5px;
+}
+.main-content { display: table; width: 100%; table-layout: fixed; border-top: 1px solid #000; }
+.col-left {
+    display: table-cell; width: 53%; vertical-align: top;
+    padding-right: 15mm; border-right: 1px solid #000; padding-top: 5mm;
+}
+.own-company-area { border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+.own-company-name { font-size: 20pt; font-weight: bold; letter-spacing: 2px; margin: 0; display: inline-block; }
+.own-company-name .onchu { font-size: 14pt; font-weight: normal; float: right; margin-top: 8pt; }
+.greeting { text-align: center; line-height: 1.6; margin-top: 15px; margin-bottom: 20px; }
+.project-table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+.project-table td { padding: 8px 0; border-bottom: 1px dotted #000; vertical-align: middle; }
+.project-table .no { width: 5%; text-align: left; }
+.project-table .label { width: 25%; letter-spacing: 2px; }
+.project-table .value { width: 70%; padding-left: 10px; }
+.amount-row td { padding: 6px 0; }
+.amount-val {
+    text-align: right; display: block; padding-right: 20px; position: relative;
+}
+.amount-val::after { content: "-"; position: absolute; right: 0; }
+.col-right {
+    display: table-cell; width: 47%; vertical-align: top;
+    padding-left: 10mm; padding-top: 5mm;
+}
+.customer-fill-area { margin-bottom: 8mm; }
+.fill-row { border-bottom: 1px solid #000; height: 12mm; position: relative; }
+.fill-label { position: absolute; bottom: 4px; left: 5px; font-size: 14pt; letter-spacing: 5px; }
+.fill-seal { position: absolute; bottom: 4px; right: 15px; font-size: 14pt; }
+.terms-area { font-size: 6.5pt; line-height: 1.4; }
+.terms-title { font-weight: bold; font-size: 8pt; margin-bottom: 5px; }
+.term-item { margin-bottom: 6px; text-align: justify; }
+"""
 
 
 def generate_order_pdf(order: Any, project: Any, company: CompanyInfo) -> bytes:
-    """注文書 PDF を生成する。"""
+    """注文書 PDF を生成する。A4横・顧客→弊社宛レイアウト。"""
     import weasyprint
-    html_str = _render_order_html(order, project, company, is_acknowledgment=False)
+    html_str = _render_order_html(order, project, company)
     return weasyprint.HTML(string=html_str).write_pdf()
 
 
 def generate_acknowledgment_pdf(ack: Any, project: Any, company: CompanyInfo) -> bytes:
-    """注文請書 PDF を生成する。"""
+    """注文請書 PDF を生成する（注文書と同レイアウト・タイトル変更）。"""
     import weasyprint
     html_str = _render_order_html(ack, project, company, is_acknowledgment=True)
     return weasyprint.HTML(string=html_str).write_pdf()
 
 
-def _render_order_html(doc: Any, project: Any, co: CompanyInfo, is_acknowledgment: bool) -> str:
-    logo_url = _logo_data_url()
-    logo_img = f'<img src="{logo_url}" style="height:28pt; display:block; margin-bottom:3pt;" alt="CLAP">' if logo_url else ""
+def _render_order_html(doc: Any, project: Any, co: CompanyInfo, is_acknowledgment: bool = False) -> str:
+    from datetime import date as date_cls
     title = "注　文　請　書" if is_acknowledgment else "注　文　書"
-    doc_number = getattr(doc, "acknowledgment_number" if is_acknowledgment else "order_number", "") or ""
-    issued_at = _fmt_date(getattr(doc, "issued_at", None) or getattr(doc, "created_at", None))
-    subtotal = getattr(doc, "amount", None) or getattr(doc, "subtotal", None) or 0
-    tax_amount = getattr(doc, "tax_amount", None) or int(subtotal * 0.1)
-    total = getattr(doc, "total_amount", None) or (subtotal + tax_amount)
-    stamp_tax = getattr(doc, "stamp_tax", None) or 0
-    vendor_name = getattr(doc, "vendor_name", "") or getattr(project, "client_name", "") or ""
-    payment_condition = getattr(doc, "payment_condition", "") or getattr(project, "payment_condition", "") or ""
+
+    # 金額
+    subtotal = float(getattr(doc, "amount_excl_tax", None) or getattr(doc, "amount", None) or 0)
+    tax_amount = float(getattr(doc, "tax_amount", None) or round(subtotal * 0.1))
+    total = float(getattr(doc, "total_amount", None) or (subtotal + tax_amount))
+
+    # 工事番号・日付
     project_number = getattr(project, "project_number", "") or ""
+    issue_date = getattr(doc, "issue_date", None)
+    if issue_date:
+        if isinstance(issue_date, str):
+            from datetime import datetime
+            try:
+                issue_date = datetime.strptime(issue_date[:10], "%Y-%m-%d").date()
+            except ValueError:
+                issue_date = None
+    year_str = str(issue_date.year) if issue_date else ""
+    date_str = f"{issue_date.month}月{issue_date.day}日" if issue_date else ""
 
-    clauses_html = ""
-    for title_c, body in _CLAUSES:
-        clauses_html += f"""
-        <div class="clause no-break">
-          <span class="clause-title">{_h(title_c)}</span><br>
-          {_h(body)}
-        </div>"""
+    # 工事情報
+    project_name = _h(getattr(project, "project_name", "") or "")
+    project_location = _h(getattr(project, "project_location", "") or "")
 
-    signature_block = ""
-    if is_acknowledgment:
-        signature_block = """
-        <div class="no-break" style="margin-top:24pt; border:0.8pt solid #888; padding:10pt;">
-          <div class="bold" style="margin-bottom:8pt;">【請負者】</div>
-          <div class="info-grid">
-            <span class="info-label">会社名</span><span class="info-value" style="border-bottom:0.5pt solid #888; min-height:16pt;"></span>
-            <span class="info-label">住所</span><span class="info-value" style="border-bottom:0.5pt solid #888; min-height:16pt;"></span>
-            <span class="info-label">代表者氏名</span><span class="info-value" style="border-bottom:0.5pt solid #888; min-height:16pt;"></span>
-            <span class="info-label">印</span><span class="info-value" style="min-height:40pt;"></span>
-          </div>
-        </div>"""
+    # 工事期間
+    p_start = getattr(doc, "construction_period_start", None) or getattr(project, "period_start", None)
+    p_end   = getattr(doc, "construction_period_end",   None) or getattr(project, "period_end",   None)
+    if p_start or p_end:
+        period_val = f"{_fmt_date(p_start) if p_start else ''}　〜　{_fmt_date(p_end) if p_end else ''}"
+    else:
+        period_val = "御協議の上"
+
+    # 支払条件
+    payment = _h(getattr(doc, "payment_condition", "") or getattr(project, "payment_condition", "") or "御協議の上")
+
+    # 工事内容・適要
+    work_content = _h(getattr(doc, "work_content", None) or "添付工事内訳書の通り")
+    notes_val = _h(getattr(doc, "notes", None) or "")
+
+    # 弊社名（宛先・固定）
+    own_company = _h(co.name) if co.name else "株式会社 クラップ"
 
     return f"""<!DOCTYPE html>
-<html lang="ja"><head><meta charset="UTF-8">
-<style>{_BASE_CSS}
-  .order-summary {{ border:0.8pt solid #888; padding:6pt 10pt; margin-bottom:10pt; }}
-  .order-summary table {{ width:auto; }}
-  .order-summary td {{ border:none; padding:2pt 20pt 2pt 4pt; }}
-</style></head>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>{title}</title>
+<style>{_ORDER_CSS}</style>
+</head>
 <body>
 
-  <div style="display:flex; justify-content:space-between; margin-bottom:8pt;">
-    <div class="small muted">弊社工事番号：{_h(project_number)}</div>
-    <div class="small muted" style="text-align:right;">
-      書類番号：{_h(doc_number)}<br>
-      発行日：{issued_at}
-    </div>
-  </div>
+<div class="meta-header">
+  <table class="meta-table">
+    <tr>
+      <td style="text-align:right;">弊社工事番号：</td>
+      <td style="padding-left:10px; font-weight:bold;">{_h(project_number)}</td>
+    </tr>
+    <tr>
+      <td style="text-align:right;">{_h(year_str)}{'年' if year_str else ''}</td>
+      <td>{_h(date_str)}</td>
+    </tr>
+  </table>
+</div>
 
-  <h1>{title}</h1>
+<div class="title-container">
+  <h1 class="title">{title}</h1>
+</div>
 
-  <div style="display:flex; justify-content:space-between; margin-bottom:12pt;">
-    <div>
-      <div style="font-size:13pt; border-bottom:1pt solid #111; padding-bottom:3pt; margin-bottom:6pt;">
-        {_h(vendor_name)}　御中
-      </div>
-      <div class="small">下記の通り発注いたします。</div>
+<div class="main-content">
+  <!-- 左カラム：案件情報 -->
+  <div class="col-left">
+    <div class="own-company-area">
+      <div class="own-company-name">{own_company} <span class="onchu">御中</span></div>
     </div>
-    <div class="company-block" style="width:200pt;">
-      {logo_img}
-      <div class="company-name">{_h(co.name)}</div>
-      <div>〒{_h(co.postal_code)} {_h(co.address)}</div>
-      <div>TEL: {_h(co.tel)} / FAX: {_h(co.fax)}</div>
-      <div>代表取締役　{_h(co.representative)}</div>
+    <div class="greeting">
+      約定に従い下記の通り注文致しますから<br>
+      お請けの節は別紙請書を提出して下さい。
     </div>
-  </div>
-
-  <div class="order-summary no-break">
-    <table>
+    <table class="project-table">
       <tr>
-        <td class="muted small">工事名称</td>
-        <td class="bold">{_h(project.project_name)}</td>
+        <td class="no">1.</td>
+        <td class="label">工 事 名 称</td>
+        <td class="value">{project_name}</td>
       </tr>
       <tr>
-        <td class="muted small">工事場所</td>
-        <td>{_h(getattr(project,'project_location','') or '')}</td>
+        <td class="no">2.</td>
+        <td class="label">工 事 場 所</td>
+        <td class="value">{project_location}</td>
+      </tr>
+      <tr class="amount-row">
+        <td class="no">3.</td>
+        <td class="label">工 事 代 金</td>
+        <td class="value"><span class="amount-val">¥{int(subtotal):,}</span></td>
+      </tr>
+      <tr class="amount-row">
+        <td class="no"></td>
+        <td class="label" style="text-align:center; letter-spacing:normal;">消費税等(10%)</td>
+        <td class="value"><span class="amount-val">¥{int(tax_amount):,}</span></td>
+      </tr>
+      <tr class="amount-row">
+        <td class="no"></td>
+        <td class="label" style="text-align:center; letter-spacing:normal;">請負代金額</td>
+        <td class="value"><span class="amount-val">¥{int(total):,}</span></td>
       </tr>
       <tr>
-        <td class="muted small">工事代金（税抜）</td>
-        <td class="right bold">{_fmt_yen(subtotal)}</td>
+        <td class="no">4.</td>
+        <td class="label">工 事 期 間</td>
+        <td class="value">{period_val}</td>
       </tr>
       <tr>
-        <td class="muted small">消費税（10%）</td>
-        <td class="right">{_fmt_yen(tax_amount)}</td>
-      </tr>
-      <tr style="font-size:11pt;">
-        <td class="bold">請負代金額（税込）</td>
-        <td class="right bold" style="color:#1F4E79;">{_fmt_yen(total)}</td>
-      </tr>
-      {"<tr><td class='muted small'>印紙税</td><td class='right small'>"+_fmt_yen(stamp_tax)+"</td></tr>" if stamp_tax else ""}
-      <tr>
-        <td class="muted small">工事期間</td>
-        <td>{_fmt_date(getattr(project,'period_start',None))} ～ {_fmt_date(getattr(project,'period_end',None))}</td>
+        <td class="no">5.</td>
+        <td class="label">支 払 条 件</td>
+        <td class="value">{payment}</td>
       </tr>
       <tr>
-        <td class="muted small">支払条件</td>
-        <td>{_h(payment_condition)}</td>
+        <td class="no">6.</td>
+        <td class="label">工 事 内 容</td>
+        <td class="value">{work_content}</td>
+      </tr>
+      <tr>
+        <td class="no">7.</td>
+        <td class="label">適　　　要</td>
+        <td class="value">{notes_val}</td>
       </tr>
     </table>
   </div>
 
-  <h2>基本契約約款</h2>
-  {clauses_html}
+  <!-- 右カラム：顧客記入欄・約款 -->
+  <div class="col-right">
+    <div class="customer-fill-area">
+      <div class="fill-row"><span class="fill-label">住 所</span></div>
+      <div class="fill-row"><span class="fill-label">会社名</span></div>
+      <div class="fill-row">
+        <span class="fill-label">氏 名</span>
+        <span class="fill-seal">印</span>
+      </div>
+    </div>
+    <div class="terms-area">
+      <div class="terms-title">◆基本契約約款◆</div>
+      {_ORDER_TERMS_HTML}
+    </div>
+  </div>
+</div>
 
-  {signature_block}
-
-</body></html>"""
+</body>
+</html>"""
 
 
 # ── CompanyInfo をDB設定から構築 ──────────────────────────────────────────────

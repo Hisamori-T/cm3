@@ -36,6 +36,8 @@ class Order(Base, TimestampMixin):
     construction_period_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     construction_period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
     payment_condition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    work_content: Mapped[str | None] = mapped_column(Text, nullable=True, default="添付工事内訳書の通り")
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     terms_and_conditions: Mapped[str | None] = mapped_column(Text, nullable=True)
     stamp_tax: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
     quote_id: Mapped[uuid.UUID | None] = mapped_column(

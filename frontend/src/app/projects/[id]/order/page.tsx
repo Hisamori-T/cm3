@@ -61,6 +61,8 @@ export default function OrderPage() {
   const [periodStart, setPeriodStart] = useState("");
   const [periodEnd, setPeriodEnd] = useState("");
   const [paymentCondition, setPaymentCondition] = useState("");
+  const [workContent, setWorkContent] = useState("添付工事内訳書の通り");
+  const [notes, setNotes] = useState("");
   const [terms, setTerms] = useState(DEFAULT_TERMS);
 
   useEffect(() => { loadOrders(); }, [projectId]);
@@ -86,6 +88,8 @@ export default function OrderPage() {
     setPeriodStart(o.construction_period_start || "");
     setPeriodEnd(o.construction_period_end || "");
     setPaymentCondition(o.payment_condition || "");
+    setWorkContent(o.work_content ?? "添付工事内訳書の通り");
+    setNotes(o.notes || "");
     setTerms(o.terms_and_conditions || DEFAULT_TERMS);
   }
 
@@ -93,7 +97,7 @@ export default function OrderPage() {
     setSelected(null);
     setIssueDate(""); setClientCompany(""); setClientPerson(""); setClientAddress("");
     setAmountExclTax(""); setPeriodStart(""); setPeriodEnd("");
-    setPaymentCondition(""); setTerms(DEFAULT_TERMS);
+    setPaymentCondition(""); setWorkContent("添付工事内訳書の通り"); setNotes(""); setTerms(DEFAULT_TERMS);
   }
 
   async function handleSave() {
@@ -107,6 +111,8 @@ export default function OrderPage() {
       construction_period_start: periodStart || null,
       construction_period_end: periodEnd || null,
       payment_condition: paymentCondition || null,
+      work_content: workContent || null,
+      notes: notes || null,
       terms_and_conditions: terms || null,
     };
     try {
@@ -478,6 +484,16 @@ export default function OrderPage() {
                 <div style={{ gridColumn: "1 / -1" }}>
                   <LabelInput label="支払条件">
                     <Input value={paymentCondition} onChange={(e) => setPaymentCondition(e.target.value)} placeholder="完工後30日以内" />
+                  </LabelInput>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <LabelInput label="工事内容（PDF 6番）">
+                    <Input value={workContent} onChange={(e) => setWorkContent(e.target.value)} placeholder="添付工事内訳書の通り" />
+                  </LabelInput>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <LabelInput label="適要（PDF 7番）">
+                    <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="（任意）" />
                   </LabelInput>
                 </div>
               </div>

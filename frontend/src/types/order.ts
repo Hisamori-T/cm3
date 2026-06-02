@@ -17,6 +17,8 @@ export interface OrderCreate {
   construction_period_start?: string | null;
   construction_period_end?: string | null;
   payment_condition?: string | null;
+  work_content?: string | null;
+  notes?: string | null;
   terms_and_conditions?: string | null;
 }
 
@@ -34,6 +36,8 @@ export interface OrderRead {
   construction_period_start: string | null;
   construction_period_end: string | null;
   payment_condition: string | null;
+  work_content: string | null;
+  notes: string | null;
   terms_and_conditions: string | null;
   stamp_tax: number | null;
   quote_id: string | null;
