@@ -461,6 +461,7 @@ export default function OrderPage() {
                       {ORDER_STATUS_LABEL[s]}
                     </button>
                   ))}
+                </div>
               </div>
             )}
 
