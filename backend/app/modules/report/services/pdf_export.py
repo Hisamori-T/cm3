@@ -967,10 +967,223 @@ def generate_order_pdf(order: Any, project: Any, company: CompanyInfo) -> bytes:
 
 
 def generate_acknowledgment_pdf(ack: Any, project: Any, company: CompanyInfo) -> bytes:
-    """注文請書 PDF を生成する（注文書と同レイアウト・タイトル変更）。"""
+    """注文請書 PDF を生成する。A4横・顧客宛・弊社情報右カラム。"""
     import weasyprint
-    html_str = _render_order_html(ack, project, company, is_acknowledgment=True)
+    html_str = _render_acknowledgment_html(ack, project, company)
     return weasyprint.HTML(string=html_str).write_pdf()
+
+
+_ACK_CSS = """
+* { box-sizing: border-box; }
+@page { size: A4 landscape; margin: 12mm 15mm; }
+body {
+    font-family: 'Noto Serif CJK JP', 'Noto Sans CJK JP', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 10pt; color: #000; margin: 0; padding: 0; position: relative;
+}
+.meta-header { position: absolute; top: 0; right: 0; font-size: 9pt; }
+.meta-table { border-collapse: collapse; }
+.meta-table td { padding: 2px 10px; }
+.title-container { text-align: center; margin-top: 10mm; margin-bottom: 10mm; }
+.title {
+    font-size: 22pt; font-weight: bold; letter-spacing: 15px;
+    margin: 0; display: inline-block;
+    border-bottom: 2px solid #000; padding-bottom: 5px;
+}
+.main-content {
+    display: table; width: 100%; table-layout: fixed;
+    border-top: 1px solid #000;
+}
+.col-left {
+    display: table-cell; width: 53%; vertical-align: top;
+    padding-right: 15mm; padding-top: 5mm;
+}
+.customer-area { border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
+.customer-name { font-size: 20pt; font-weight: bold; letter-spacing: 2px; margin: 0; display: inline-block; width: 100%; }
+.customer-name .onchu { font-size: 14pt; font-weight: normal; float: right; margin-top: 8pt; }
+.greeting { text-align: center; margin-top: 20px; margin-bottom: 25px; }
+.greeting-text { display: inline-block; border-bottom: 1px solid #000; padding-bottom: 2px; font-size: 11pt; letter-spacing: 1px; }
+.project-table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+.project-table td { padding: 8px 0; border-bottom: 1px dotted #000; vertical-align: middle; }
+.project-table .no { width: 5%; text-align: left; }
+.project-table .label { width: 25%; letter-spacing: 2px; }
+.project-table .value { width: 70%; padding-left: 10px; }
+.amount-row td { padding: 6px 0; }
+.amount-val { text-align: right; display: block; padding-right: 20px; position: relative; }
+.amount-val::after { content: "-"; position: absolute; right: 0; }
+.col-right {
+    display: table-cell; width: 47%; vertical-align: top;
+    padding-left: 10mm; padding-top: 5mm;
+}
+.stamp-box-container { width: 100%; height: 25mm; position: relative; margin-bottom: 2mm; }
+.revenue-stamp {
+    position: absolute; right: 20mm; top: 0;
+    width: 22mm; height: 25mm;
+    border: 1px solid #000;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9pt; text-align: center;
+}
+.revenue-stamp span { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 100%; }
+.own-info-area { margin-bottom: 8mm; }
+.own-info-table { width: 100%; border-collapse: collapse; font-size: 12pt; }
+.own-info-table td { padding: 6px 0; vertical-align: middle; }
+.own-info-table .label { width: 25%; letter-spacing: 5px; padding-left: 5px; }
+.own-info-table .value { width: 75%; letter-spacing: 1px; }
+.terms-area { font-size: 6.5pt; line-height: 1.4; }
+.terms-title { font-weight: bold; font-size: 8pt; margin-bottom: 5px; }
+.term-item { margin-bottom: 6px; text-align: justify; }
+"""
+
+
+def _render_acknowledgment_html(ack: Any, project: Any, co: CompanyInfo) -> str:
+    from datetime import date as date_cls
+    title = "注　文　請　書"
+
+    subtotal = float(getattr(ack, "amount_excl_tax", None) or 0)
+    tax_amount = float(getattr(ack, "tax_amount", None) or round(subtotal * 0.1))
+    total = float(getattr(ack, "total_amount", None) or (subtotal + tax_amount))
+
+    project_number = getattr(project, "project_number", "") or ""
+    issue_date = getattr(ack, "issue_date", None)
+    if issue_date and isinstance(issue_date, str):
+        from datetime import datetime
+        try:
+            issue_date = datetime.strptime(issue_date[:10], "%Y-%m-%d").date()
+        except ValueError:
+            issue_date = None
+    year_str = str(issue_date.year) if issue_date else ""
+    date_str = f"{issue_date.month}月{issue_date.day}日" if issue_date else ""
+
+    project_name = _h(getattr(project, "project_name", "") or "")
+    project_location = _h(getattr(project, "project_location", "") or "")
+
+    p_start = getattr(ack, "construction_period_start", None)
+    p_end   = getattr(ack, "construction_period_end", None)
+    period_val = (
+        f"{_fmt_date(p_start) if p_start else ''}　〜　{_fmt_date(p_end) if p_end else ''}"
+        if (p_start or p_end) else "御協議の上"
+    )
+
+    payment = _h(getattr(ack, "payment_condition", "") or getattr(project, "payment_condition", "") or "御協議の上")
+    work_content = _h(getattr(ack, "work_content", None) or "添付工事内訳書の通り")
+    notes_val = _h(getattr(ack, "notes", None) or "")
+
+    # 顧客名（左カラム宛先）
+    client_company = _h(getattr(ack, "client_company", "") or "")
+    # 弊社情報（右カラム）
+    own_address = _h(co.address or "福井県坂井市三国町錦3丁目4-2")
+    own_name = _h(co.name or "株式会社クラップ")
+    own_rep = _h(co.representative or "奴間 正人")
+
+    return f"""<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>{title}</title>
+<style>{_ACK_CSS}</style>
+</head>
+<body>
+
+<div class="meta-header">
+  <table class="meta-table">
+    <tr>
+      <td style="text-align:right;">{_h(year_str)}{'年' if year_str else ''}</td>
+      <td>{_h(date_str)}</td>
+    </tr>
+  </table>
+</div>
+
+<div class="title-container">
+  <h1 class="title">{title}</h1>
+</div>
+
+<div class="main-content">
+  <!-- 左カラム：顧客名・案件情報 -->
+  <div class="col-left">
+    <div class="customer-area">
+      <div class="customer-name">{client_company} <span class="onchu">御中</span></div>
+    </div>
+    <div class="greeting">
+      <span class="greeting-text">約定に従い下記のとおりご注文をお請けします。</span>
+    </div>
+    <table class="project-table">
+      <tr>
+        <td class="no">1.</td>
+        <td class="label">工 事 名 称</td>
+        <td class="value">{project_name}</td>
+      </tr>
+      <tr>
+        <td class="no">2.</td>
+        <td class="label">工 事 場 所</td>
+        <td class="value">{project_location}</td>
+      </tr>
+      <tr class="amount-row">
+        <td class="no">3.</td>
+        <td class="label">工 事 代 金</td>
+        <td class="value"><span class="amount-val">¥{int(subtotal):,}</span></td>
+      </tr>
+      <tr class="amount-row">
+        <td class="no"></td>
+        <td class="label" style="text-align:center; letter-spacing:normal;">消費税等(10%)</td>
+        <td class="value"><span class="amount-val">¥{int(tax_amount):,}</span></td>
+      </tr>
+      <tr class="amount-row">
+        <td class="no"></td>
+        <td class="label" style="text-align:center; letter-spacing:normal;">請負代金額</td>
+        <td class="value"><span class="amount-val">¥{int(total):,}</span></td>
+      </tr>
+      <tr>
+        <td class="no">4.</td>
+        <td class="label">工 事 期 間</td>
+        <td class="value">{period_val}</td>
+      </tr>
+      <tr>
+        <td class="no">5.</td>
+        <td class="label">支 払 条 件</td>
+        <td class="value">{payment}</td>
+      </tr>
+      <tr>
+        <td class="no">6.</td>
+        <td class="label">工 事 内 容</td>
+        <td class="value">{work_content}</td>
+      </tr>
+      <tr>
+        <td class="no">7.</td>
+        <td class="label">適　　　要</td>
+        <td class="value">{notes_val}</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- 右カラム：収入印紙・弊社情報・約款 -->
+  <div class="col-right">
+    <div class="stamp-box-container">
+      <div class="revenue-stamp"><span>収入印紙</span></div>
+    </div>
+    <div class="own-info-area">
+      <table class="own-info-table">
+        <tr>
+          <td class="label">住 所</td>
+          <td class="value">{own_address}</td>
+        </tr>
+        <tr>
+          <td class="label">会社名</td>
+          <td class="value">{own_name}</td>
+        </tr>
+        <tr>
+          <td class="label">氏 名</td>
+          <td class="value">代表取締役　{own_rep}</td>
+        </tr>
+      </table>
+    </div>
+    <div class="terms-area">
+      <div class="terms-title">◆基本契約約款◆</div>
+      {_ORDER_TERMS_HTML}
+    </div>
+  </div>
+</div>
+
+</body>
+</html>"""
 
 
 def _render_order_html(doc: Any, project: Any, co: CompanyInfo, is_acknowledgment: bool = False) -> str:

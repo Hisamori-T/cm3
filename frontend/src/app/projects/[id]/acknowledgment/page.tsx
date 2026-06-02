@@ -44,14 +44,21 @@ export default function AcknowledgmentPage() {
   const [paymentCondition, setPaymentCondition] = useState("");
   const [terms, setTerms] = useState("");
 
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   useEffect(() => { loadAcks(); }, [projectId]);
 
-  async function loadAcks() {
+  async function loadAcks(keepSelectedId?: string) {
     setLoading(true);
     try {
       const data = await apiFetch<AcknowledgmentRead[]>(`/api/v1/projects/${projectId}/acknowledgments`);
       setAcks(data);
-      if (data.length > 0) selectAck(data[0]);
+      if (data.length > 0) {
+        const toSelect = keepSelectedId
+          ? (data.find(a => a.id === keepSelectedId) ?? data[0])
+          : data[0];
+        selectAck(toSelect);
+      }
     } catch {
       // ignore
     } finally { setLoading(false); }
@@ -87,19 +94,20 @@ export default function AcknowledgmentPage() {
         method: "PATCH", body: JSON.stringify(body),
       });
       setMsg("保存しました");
-      await loadAcks();
+      await loadAcks(selected.id);
     } catch (e) { setMsg(`エラー: ${(e as Error).message}`); }
     finally { setSaving(false); setTimeout(() => setMsg(null), 3000); }
   }
 
   async function handleIssue() {
     if (!selected) return;
+    const currentId = selected.id;
     try {
       await apiFetch(`/api/v1/acknowledgments/${selected.id}`, {
         method: "PATCH", body: JSON.stringify({ status: "issued" }),
       });
       setMsg("発行済みにしました");
-      await loadAcks();
+      await loadAcks(currentId);
     } catch (e) { setMsg(`エラー: ${(e as Error).message}`); }
     finally { setTimeout(() => setMsg(null), 3000); }
   }
@@ -120,7 +128,7 @@ export default function AcknowledgmentPage() {
               {msg}
             </span>
           )}
-          {selected && (
+          {selected && (<>
             <Button
               variant="default" size="sm"
               onClick={() => {
@@ -136,7 +144,30 @@ export default function AcknowledgmentPage() {
             >
               <Download className="w-3.5 h-3.5" />Excel
             </Button>
-          )}
+            <Button
+              variant="default" size="sm"
+              style={{ background: pdfLoading ? "#888" : "#C00000", color: "#fff" }}
+              disabled={pdfLoading}
+              onClick={async () => {
+                setPdfLoading(true);
+                try {
+                  const r = await fetch(`${API_URL}/api/v1/acknowledgments/${selected.id}/export-pdf`, {
+                    headers: { Authorization: `Bearer ${getToken()}` },
+                  });
+                  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                  const blob = await r.blob();
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `注文請書_${selected.acknowledgment_number || selected.id}.pdf`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                } catch (e) {
+                  alert(`PDF生成エラー: ${(e as Error).message}`);
+                } finally { setPdfLoading(false); }
+              }}
+            >
+              <Download className="w-3.5 h-3.5" />{pdfLoading ? "生成中..." : "PDF"}
+            </Button>
+          </>)}
           {selected && !isIssued && (
             <>
               <Button variant="default" size="sm" onClick={handleSave} disabled={saving}>
@@ -172,7 +203,7 @@ export default function AcknowledgmentPage() {
           </svg>
           <p style={{ fontSize: 14, fontWeight: 600 }}>注文請書がありません</p>
           <p style={{ fontSize: 12 }}>
-            注文書の画面でステータスを「サイン受領済」にすると注文請書を発行できます
+            注文書の画面でステータスを「発行済み」にすると注文請書が自動発行されます
           </p>
         </div>
       ) : (

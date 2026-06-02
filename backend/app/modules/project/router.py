@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.enums import EditHistoryChangeType, ProjectStatus, UserRole
+from app.models.acknowledgment import Acknowledgment
 from app.models.invoice import Invoice
 from app.models.order import Order
 from app.models.progress import ProgressLog
@@ -209,6 +210,9 @@ async def get_project(
     order_count = (await db.execute(
         select(func.count()).where(Order.project_id == project_id)
     )).scalar_one()
+    acknowledgment_count = (await db.execute(
+        select(func.count()).where(Acknowledgment.project_id == project_id)
+    )).scalar_one()
     invoice_count = (await db.execute(
         select(func.count()).where(Invoice.project_id == project_id)
     )).scalar_one()
@@ -270,7 +274,7 @@ async def get_project(
             estimate=estimate_count,
             quote=quote_count,
             order=order_count,
-            acknowledgment=0,
+            acknowledgment=acknowledgment_count,
             invoice=invoice_count,
             progress=progress_log_count,
             history=history_count,
