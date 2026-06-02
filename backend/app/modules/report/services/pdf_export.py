@@ -929,7 +929,7 @@ body {
 .main-content { display: table; width: 100%; table-layout: fixed; }
 .col-left {
     display: table-cell; width: 53%; vertical-align: top;
-    padding-right: 15mm; border-right: 1px solid #000; padding-top: 5mm;
+    padding-right: 15mm; padding-top: 5mm;
 }
 .own-company-area { border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 10px; }
 .own-company-name { font-size: 20pt; font-weight: bold; letter-spacing: 2px; margin: 0; display: inline-block; }
