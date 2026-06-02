@@ -22,7 +22,8 @@ from app.models.quote import Quote
 from app.models.user import User
 from app.models.company_settings import CompanySettings
 from app.models.invoice import Payment
-from app.services import excel_export, pdf_export
+from app.services import excel_export
+from app.modules.report.services import pdf_export
 
 router = APIRouter(tags=["exports"])
 
