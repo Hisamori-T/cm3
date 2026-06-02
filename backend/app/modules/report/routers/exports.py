@@ -1,0 +1,388 @@
+"""帳票出力エンドポイント（Excel）。"""
+from __future__ import annotations
+
+import uuid
+from io import BytesIO
+from urllib.parse import quote as urlquote
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.database import get_db
+from app.core.deps import get_current_user
+from app.models.acknowledgment import Acknowledgment
+from app.models.invoice import Invoice
+from app.models.order import Order
+from app.models.project import Project
+from app.models.qcds import QCDS
+from app.models.quote import Quote
+from app.models.user import User
+from app.models.company_settings import CompanySettings
+from app.models.invoice import Payment
+from app.services import excel_export, pdf_export
+
+router = APIRouter(tags=["exports"])
+
+PDF_MEDIA_TYPE = "application/pdf"
+
+
+def _pdf_response(data: bytes, filename: str) -> StreamingResponse:
+    encoded = urlquote(filename, safe="")
+    return StreamingResponse(
+        BytesIO(data),
+        media_type=PDF_MEDIA_TYPE,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+    )
+
+
+async def _get_company(db: AsyncSession) -> pdf_export.CompanyInfo:
+    settings = await db.scalar(select(CompanySettings).where(CompanySettings.id == "default"))
+    if settings:
+        return pdf_export.company_info_from_db(settings)
+    return pdf_export.CompanyInfo()
+
+XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+
+def _xlsx_response(data: bytes, filename: str) -> StreamingResponse:
+    """XLSXファイルをストリームレスポンスとして返す。ファイル名はRFC5987形式でURLエンコードする。"""
+    encoded = urlquote(filename, safe="")
+    return StreamingResponse(
+        BytesIO(data),
+        media_type=XLSX_MEDIA_TYPE,
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded}"},
+    )
+
+
+async def _get_project(project_id: uuid.UUID, db: AsyncSession) -> Project:
+    proj = (await db.execute(select(Project).where(Project.id == project_id))).scalar_one_or_none()
+    if proj is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
+    return proj
+
+
+@router.get("/projects/{project_id}/quotes/{quote_id}/export")
+async def export_quote(
+    project_id: uuid.UUID,
+    quote_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """見積書をExcelで出力する。"""
+    project = await _get_project(project_id, db)
+    quote = (await db.execute(
+        select(Quote)
+        .options(selectinload(Quote.items), selectinload(Quote.sections))
+        .where(Quote.id == quote_id, Quote.project_id == project_id)
+    )).scalar_one_or_none()
+    if quote is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="見積書が見つかりません")
+
+    items = sorted(quote.items, key=lambda x: x.row_no)
+    sections = sorted(quote.sections, key=lambda x: x.row_no)
+    data = excel_export.export_quote_excel(quote, project, items, sections)
+    filename = f"見積書_{quote.quote_number or quote_id}.xlsx"
+    return _xlsx_response(data, filename)
+
+
+@router.get("/projects/{project_id}/orders/{order_id}/export")
+async def export_order(
+    project_id: uuid.UUID,
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """注文書をExcelで出力する。"""
+    project = await _get_project(project_id, db)
+    order = (await db.execute(
+        select(Order).where(Order.id == order_id, Order.project_id == project_id)
+    )).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="注文書が見つかりません")
+
+    data = excel_export.export_order_excel(order, project)
+    filename = f"注文書_{order.order_number or order_id}.xlsx"
+    return _xlsx_response(data, filename)
+
+
+@router.get("/acknowledgments/{acknowledgment_id}/export")
+async def export_acknowledgment(
+    acknowledgment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """注文請書をExcelで出力する。"""
+    ack = (await db.execute(
+        select(Acknowledgment).where(Acknowledgment.id == acknowledgment_id)
+    )).scalar_one_or_none()
+    if ack is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="注文請書が見つかりません")
+
+    project = (await db.execute(
+        select(Project).where(Project.id == ack.project_id)
+    )).scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
+
+    data = excel_export.export_acknowledgment_excel(ack, project)
+    filename = f"注文請書_{ack.acknowledgment_number or acknowledgment_id}.xlsx"
+    return _xlsx_response(data, filename)
+
+
+@router.get("/projects/{project_id}/export")
+async def export_project_all(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """案件の全データ（案件情報・QCDS・見積・注文・請求）を一括でExcel出力する。"""
+    project = await _get_project(project_id, db)
+
+    qcds = (await db.execute(
+        select(QCDS)
+        .options(selectinload(QCDS.direct_works))
+        .where(QCDS.project_id == project_id)
+        .order_by(QCDS.revision.desc())
+    )).scalars().first()
+    qcds_rows = qcds.direct_works if qcds else []
+
+    quotes = (await db.execute(
+        select(Quote)
+        .options(selectinload(Quote.items))
+        .where(Quote.project_id == project_id)
+        .order_by(Quote.created_at)
+    )).scalars().all()
+
+    orders = (await db.execute(
+        select(Order).where(Order.project_id == project_id).order_by(Order.created_at)
+    )).scalars().all()
+
+    invoices = (await db.execute(
+        select(Invoice).where(Invoice.project_id == project_id).order_by(Invoice.created_at)
+    )).scalars().all()
+
+    data = excel_export.export_project_all_excel(project, qcds_rows, list(quotes), list(orders), list(invoices))
+    filename = f"工事台帳_{project.project_number}_{project.project_name}.xlsx"
+    return _xlsx_response(data, filename)
+
+
+@router.get("/projects/{project_id}/invoices/{invoice_id}/export")
+async def export_invoice(
+    project_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """請求書をExcelで出力する。"""
+    project = await _get_project(project_id, db)
+    invoice = (await db.execute(
+        select(Invoice).where(Invoice.id == invoice_id, Invoice.project_id == project_id)
+    )).scalar_one_or_none()
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="請求書が見つかりません")
+
+    data = excel_export.export_invoice_excel(invoice, project)
+    filename = f"請求書_{invoice.invoice_number or invoice_id}.xlsx"
+    return _xlsx_response(data, filename)
+
+
+# ── PDF エンドポイント ─────────────────────────────────────────────────────────
+
+@router.get("/projects/{project_id}/quotes/{quote_id}/export-pdf")
+async def export_quote_pdf(
+    project_id: uuid.UUID,
+    quote_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """見積書をPDFで出力する。"""
+    from app.models.user import User as UserModel
+    project = await _get_project(project_id, db)
+    quote = (await db.execute(
+        select(Quote)
+        .options(selectinload(Quote.items), selectinload(Quote.sections))
+        .where(Quote.id == quote_id, Quote.project_id == project_id)
+    )).scalar_one_or_none()
+    if quote is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="見積書が見つかりません")
+
+    # 承認押印ユーザー名マップ
+    user_ids = [uid for uid in [
+        quote.person_in_charge_id, quote.reviewer_id, quote.approver_id
+    ] if uid]
+    stamp_users: dict[str, str] = {}
+    if user_ids:
+        rows = (await db.execute(
+            select(UserModel.id, UserModel.full_name).where(UserModel.id.in_(user_ids))
+        )).all()
+        stamp_users = {str(r.id): r.full_name for r in rows}
+
+    co = await _get_company(db)
+    items = sorted(quote.items, key=lambda x: x.row_no)
+    sections = sorted(quote.sections, key=lambda x: x.row_no)
+    data = pdf_export.generate_quote_pdf(quote, project, items, sections, co, stamp_users)
+    filename = f"見積書_{quote.quote_number or quote_id}.pdf"
+    return _pdf_response(data, filename)
+
+
+@router.get("/projects/{project_id}/invoices/{invoice_id}/export-pdf")
+async def export_invoice_pdf(
+    project_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """請求書をPDFで出力する。"""
+    project = await _get_project(project_id, db)
+    invoice = (await db.execute(
+        select(Invoice).where(Invoice.id == invoice_id, Invoice.project_id == project_id)
+    )).scalar_one_or_none()
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="請求書が見つかりません")
+
+    payments = (await db.execute(
+        select(Payment).where(Payment.invoice_id == invoice_id)
+    )).scalars().all()
+
+    co = await _get_company(db)
+    data = pdf_export.generate_invoice_pdf(invoice, project, co, list(payments))
+    filename = f"請求書_{invoice.invoice_number or invoice_id}.pdf"
+    return _pdf_response(data, filename)
+
+
+@router.get("/projects/{project_id}/orders/{order_id}/export-pdf")
+async def export_order_pdf(
+    project_id: uuid.UUID,
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """注文書をPDFで出力する。"""
+    project = await _get_project(project_id, db)
+    order = (await db.execute(
+        select(Order).where(Order.id == order_id, Order.project_id == project_id)
+    )).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="注文書が見つかりません")
+
+    co = await _get_company(db)
+    data = pdf_export.generate_order_pdf(order, project, co)
+    filename = f"注文書_{order.order_number or order_id}.pdf"
+    return _pdf_response(data, filename)
+
+
+@router.get("/acknowledgments/{acknowledgment_id}/export-pdf")
+async def export_acknowledgment_pdf(
+    acknowledgment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """注文請書をPDFで出力する。"""
+    ack = (await db.execute(
+        select(Acknowledgment).where(Acknowledgment.id == acknowledgment_id)
+    )).scalar_one_or_none()
+    if ack is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="注文請書が見つかりません")
+
+    project = (await db.execute(
+        select(Project).where(Project.id == ack.project_id)
+    )).scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
+
+    co = await _get_company(db)
+    data = pdf_export.generate_acknowledgment_pdf(ack, project, co)
+    filename = f"注文請書_{ack.acknowledgment_number or acknowledgment_id}.pdf"
+    return _pdf_response(data, filename)
+
+
+# ── 写真台帳 PDF ──────────────────────────────────────────────────────────────
+
+@router.get("/projects/{project_id}/photo-album/export-pdf")
+async def export_photo_album(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """写真台帳を PDF で出力する。"""
+    import base64 as b64mod
+    from pathlib import Path as _Path
+
+    from app.models.progress import ProgressLog, ProgressAttachment
+
+    project = await _get_project(project_id, db)
+
+    logs = (await db.execute(
+        select(ProgressLog)
+        .options(selectinload(ProgressLog.attachments))
+        .where(ProgressLog.project_id == project_id)
+        .order_by(ProgressLog.logged_at)
+    )).scalars().all()
+
+    _TYPE_ORDER = ["before", "during", "after", "issue", "drawing"]
+    _TYPE_LABEL = {
+        "before": "施工前", "during": "施工中", "after": "施工後",
+        "issue": "問題箇所", "drawing": "図面",
+    }
+
+    # 工種別グループ化（photo_type 優先）
+    by_type: dict[str, list[dict]] = {t: [] for t in _TYPE_ORDER}
+    by_type["other"] = []
+
+    for log in logs:
+        for att in log.attachments:
+            if not (att.mime_type or "").startswith("image/"):
+                continue
+            fp = _Path(att.file_path)
+            if not fp.exists():
+                continue
+            try:
+                raw = fp.read_bytes()
+                encoded = b64mod.b64encode(raw).decode()
+            except Exception:
+                continue
+
+            taken_str = ""
+            if att.taken_at:
+                taken_str = att.taken_at.strftime("%Y/%m/%d")
+            elif log.logged_at:
+                taken_str = log.logged_at.strftime("%Y/%m/%d")
+
+            photo = {
+                "b64":       encoded,
+                "mime_type": att.mime_type or "image/jpeg",
+                "caption":   att.caption or "",
+                "work_type": att.work_type or "",
+                "taken_at":  taken_str,
+            }
+            pt = att.photo_type.value if att.photo_type else None
+            if pt in by_type:
+                by_type[pt].append(photo)
+            else:
+                by_type["other"].append(photo)
+
+    photo_groups = []
+    for t in _TYPE_ORDER:
+        if by_type[t]:
+            photo_groups.append({"label": _TYPE_LABEL[t], "photos": by_type[t]})
+    if by_type["other"]:
+        photo_groups.append({"label": "その他", "photos": by_type["other"]})
+
+    co = await _get_company(db)
+    period_start = str(project.period_actual_start or project.period_contract_start or "") or None
+    period_end   = str(project.period_actual_end   or project.period_contract_end   or "") or None
+
+    pdf_bytes = pdf_export.generate_photo_album_pdf(
+        project_name=project.project_name,
+        project_number=project.project_number,
+        client_name=project.client_name,
+        period_start=period_start,
+        period_end=period_end,
+        photo_groups=photo_groups,
+        company=co,
+    )
+    filename = f"写真台帳_{project.project_number}.pdf"
+    return _pdf_response(pdf_bytes, filename)
