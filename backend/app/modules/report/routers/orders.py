@@ -202,16 +202,16 @@ async def issue_acknowledgment(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AcknowledgmentRead:
-    """注文書 signed 状態から注文請書を発行する。既存の注文請書がある場合はそれを返す。"""
+    """注文書 sent/signed 状態から注文請書を発行する。既存の注文請書がある場合はそれを返す。"""
     order = (await db.execute(
         select(Order).where(Order.id == order_id, Order.project_id == project_id)
     )).scalar_one_or_none()
     if order is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="注文書が見つかりません")
-    if order.status != OrderStatus.signed:
+    if order.status not in (OrderStatus.sent, OrderStatus.signed):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="注文請書を発行するには注文書のステータスが 'signed' である必要があります",
+            detail="注文請書を発行するには注文書のステータスが '発行済み' または 'サイン受領済み' である必要があります",
         )
 
     existing = (await db.execute(
