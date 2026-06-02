@@ -991,7 +991,6 @@ body {
 }
 .main-content {
     display: table; width: 100%; table-layout: fixed;
-    border-top: 1px solid #000;
 }
 .col-left {
     display: table-cell; width: 53%; vertical-align: top;
