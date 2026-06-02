@@ -67,12 +67,17 @@ export default function OrderPage() {
 
   useEffect(() => { loadOrders(); }, [projectId]);
 
-  async function loadOrders() {
+  async function loadOrders(keepSelectedId?: string) {
     setLoading(true);
     try {
       const data = await apiFetch<OrderRead[]>(`/api/v1/projects/${projectId}/orders`);
       setOrders(data);
-      if (data.length > 0) selectOrder(data[0]);
+      if (data.length > 0) {
+        const toSelect = keepSelectedId
+          ? (data.find(o => o.id === keepSelectedId) ?? data[0])
+          : data[0];
+        selectOrder(toSelect);
+      }
     } catch {
       // ignore
     } finally { setLoading(false); }
@@ -126,21 +131,22 @@ export default function OrderPage() {
         });
       }
       setMsg("保存しました");
-      await loadOrders();
+      await loadOrders(selected?.id);
     } catch (e) { setMsg(`エラー: ${(e as Error).message}`); }
     finally { setSaving(false); setTimeout(() => setMsg(null), 3000); }
   }
 
-  async function handleIssueAcknowledgment() {
-    if (!selected) return;
+  async function handleIssueAcknowledgment(orderId?: string) {
+    const targetId = orderId ?? selected?.id;
+    if (!targetId) return;
     setIssuingAck(true); setMsg(null);
     try {
       const ack = await apiFetch<AcknowledgmentRead>(
-        `/api/v1/projects/${projectId}/orders/${selected.id}/issue-acknowledgment`,
+        `/api/v1/projects/${projectId}/orders/${targetId}/issue-acknowledgment`,
         { method: "POST" }
       );
       setMsg(`注文請書 ${ack.acknowledgment_number} を発行しました`);
-      await loadOrders();
+      await loadOrders(targetId);
     } catch (e) { setMsg(`エラー: ${(e as Error).message}`); }
     finally { setIssuingAck(false); setTimeout(() => setMsg(null), 5000); }
   }
@@ -151,19 +157,25 @@ export default function OrderPage() {
     try {
       await apiFetch(`/api/v1/projects/${projectId}/orders/${selected.id}/unlink`, { method: "PATCH" });
       setMsg("見積連動を解除しました");
-      await loadOrders();
+      await loadOrders(selected.id);
     } catch (e) { setMsg(`エラー: ${(e as Error).message}`); }
     finally { setUnlinking(false); setTimeout(() => setMsg(null), 3000); }
   }
 
   async function handleStatusChange(newStatus: string) {
     if (!selected) return;
+    const currentId = selected.id;
     try {
-      await apiFetch(`/api/v1/projects/${projectId}/orders/${selected.id}`, {
+      await apiFetch(`/api/v1/projects/${projectId}/orders/${currentId}`, {
         method: "PATCH", body: JSON.stringify({ status: newStatus }),
       });
+      // 「発行済み」に変更したとき注文請書を自動発行
+      if (newStatus === "sent") {
+        await handleIssueAcknowledgment(currentId);
+        return;
+      }
       setMsg("ステータスを更新しました");
-      await loadOrders();
+      await loadOrders(currentId);
     } catch (e) { setMsg(`エラー: ${(e as Error).message}`); }
     finally { setTimeout(() => setMsg(null), 3000); }
   }
@@ -405,7 +417,7 @@ export default function OrderPage() {
                   <Button
                     size="sm"
                     style={{ marginLeft: "auto", background: "#7c3aed", color: "#fff" }}
-                    onClick={handleIssueAcknowledgment}
+                    onClick={() => handleIssueAcknowledgment()}
                     disabled={issuingAck}
                   >
                     {issuingAck ? "発行中..." : "注文請書を発行"}

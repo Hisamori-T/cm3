@@ -2770,6 +2770,83 @@ Phase 1-A' の実装を進めていたが、ユーザー（ひさんさん）か
 
 ---
 
+## Session 2026-06-02 — 注文書 PDF レイアウト全面改修
+
+### 作業内容
+
+**概念修正（顧客→弊社宛）**
+- 旧: 弊社が業者に発注する書類 → 新: 顧客が弊社に発注する書類
+- 宛先を `{業者名} 御中` → `株式会社クラップ 御中`（固定）に変更
+- 右側を弊社情報→顧客記入欄（住所・会社名・氏名・印）に変更
+
+**PDF レイアウト（A4横・2カラム）**
+- A4縦 → A4横（landscape）に変更
+- 右上: 弊社工事番号（project_number）+ 発行年月日を自動表示
+- 左カラム: 案件情報テーブル（工事名称〜適要の7項目）
+- 右カラム: 顧客記入欄（住所・会社名・氏名・印）+ 基本契約約款（第1〜9条）
+- 不要な罫線削除（T字ライン、カラム縦線）、住所欄を破線に変更
+
+**新フィールド追加（DB + API + フロント）**
+- `work_content`: 工事内容（デフォルト: 添付工事内訳書の通り、編集可）
+- `notes`: 適要（デフォルト: 空欄、編集可）
+
+**バグ修正**
+- `exports.py` が旧 `app.services.pdf_export` を参照していた → `modules/report/services` に修正
+- `orders.py` の `_to_read()`・create・update に新フィールドを追加していなかった → 追加
+
+### 変更ファイル
+- `backend/app/models/order.py` — work_content / notes 追加
+- `backend/app/schemas/order.py` — work_content / notes 追加
+- `backend/app/modules/report/routers/orders.py` — _to_read / create / update に反映
+- `backend/app/modules/report/routers/exports.py` — import 先を modules に修正
+- `backend/app/modules/report/services/pdf_export.py` — 全面書き換え（A4横・2カラム）
+- `backend/alembic/versions/q1r2s3t4u5v6_add_order_work_content_notes.py` — migration
+- `frontend/src/types/order.ts` — work_content / notes 追加
+- `frontend/src/app/projects/[id]/order/page.tsx` — 工事内容・適要の入力欄追加
+
+### コミット
+- 3d7d5a5: 注文書 PDF 全面改修
+- 55bf0a2: orders.py バグ修正
+- 06222f4: exports.py import 修正
+- 1ea341d: T字ライン削除・破線変更
+- 8b17271: カラム縦線削除
+
+### フロントエンド追加変更（コミット未）
+- `loadOrders(keepSelectedId?)` リファクタリング：保存・ステータス変更後も選択中の注文書を維持
+- `handleIssueAcknowledgment(orderId?)` リファクタリング：引数で注文書IDを直接受け取れるよう変更
+- `handleStatusChange` 改善：「発行済み」ステータスに変更した瞬間に注文請書を自動発行
+- TypeScript 型エラー修正：`onClick={handleIssueAcknowledgment}` → `onClick={() => handleIssueAcknowledgment()}`（`Promise<void>` は `MouseEventHandler` に非互換）
+
+### 次のアクション
+- 注文請書（Acknowledgment）の PDF も同レイアウトに合わせるか確認
+- 他帳票（見積書・請求書）のレイアウト確認
+
+---
+
+## Session 2026-06-02 — TypeScript ビルドエラー修正（原状復帰）
+
+### 経緯
+前セッション（2026-06-02 注文書 PDF 改修）が API 使用制限に到達してセッション切れ。
+フロントエンド変更（order/page.tsx・order.ts）がディスクに書き込まれたが未コミット。
+TypeScript の `onClick` 型エラーが未修正のままだった。
+
+### 作業内容
+- session_log.md とメモリを参照して前セッション状況を把握
+- `onClick={handleIssueAcknowledgment}` → `onClick={() => handleIssueAcknowledgment()}` に修正（型エラー解消）
+- 前セッションの未コミット変更を含め全変更をコミット
+
+### 変更ファイル
+- `docs/session_log.md` — セッションログ追記
+- `frontend/src/app/projects/[id]/order/page.tsx` — onClick 型修正 + 前セッション分（loadOrders/handleIssueAcknowledgment リファクタ・自動注文請書発行・工事内容/適要フォーム追加）
+- `frontend/src/types/order.ts` — work_content / notes フィールド追加（前セッション分）
+
+### 次のアクション
+- VPS にデプロイ（cmv3-web のみリビルドで可）
+- 注文書「発行済み」に変更時に注文請書が自動発行されることを確認
+- 注文請書（Acknowledgment）PDF のレイアウト確認
+
+---
+
 ## Session 2026-06-01 — Phase 6: Estimate モジュール分割（バックエンド完了 + フロント1件）
 
 ### 作業内容
