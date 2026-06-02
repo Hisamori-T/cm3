@@ -53,6 +53,8 @@ def _to_read(o: Order) -> OrderRead:
         construction_period_start=o.construction_period_start,
         construction_period_end=o.construction_period_end,
         payment_condition=o.payment_condition,
+        work_content=o.work_content,
+        notes=o.notes,
         terms_and_conditions=o.terms_and_conditions,
         stamp_tax=float(o.stamp_tax) if o.stamp_tax is not None else None,
         quote_id=o.quote_id,
@@ -128,6 +130,8 @@ async def create_order(
         construction_period_start=body.construction_period_start,
         construction_period_end=body.construction_period_end,
         payment_condition=body.payment_condition,
+        work_content=body.work_content,
+        notes=body.notes,
         terms_and_conditions=body.terms_and_conditions,
         stamp_tax=stamp_tax,
     )
@@ -170,7 +174,8 @@ async def update_order(
 
     for field in ("issue_date", "client_address", "client_company", "client_person",
                   "construction_period_start", "construction_period_end",
-                  "payment_condition", "terms_and_conditions", "status"):
+                  "payment_condition", "work_content", "notes",
+                  "terms_and_conditions", "status"):
         val = getattr(body, field, None)
         if val is not None:
             setattr(order, field, val)
