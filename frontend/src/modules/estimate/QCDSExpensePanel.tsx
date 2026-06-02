@@ -88,7 +88,7 @@ export function computedFormulaStr(
 // ───────────────────────────────────────────────
 // 経費行サブコンポーネント
 // ───────────────────────────────────────────────
-function ExpenseRow({
+export function ExpenseRow({
   item,
   rowIndex,
   calcValue,

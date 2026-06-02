@@ -46,7 +46,7 @@ interface ItemRowProps {
   onToggleSelect?: () => void;
 }
 
-function ItemRow({ item, onUpdate, onDelete, saving, selected, onToggleSelect }: ItemRowProps) {
+export function ItemRow({ item, onUpdate, onDelete, saving, selected, onToggleSelect }: ItemRowProps) {
   const [local, setLocal] = useState<QuoteItem>(item);
   const prevId = useRef(item.id);
 

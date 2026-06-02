@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { QCDSDirectWorkTable } from "@/modules/estimate/QCDSDirectWorkTable";
 import {
   QCDSExpensePanel,
+  ExpenseRow,
   type LocalExpenseItem,
   SYSTEM_CALC_MAP,
   computedFormulaStr,

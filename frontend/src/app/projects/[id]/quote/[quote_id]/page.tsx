@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { fmtYen } from "@/lib/format";
 import {
   SectionBlock,
+  ItemRow,
   type QuoteSection,
   type QuoteItem,
 } from "@/modules/estimate/SectionBlock";
