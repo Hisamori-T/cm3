@@ -926,7 +926,7 @@ body {
     margin: 0; display: inline-block;
     border-bottom: 2px solid #000; padding-bottom: 5px;
 }
-.main-content { display: table; width: 100%; table-layout: fixed; border-top: 1px solid #000; }
+.main-content { display: table; width: 100%; table-layout: fixed; }
 .col-left {
     display: table-cell; width: 53%; vertical-align: top;
     padding-right: 15mm; border-right: 1px solid #000; padding-top: 5mm;
@@ -950,7 +950,7 @@ body {
     padding-left: 10mm; padding-top: 5mm;
 }
 .customer-fill-area { margin-bottom: 8mm; }
-.fill-row { border-bottom: 1px solid #000; height: 12mm; position: relative; }
+.fill-row { border-bottom: 1px dashed #000; height: 12mm; position: relative; }
 .fill-label { position: absolute; bottom: 4px; left: 5px; font-size: 14pt; letter-spacing: 5px; }
 .fill-seal { position: absolute; bottom: 4px; right: 15px; font-size: 14pt; }
 .terms-area { font-size: 6.5pt; line-height: 1.4; }
