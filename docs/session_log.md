@@ -2707,6 +2707,69 @@ Phase 1-A' の実装を進めていたが、ユーザー（ひさんさん）か
 
 ---
 
+## Session 2026-06-01 — Phase 6: Estimate モジュール完全完了
+
+### 作業内容
+
+**Phase 6 チェックリスト全完了**
+
+#### バックエンド
+| 作業 | ファイル |
+|-----|---------|
+| qcds.py の実体を移動 | `modules/estimate/routers/qcds.py`（新規） |
+| api/v1/qcds.py → re-export shim | `api/v1/qcds.py` |
+
+#### フロントエンド quote/[quote_id]/page.tsx（1293行 → 801行、492行削減）
+| コンポーネント | 内容 |
+|--------------|------|
+| `ApprovalStamps.tsx` | 稟議承認スタンプ3つ + ドロップダウン |
+| `QuoteTotals.tsx` | 合計カード / 粗利ゲージ / 大項目別内訳 |
+
+#### フロントエンド estimate/page.tsx（1267行 → 1164行、103行削減）
+| コンポーネント | 内容 |
+|--------------|------|
+| `ScanZone.tsx` | D&Dゾーン + スキャン進捗（左パネル） |
+| `VersionCard.tsx` | 業者見積版カード（1版あたりのUI） |
+
+**modules/estimate/ 最終構成:**
+- Backend routers: `_helpers / quote_core / quote_versions / quote_sections / qcds`
+- Backend services: `quote_service`
+- Frontend: `QCDSDirectWorkTable / QCDSExpensePanel / SectionBlock / ApprovalStamps / QuoteTotals / ScanZone / VersionCard`
+
+**総削減量（qcds/page.tsx + quote/[quote_id]/page.tsx + estimate/page.tsx）:**
+- qcds: 1293 → 734行（559行削減）
+- quote/[quote_id]: 1293 → 801行（492行削減）
+- estimate: 1267 → 1164行（103行削減）
+- **合計: 1,154行削減**
+
+### 変更ファイル
+- 新規: `backend/app/modules/estimate/routers/qcds.py`
+- 変更: `backend/app/api/v1/qcds.py` — re-export shim
+- 新規: `frontend/src/modules/estimate/ApprovalStamps.tsx`
+- 新規: `frontend/src/modules/estimate/QuoteTotals.tsx`
+- 新規: `frontend/src/modules/estimate/ScanZone.tsx`
+- 新規: `frontend/src/modules/estimate/VersionCard.tsx`
+- 変更: `frontend/src/app/projects/[id]/quote/[quote_id]/page.tsx`
+- 変更: `frontend/src/app/projects/[id]/estimate/page.tsx`
+
+### コミット
+- fdde62c: Phase 6 バックエンド + QCDSDirectWorkTable / QCDSExpensePanel
+- fd626ff: SectionBlock + ItemRow
+- 1892396: 残り全コンポーネント + qcds.py 移行（Phase 6 完了）
+
+### 次のアクション
+- VPS デプロイして全見積フロー（QCDS / 業者見積 / 顧客見積 / 稟議承認）を動作確認
+- **Phase 6 チェックポイント確認：**
+  - [ ] 見積書作成・大項目追加・明細追加 正常
+  - [ ] 業者見積版管理・掛率設定 正常
+  - [ ] 稟議承認スタンプ 正常（押印→リロード後も保持）
+  - [ ] QCDS 原価算定表・経費行 正常
+  - [ ] スキャン→版作成→QCDS 反映→顧客見積反映 フロー正常
+  - [ ] 見積書 Excel / PDF 出力 正常
+- Phase 7（Report モジュール）または他の優先タスクへ
+
+---
+
 ## Session 2026-06-01 — Phase 6: Estimate モジュール分割（バックエンド完了 + フロント1件）
 
 ### 作業内容
@@ -2761,5 +2824,68 @@ Phase 1-A' の実装を進めていたが、ユーザー（ひさんさん）か
   - `VersionCard` → 版カードを抽出
 - **【注意】** 各抽出後に `qcds` ページ・`quote/[quote_id]` ページ・`estimate` ページの動作確認を行ってから次に進む
 - **VPS デプロイ**: Phase 3〜6 の全バックエンド変更を本番に適用する前に、ローカルコンテナでリビルドテストを推奨
+
+---
+
+## Session 2026-06-02 — Phase 7: Report モジュール + 最終クリーンアップ完了
+
+### 作業内容
+
+**新規モジュール作成**
+| モジュール | 内容 |
+|-----------|------|
+| `modules/report/` | orders / invoices / exports / dashboard / excel_export / pdf_export |
+| `modules/customer/` | clients（顧客マスタ） |
+| `modules/vendor/` | vendors（業者マスタ） |
+| `modules/auth/` | auth（認証） |
+| `modules/admin/` | admin / company_settings / section_templates / excel_import |
+
+**既存モジュール実体移動（逆shim修正）**
+| モジュール | 内容 |
+|-----------|------|
+| `modules/schedule/` | gantt_router / schedule_router（api/v1から実体移動） |
+| `modules/site/` | attendance / progress / daily_reports（api/v1から実体移動） |
+| `modules/purchase/routers/orders.py` | 発注書CRUD（api/v1/purchase.py から移動） |
+| `modules/estimate/routers/acknowledgments.py` | 注文請書 |
+| `modules/estimate/services/quote_reflect.py` | 見積反映ヘルパー |
+
+**main.py 全面書き換え**
+- `app.api.v1.*` からの全 import を廃止
+- `modules/*` から直接 `include_router` する構造に変更
+- health チェックをインライン化
+
+**フロント修正（ビルドエラー解消）**
+- `QCDSExpensePanel.tsx`: `ExpenseRow` を export（Section C で使用）
+- `SectionBlock.tsx`: `ItemRow` を export（大項目未割当明細で使用）
+
+**VPS デプロイ（SCP 手動転送）**
+- `cmv3-api` / `cmv3-web` とも `Image Built` + `Application startup complete` を確認
+
+**git tag**: `v1-modular-complete`
+
+### 変更ファイル
+- `backend/app/main.py` — 全面書き換え（modules/* から include_router）
+- `backend/app/modules/` — report / customer / vendor / auth / admin 追加 + schedule / site / purchase 実体化
+- `frontend/src/modules/estimate/QCDSExpensePanel.tsx` — ExpenseRow を export
+- `frontend/src/modules/estimate/SectionBlock.tsx` — ItemRow を export
+- `frontend/src/app/projects/[id]/qcds/page.tsx` — ExpenseRow import 追加
+- `frontend/src/app/projects/[id]/quote/[quote_id]/page.tsx` — ItemRow import 追加
+
+### コミット
+- 672e482: Phase 7 モジュール集約（main.py + 全モジュール）
+- f4bf64b: ビルドエラー修正（ExpenseRow / ItemRow export）
+- git tag: v1-modular-complete
+
+### 残留事項（意図的に対応しない）
+- `backend/app/api/v1/` ディレクトリ: main.py から参照されなくなったため実質デッドコード。動作に影響なし。削除はリスク評価後に任意で行う。
+- `backend/app/models/*.py` の re-export shim（base / enums / history）: 77ファイルが旧パスで import しているため削除せず維持。削除より現状維持が安全。
+
+### 次のアクション
+- https://cmv3.fact-ally.com で全画面の動作確認（QCDS / 顧客見積 / 業者見積 / 帳票 / ダッシュボード）
+- Phase 7 チェックポイント確認:
+  - [ ] 注文書 CRUD + PDF 出力 正常
+  - [ ] 請求書 CRUD + 入金記録 + PDF 出力 正常
+  - [ ] ダッシュボード KPI / チャート / 未払いアラート 正常
+  - [ ] Excel インポート 正常
 
 ---
