@@ -2966,3 +2966,40 @@ TypeScript の `onClick` 型エラーが未修正のままだった。
   - [ ] Excel インポート 正常
 
 ---
+
+## Session 2026-06-03 — 注文書・注文請書 各種バグ修正・機能追加
+
+### 作業内容
+
+**注文書（Order）**
+- acknowledged ステータス削除（Alembic migration r2s3t4u5v6w7: 既存レコードを sent に変換・enum 再作成）
+- ステータスを draft/sent/signed/cancelled の4択に整理
+- 「発行済み」ステータスタップで注文請書を自動発行（422 エラー修正: バックエンドで sent|signed を許可）
+- 注文書と注文請書は同時発行する業務フローに対応
+- 一覧にチェックボックス追加・選択削除（DELETE エンドポイント新設）
+
+**注文請書（Acknowledgment）**
+- 選択維持: `loadAcks(keepSelectedId?)` 対応（保存後も選択 ACK を維持）
+- PDF ボタン追加（赤・/acknowledgments/{id}/export-pdf）
+- PDFレイアウト刷新: 注文請書専用テンプレート（左:顧客宛+案件情報, 右:収入印紙+弊社情報+約款, 縦線なし）
+- PDF 2ページ目余分ライン削除（main-content の border-top を除去）
+- タブカウント修正: 0固定 → DB実数カウント
+- 一覧にチェックボックス追加・選択削除（DELETE エンドポイント新設）
+- 案内文修正:「サイン受領済」→「発行済み」で自動発行する旨に変更
+
+### 変更ファイル
+- `backend/alembic/versions/r2s3t4u5v6w7_remove_acknowledged_status.py` — migration
+- `backend/app/shared/models/enums.py` — acknowledged 削除
+- `backend/app/modules/report/routers/orders.py` — sent|signed 許可・DELETE endpoint
+- `backend/app/modules/report/services/pdf_export.py` — 注文請書専用 _render_acknowledgment_html・_ACK_CSS
+- `backend/app/modules/project/router.py` — acknowledgment_count 実数化
+- `backend/app/modules/estimate/routers/acknowledgments.py` — DELETE endpoint
+- `frontend/src/types/order.ts` — acknowledged 削除
+- `frontend/src/app/projects/[id]/order/page.tsx` — 選択削除・ステータス整理
+- `frontend/src/app/projects/[id]/acknowledgment/page.tsx` — PDF ボタン・選択削除・選択維持
+
+### 次のアクション
+- 注文書・注文請書の全フロー動作確認
+- 請求書ページの修正（必要であれば）
+
+---
