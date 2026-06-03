@@ -47,6 +47,7 @@ export function ApprovalStamps({
   handleStamp,
   showMsg,
 }: ApprovalStampsProps) {
+  // 右から担当・確認・承認の順（表示は左から 承認・確認・担当）
   const stamps: {
     label: string;
     stampType: StampType;
@@ -56,12 +57,12 @@ export function ApprovalStamps({
     requiredRole: string;
   }[] = [
     {
-      label: "担当",
-      stampType: "person_in_charge",
-      userId: personInChargeId,
-      at: personInChargeConfirmedAt,
-      canStamp: ["staff", "manager", "admin", "super_admin", "member"].includes(userRole),
-      requiredRole: "スタッフ以上",
+      label: "承認",
+      stampType: "approver",
+      userId: approverId,
+      at: approvedAt,
+      canStamp: ["admin", "super_admin"].includes(userRole),
+      requiredRole: "管理者",
     },
     {
       label: "確認",
@@ -72,12 +73,12 @@ export function ApprovalStamps({
       requiredRole: "上長・管理者",
     },
     {
-      label: "承認",
-      stampType: "approver",
-      userId: approverId,
-      at: approvedAt,
-      canStamp: ["admin", "super_admin"].includes(userRole),
-      requiredRole: "管理者",
+      label: "担当",
+      stampType: "person_in_charge",
+      userId: personInChargeId,
+      at: personInChargeConfirmedAt,
+      canStamp: ["staff", "manager", "admin", "super_admin", "member"].includes(userRole),
+      requiredRole: "スタッフ以上",
     },
   ];
 
@@ -125,7 +126,7 @@ export function ApprovalStamps({
                 >
                   {isStamped && stampedUser ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: "#C00000", lineHeight: 1 }}>
-                      {stampedUser.full_name.slice(-1)}
+                      {stampedUser.full_name.split(/[\s　]/)[0].slice(0, 3)}
                     </span>
                   ) : canStamp ? (
                     <span style={{ fontSize: 9, color: "var(--c-text-muted)" }}>押印</span>

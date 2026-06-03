@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { Download, ArrowDownToLine, X, Plus, Trash2 } from "lucide-react";
+import { Download, ArrowDownToLine, X, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -218,6 +218,36 @@ export default function QuoteDetailPage() {
     } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
     finally { setSaving(false); }
   };
+
+  const handleReorderSections = async (sectionIds: string[]) => {
+    setSaving(true);
+    try {
+      const updated = await apiFetch<QuoteSection[]>(
+        `/api/v1/projects/${projectId}/quotes/${quoteId}/sections/reorder`,
+        { method: "POST", body: JSON.stringify({ section_ids: sectionIds }) }
+      );
+      setQuote(prev => prev ? { ...prev, sections: updated } : prev);
+    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+    finally { setSaving(false); }
+  };
+
+  const moveSectionUp = (idx: number) => {
+    if (!quote || idx === 0) return;
+    const ids = quote.sections.map(s => s.id);
+    [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+    handleReorderSections(ids);
+  };
+
+  const moveSectionDown = (idx: number) => {
+    if (!quote || idx === quote.sections.length - 1) return;
+    const ids = quote.sections.map(s => s.id);
+    [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+    handleReorderSections(ids);
+  };
+
+  // D&D state
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   // ── テンプレ適用 ──────────────────────────────────────────────────────────
   const handleApplyTemplate = async () => {
@@ -540,32 +570,75 @@ export default function QuoteDetailPage() {
             </div>
           )}
 
-          {quote.sections.map(section => {
+          {quote.sections.map((section, idx) => {
             const secItemIds = sectionItems(section.id).map(i => i.id);
             const allItemsSelected = secItemIds.length > 0 && secItemIds.every(id => selectedItemIds.has(id));
+            const isDragging = dragIdx === idx;
+            const isDragOver = dragOverIdx === idx;
             return (
-              <SectionBlock
+              <div
                 key={section.id}
-                section={section}
-                items={sectionItems(section.id)}
-                onDeleteSection={() => handleDeleteSection(section.id)}
-                onUpdateSection={(l, n) => handleUpdateSection(section.id, l, n)}
-                onUpdateItem={handleUpdateItem}
-                onDeleteItem={handleDeleteItem}
-                onAddItem={handleAddItem}
-                saving={saving}
-                sectionSelected={allItemsSelected}
-                selectedItemIds={selectedItemIds}
-                onToggleSection={() => {
-                  const adding = !allItemsSelected;
-                  setSelectedItemIds(prev => {
-                    const n = new Set(prev);
-                    secItemIds.forEach(id => adding ? n.add(id) : n.delete(id));
-                    return n;
-                  });
+                draggable
+                onDragStart={() => { setDragIdx(idx); }}
+                onDragOver={e => { e.preventDefault(); setDragOverIdx(idx); }}
+                onDragEnd={() => {
+                  if (dragIdx !== null && dragOverIdx !== null && dragIdx !== dragOverIdx) {
+                    const ids = quote.sections.map(s => s.id);
+                    const [moved] = ids.splice(dragIdx, 1);
+                    ids.splice(dragOverIdx, 0, moved);
+                    handleReorderSections(ids);
+                  }
+                  setDragIdx(null); setDragOverIdx(null);
                 }}
-                onToggleItem={id => setSelectedItemIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
-              />
+                style={{
+                  opacity: isDragging ? 0.4 : 1,
+                  outline: isDragOver && !isDragging ? "2px solid var(--c-primary)" : "none",
+                  outlineOffset: 2,
+                  borderRadius: "var(--r-md)",
+                  marginBottom: 2,
+                }}
+              >
+                {/* 上下矢印 */}
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: 2, marginBottom: 2 }}>
+                  <button
+                    title="上へ移動"
+                    disabled={idx === 0 || saving}
+                    onClick={() => moveSectionUp(idx)}
+                    style={{ background: "none", border: "none", cursor: idx === 0 ? "not-allowed" : "pointer", color: idx === 0 ? "var(--c-text-subtle)" : "var(--c-text-muted)", padding: "1px 4px", borderRadius: "var(--r-sm)" }}
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    title="下へ移動"
+                    disabled={idx === quote.sections.length - 1 || saving}
+                    onClick={() => moveSectionDown(idx)}
+                    style={{ background: "none", border: "none", cursor: idx === quote.sections.length - 1 ? "not-allowed" : "pointer", color: idx === quote.sections.length - 1 ? "var(--c-text-subtle)" : "var(--c-text-muted)", padding: "1px 4px", borderRadius: "var(--r-sm)" }}
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <SectionBlock
+                  section={section}
+                  items={sectionItems(section.id)}
+                  onDeleteSection={() => handleDeleteSection(section.id)}
+                  onUpdateSection={(l, n) => handleUpdateSection(section.id, l, n)}
+                  onUpdateItem={handleUpdateItem}
+                  onDeleteItem={handleDeleteItem}
+                  onAddItem={handleAddItem}
+                  saving={saving}
+                  sectionSelected={allItemsSelected}
+                  selectedItemIds={selectedItemIds}
+                  onToggleSection={() => {
+                    const adding = !allItemsSelected;
+                    setSelectedItemIds(prev => {
+                      const n = new Set(prev);
+                      secItemIds.forEach(id => adding ? n.add(id) : n.delete(id));
+                      return n;
+                    });
+                  }}
+                  onToggleItem={id => setSelectedItemIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; })}
+                />
+              </div>
             );
           })}
 

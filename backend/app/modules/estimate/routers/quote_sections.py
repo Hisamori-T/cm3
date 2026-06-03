@@ -143,6 +143,43 @@ async def delete_section(
 
 
 # ---------------------------------------------------------------------------
+# 大項目並び替え
+# ---------------------------------------------------------------------------
+
+class _ReorderBody(BaseModel):
+    """大項目並び替えリクエスト。section_ids は新しい表示順に並んだ ID 配列。"""
+    section_ids: list[uuid.UUID]
+
+
+@router.post("/projects/{project_id}/quotes/{quote_id}/sections/reorder", response_model=list[QuoteSectionRead])
+async def reorder_sections(
+    project_id: uuid.UUID,
+    quote_id: uuid.UUID,
+    body: _ReorderBody,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[QuoteSectionRead]:
+    """大項目の表示順を一括更新する（section_ids の順を row_no に反映）。"""
+    await _get_project_or_404(project_id, db)
+    await _get_quote_or_404(quote_id, project_id, db)
+
+    sections = (await db.execute(
+        select(QuoteSection).where(QuoteSection.quote_id == quote_id)
+    )).scalars().all()
+    sec_map = {s.id: s for s in sections}
+
+    for idx, sec_id in enumerate(body.section_ids, start=1):
+        if sec_id in sec_map:
+            sec_map[sec_id].row_no = idx
+
+    await db.commit()
+    updated = (await db.execute(
+        select(QuoteSection).where(QuoteSection.quote_id == quote_id).order_by(QuoteSection.row_no)
+    )).scalars().all()
+    return [_build_section_read(s) for s in updated]
+
+
+# ---------------------------------------------------------------------------
 # テンプレート適用
 # ---------------------------------------------------------------------------
 
