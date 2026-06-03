@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Download, Stamp } from "lucide-react";
+import { Download, Stamp, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,8 @@ export default function AcknowledgmentPage() {
   const [terms, setTerms] = useState("");
 
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { loadAcks(); }, [projectId]);
 
@@ -110,6 +112,22 @@ export default function AcknowledgmentPage() {
       await loadAcks(currentId);
     } catch (e) { setMsg(`エラー: ${(e as Error).message}`); }
     finally { setTimeout(() => setMsg(null), 3000); }
+  }
+
+  async function handleDeleteSelected() {
+    if (checkedIds.size === 0) return;
+    if (!confirm(`選択した ${checkedIds.size} 件の注文請書を削除しますか？`)) return;
+    setDeleting(true); setMsg(null);
+    try {
+      await Promise.all([...checkedIds].map(id =>
+        apiFetch(`/api/v1/acknowledgments/${id}`, { method: "DELETE" })
+      ));
+      setCheckedIds(new Set());
+      if (selected && checkedIds.has(selected.id)) { setSelected(null); }
+      await loadAcks(selected && !checkedIds.has(selected.id) ? selected.id : undefined);
+      setMsg("削除しました");
+    } catch (e) { setMsg(`削除エラー: ${(e as Error).message}`); }
+    finally { setDeleting(false); setTimeout(() => setMsg(null), 3000); }
   }
 
   const isIssued = selected?.status === "issued";
@@ -213,37 +231,69 @@ export default function AcknowledgmentPage() {
             <div style={{
               padding: "10px 14px",
               borderBottom: "1px solid var(--c-border)",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text)" }}>一覧</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text)" }}>
+                {checkedIds.size > 0 ? `${checkedIds.size}件選択中` : "一覧"}
+              </span>
+              {checkedIds.size > 0 && (
+                <button
+                  onClick={handleDeleteSelected}
+                  disabled={deleting}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-danger)", padding: 2, display: "flex", alignItems: "center", gap: 3, fontSize: 11 }}
+                  title="選択した注文請書を削除"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {deleting ? "削除中..." : `削除(${checkedIds.size})`}
+                </button>
+              )}
             </div>
             {acks.map((a) => (
-              <button
+              <div
                 key={a.id}
-                onClick={() => selectAck(a)}
                 style={{
-                  display: "block", width: "100%", textAlign: "left",
-                  padding: "10px 14px",
+                  display: "flex", alignItems: "stretch",
                   borderBottom: "1px solid var(--c-border)",
+                  borderLeft: selected?.id === a.id ? "2px solid var(--c-primary)" : "2px solid transparent",
                   background: selected?.id === a.id
                     ? "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface))"
                     : "none",
-                  borderLeft: selected?.id === a.id ? "2px solid var(--c-primary)" : "2px solid transparent",
-                  cursor: "pointer",
                 }}
               >
-                <p style={{ fontSize: 12, fontWeight: 500, color: "var(--c-text)" }}>{a.acknowledgment_number}</p>
-                <p style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 2 }}>
-                  {a.issue_date || "日付未定"}
-                </p>
-                <span style={{
-                  display: "inline-flex", marginTop: 4,
-                  padding: "1px 6px", borderRadius: "var(--r-pill)",
-                  fontSize: 10, fontWeight: 600,
-                  ...(STATUS_STYLE[a.status] || STATUS_STYLE.draft),
-                }}>
-                  {ACKNOWLEDGMENT_STATUS_LABEL[a.status] ?? a.status}
-                </span>
-              </button>
+                <label style={{ display: "flex", alignItems: "center", padding: "0 6px 0 10px", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={checkedIds.has(a.id)}
+                    onChange={(e) => {
+                      const next = new Set(checkedIds);
+                      e.target.checked ? next.add(a.id) : next.delete(a.id);
+                      setCheckedIds(next);
+                    }}
+                    onClick={(ev) => ev.stopPropagation()}
+                  />
+                </label>
+                <button
+                  onClick={() => selectAck(a)}
+                  style={{
+                    flex: 1, textAlign: "left",
+                    padding: "10px 14px 10px 4px",
+                    background: "none", border: "none", cursor: "pointer",
+                  }}
+                >
+                  <p style={{ fontSize: 12, fontWeight: 500, color: "var(--c-text)" }}>{a.acknowledgment_number}</p>
+                  <p style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 2 }}>
+                    {a.issue_date || "日付未定"}
+                  </p>
+                  <span style={{
+                    display: "inline-flex", marginTop: 4,
+                    padding: "1px 6px", borderRadius: "var(--r-pill)",
+                    fontSize: 10, fontWeight: 600,
+                    ...(STATUS_STYLE[a.status] || STATUS_STYLE.draft),
+                  }}>
+                    {ACKNOWLEDGMENT_STATUS_LABEL[a.status] ?? a.status}
+                  </span>
+                </button>
+              </div>
             ))}
           </div>
 

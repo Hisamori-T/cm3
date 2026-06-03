@@ -106,3 +106,19 @@ async def update_acknowledgment(
     await db.commit()
     await db.refresh(ack)
     return _to_read(ack)
+
+
+@router.delete("/acknowledgments/{acknowledgment_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_acknowledgment(
+    acknowledgment_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """注文請書を削除する。"""
+    ack = (await db.execute(
+        select(Acknowledgment).where(Acknowledgment.id == acknowledgment_id)
+    )).scalar_one_or_none()
+    if ack is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="注文請書が見つかりません")
+    await db.delete(ack)
+    await db.commit()
