@@ -94,6 +94,16 @@ const NAV_WORK: NavItem[] = [
     ),
   },
   {
+    href: "/approvals",
+    label: "承認待ち",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+        <path d="M22 4L12 14.01l-3-3"/>
+      </svg>
+    ),
+  },
+  {
     href: "/purchases",
     label: "発注管理",
     icon: (
@@ -201,6 +211,9 @@ export function AppShell({ children, breadcrumbs, action }: AppShellProps) {
   const [logoText, setLogoText] = useState<string>(
     () => (typeof window !== "undefined" && localStorage.getItem("cmv3_logo_text")) || ""
   );
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifs, setNotifs] = useState<{ id: string; title: string; body: string | null; is_read: boolean; created_at: string; related_type: string | null; related_id: string | null }[]>([]);
 
   useEffect(() => {
     if (!isLoading && !user) router.replace("/login");
@@ -228,6 +241,30 @@ export function AppShell({ children, breadcrumbs, action }: AppShellProps) {
     window.addEventListener("companySettingsUpdated", fetchSettings);
     return () => window.removeEventListener("companySettingsUpdated", fetchSettings);
   }, [user]);
+
+  // 通知ポーリング（30秒ごと）
+  useEffect(() => {
+    if (!user) return;
+    const fetchNotifCount = () => {
+      apiFetch<{ count: number }>("/api/v1/notifications/unread-count")
+        .then(d => setUnreadCount(d.count))
+        .catch(() => {});
+    };
+    fetchNotifCount();
+    const timer = setInterval(fetchNotifCount, 30000);
+    return () => clearInterval(timer);
+  }, [user]);
+
+  const openNotifPanel = async () => {
+    setNotifOpen(v => !v);
+    if (!notifOpen) {
+      const rows = await apiFetch<typeof notifs>("/api/v1/notifications").catch(() => []);
+      setNotifs(rows);
+      if (rows.some(r => !r.is_read)) {
+        apiFetch("/api/v1/notifications/read-all", { method: "PATCH" }).then(() => setUnreadCount(0)).catch(() => {});
+      }
+    }
+  };
 
   const handleLogout = useCallback(async () => {
     await logout();
@@ -345,6 +382,59 @@ export function AppShell({ children, breadcrumbs, action }: AppShellProps) {
           </div>
           <div className="topbar-spacer" />
           {action}
+          {/* 通知ベルアイコン */}
+          <div style={{ position: "relative", marginLeft: 8 }}>
+            <button
+              onClick={openNotifPanel}
+              style={{ background: "none", border: "none", cursor: "pointer", position: "relative", padding: 4, color: "var(--c-text-muted)", display: "flex", alignItems: "center" }}
+              title="通知"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                <path d="M13.73 21a2 2 0 01-3.46 0"/>
+              </svg>
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute", top: 0, right: 0,
+                  width: 16, height: 16, borderRadius: "50%",
+                  background: "var(--c-danger)", color: "#fff",
+                  fontSize: 9, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>{unreadCount > 9 ? "9+" : unreadCount}</span>
+              )}
+            </button>
+            {notifOpen && (
+              <>
+                <div style={{ position: "fixed", inset: 0, zIndex: 99 }} onClick={() => setNotifOpen(false)} />
+                <div style={{
+                  position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 100,
+                  width: 340, background: "var(--c-surface)", border: "1px solid var(--c-border)",
+                  borderRadius: "var(--r-lg)", boxShadow: "0 8px 24px rgba(0,0,0,.15)",
+                  maxHeight: 420, overflow: "hidden", display: "flex", flexDirection: "column",
+                }}>
+                  <div style={{ padding: "10px 14px", borderBottom: "1px solid var(--c-border)", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 8 }}>
+                    通知
+                    <a href="/approvals" style={{ marginLeft: "auto", fontSize: 11, color: "var(--c-primary)", textDecoration: "none" }}>承認待ち一覧 →</a>
+                  </div>
+                  <div style={{ overflowY: "auto", flex: 1 }}>
+                    {notifs.length === 0 ? (
+                      <div style={{ padding: "20px 16px", textAlign: "center", fontSize: 12, color: "var(--c-text-muted)" }}>通知はありません</div>
+                    ) : notifs.map(n => (
+                      <div key={n.id} style={{
+                        padding: "10px 14px", borderBottom: "1px solid var(--c-border)",
+                        background: n.is_read ? "transparent" : "color-mix(in oklab,var(--c-primary) 5%,var(--c-surface))",
+                        fontSize: 12,
+                      }}>
+                        <div style={{ fontWeight: 600, marginBottom: 2 }}>{n.title}</div>
+                        {n.body && <div style={{ color: "var(--c-text-muted)", fontSize: 11, lineHeight: 1.4 }}>{n.body}</div>}
+                        <div style={{ color: "var(--c-text-subtle)", fontSize: 10, marginTop: 4 }}>{new Date(n.created_at).toLocaleString("ja-JP")}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         </header>
 
         {projectSubNav && (

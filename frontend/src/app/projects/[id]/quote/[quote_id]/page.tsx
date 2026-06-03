@@ -62,6 +62,17 @@ interface QuoteDetail {
   items: QuoteItem[];
 }
 
+interface ProjectHeader {
+  project_name: string | null;
+  client_name: string | null;
+  project_location: string | null;
+  period_contract_start: string | null;
+  period_contract_end: string | null;
+  payment_condition: string | null;
+  sales_person_name: string | null;
+  sales_person_id: string | null;
+}
+
 interface SectionTemplate {
   id: string;
   template_name: string;
@@ -96,11 +107,22 @@ export default function QuoteDetailPage() {
   const { user } = useAuth();
 
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
+  const [project, setProject] = useState<ProjectHeader | null>(null);
   const [qcds, setQcds] = useState<QCDSSummary | null | "none">(null);
   const [templates, setTemplates] = useState<SectionTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+
+  // 見積書ヘッダー編集
+  const [editingHeader, setEditingHeader] = useState(false);
+  const [hdrIssueDate, setHdrIssueDate] = useState("");
+  const [hdrValidityDays, setHdrValidityDays] = useState("30");
+  const [hdrLocation, setHdrLocation] = useState("");
+  const [hdrPeriodStart, setHdrPeriodStart] = useState("");
+  const [hdrPeriodEnd, setHdrPeriodEnd] = useState("");
+  const [hdrPayment, setHdrPayment] = useState("");
+  const [hdrRemarks, setHdrRemarks] = useState("");
 
   const [addSectionLetter, setAddSectionLetter] = useState("");
   const [addSectionName, setAddSectionName] = useState("");
@@ -117,6 +139,18 @@ export default function QuoteDetailPage() {
   // 業者見積から取り込みモーダル
   const [importOpen, setImportOpen] = useState(false);
 
+  // 見積条件書
+  const [conditionItems, setConditionItems] = useState<{ id: string; display_order: number; content: string }[]>([]);
+  const [conditionTemplates, setConditionTemplates] = useState<{ id: string; section_name: string | null; content: string }[]>([]);
+  const [addingCondition, setAddingCondition] = useState(false);
+  const [newConditionText, setNewConditionText] = useState("");
+  const [editingConditionId, setEditingConditionId] = useState<string | null>(null);
+  const [editingConditionText, setEditingConditionText] = useState("");
+  const [showTmplModal, setShowTmplModal] = useState(false);
+
+  // 承認依頼モーダル
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+
   // 値引き編集
   const [editingDiscount, setEditingDiscount] = useState(false);
   const [discountInput, setDiscountInput] = useState("");
@@ -130,12 +164,26 @@ export default function QuoteDetailPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [detail, tmplList] = await Promise.all([
+      const [detail, tmplList, proj, condItems, condTmpls] = await Promise.all([
         apiFetch<QuoteDetail>(`/api/v1/projects/${projectId}/quotes/${quoteId}`),
         apiFetch<SectionTemplate[]>("/api/v1/section-templates"),
+        apiFetch<ProjectHeader>(`/api/v1/projects/${projectId}`),
+        apiFetch<{ id: string; display_order: number; content: string }[]>(`/api/v1/projects/${projectId}/quotes/${quoteId}/condition-items`),
+        apiFetch<{ id: string; section_name: string | null; content: string }[]>("/api/v1/condition-templates").catch(() => []),
       ]);
       setQuote(detail);
       setTemplates(tmplList);
+      setProject(proj);
+      // ヘッダー state を最新値で初期化
+      setHdrIssueDate(detail.issue_date || "");
+      setHdrValidityDays(String(detail.validity_days ?? 30));
+      setHdrLocation(detail.project_location_snapshot || proj.project_location || "");
+      setHdrPeriodStart(detail.period_start || proj.period_contract_start || "");
+      setHdrPeriodEnd(detail.period_end || proj.period_contract_end || "");
+      setHdrPayment(detail.payment_condition || proj.payment_condition || "");
+      setHdrRemarks(detail.remarks || "");
+      setConditionItems(condItems);
+      setConditionTemplates(condTmpls);
       // QCDSから原価を取得（404なら未作成）
       apiFetch<QCDSSummary>(`/api/v1/projects/${projectId}/qcds`)
         .then(q => setQcds(q))
@@ -195,6 +243,86 @@ export default function QuoteDetailPage() {
       await load();
     } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
     finally { setSaving(false); }
+  };
+
+  const handleSaveHeader = async () => {
+    setSaving(true);
+    try {
+      await Promise.all([
+        // 見積書側フィールド更新
+        apiFetch(`/api/v1/projects/${projectId}/quotes/${quoteId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            issue_date: hdrIssueDate || null,
+            validity_days: parseInt(hdrValidityDays) || 30,
+            project_location_snapshot: hdrLocation || null,
+            period_start: hdrPeriodStart || null,
+            period_end: hdrPeriodEnd || null,
+            payment_condition: hdrPayment || null,
+            remarks: hdrRemarks || null,
+          }),
+        }),
+        // 案件側フィールドも同期
+        apiFetch(`/api/v1/projects/${projectId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            project_location: hdrLocation || null,
+            period_contract_start: hdrPeriodStart || null,
+            period_contract_end: hdrPeriodEnd || null,
+            payment_condition: hdrPayment || null,
+          }),
+        }),
+      ]);
+      setEditingHeader(false);
+      await load();
+      showMsg("ヘッダーを保存しました");
+    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+    finally { setSaving(false); }
+  };
+
+  // ── 見積条件書操作 ──────────────────────────────────────────────────────────
+  const handleAddConditionItem = async (content: string) => {
+    if (!content.trim()) return;
+    try {
+      const item = await apiFetch<{ id: string; display_order: number; content: string }>(
+        `/api/v1/projects/${projectId}/quotes/${quoteId}/condition-items`,
+        { method: "POST", body: JSON.stringify({ content }) }
+      );
+      setConditionItems(prev => [...prev, item]);
+      setNewConditionText("");
+      setAddingCondition(false);
+    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+  };
+
+  const handleUpdateConditionItem = async (id: string, content: string) => {
+    try {
+      const updated = await apiFetch<{ id: string; display_order: number; content: string }>(
+        `/api/v1/projects/${projectId}/quotes/${quoteId}/condition-items/${id}`,
+        { method: "PATCH", body: JSON.stringify({ content }) }
+      );
+      setConditionItems(prev => prev.map(i => i.id === id ? updated : i));
+      setEditingConditionId(null);
+    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+  };
+
+  const handleDeleteConditionItem = async (id: string) => {
+    try {
+      await apiFetch(`/api/v1/projects/${projectId}/quotes/${quoteId}/condition-items/${id}`, { method: "DELETE" });
+      setConditionItems(prev => prev.filter(i => i.id !== id));
+    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+  };
+
+  const handleMoveConditionItem = async (idx: number, dir: -1 | 1) => {
+    const newItems = [...conditionItems];
+    const target = idx + dir;
+    if (target < 0 || target >= newItems.length) return;
+    [newItems[idx], newItems[target]] = [newItems[target], newItems[idx]];
+    setConditionItems(newItems);
+    try {
+      await apiFetch(`/api/v1/projects/${projectId}/quotes/${quoteId}/condition-items/reorder`,
+        { method: "POST", body: JSON.stringify({ item_ids: newItems.map(i => i.id) }) }
+      );
+    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
   };
 
   const handleDeleteSection = async (sectionId: string) => {
@@ -554,6 +682,98 @@ export default function QuoteDetailPage() {
         </div>
       }
     >
+      {/* ── 見積書ヘッダー ── */}
+      <div className="card" style={{ padding: "14px 18px", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-text)" }}>見積書ヘッダー</div>
+            <div style={{ fontSize: 11, color: "var(--c-text-muted)" }}>PDF/Excel 出力時に反映されます</div>
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            {editingHeader ? (
+              <>
+                <Button variant="default" size="sm" onClick={() => { setEditingHeader(false); }} style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}>キャンセル</Button>
+                <Button variant="primary" size="sm" onClick={handleSaveHeader} disabled={saving}>保存</Button>
+              </>
+            ) : (
+              <Button variant="default" size="sm" onClick={() => setEditingHeader(true)} style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}>編集</Button>
+            )}
+          </div>
+        </div>
+        {editingHeader ? (
+          /* 編集モード */
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ fontSize: 11, color: "var(--c-text-muted)", display: "block", marginBottom: 3 }}>工事場所</label>
+              <Input value={hdrLocation} onChange={e => setHdrLocation(e.target.value)} placeholder="福井県坂井市..." />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "var(--c-text-muted)", display: "block", marginBottom: 3 }}>工期 開始</label>
+              <Input type="date" value={hdrPeriodStart} onChange={e => setHdrPeriodStart(e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "var(--c-text-muted)", display: "block", marginBottom: 3 }}>工期 終了</label>
+              <Input type="date" value={hdrPeriodEnd} onChange={e => setHdrPeriodEnd(e.target.value)} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ fontSize: 11, color: "var(--c-text-muted)", display: "block", marginBottom: 3 }}>支払条件</label>
+              <Input value={hdrPayment} onChange={e => setHdrPayment(e.target.value)} placeholder="月末締・翌月末払" />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "var(--c-text-muted)", display: "block", marginBottom: 3 }}>見積日</label>
+              <Input type="date" value={hdrIssueDate} onChange={e => setHdrIssueDate(e.target.value)} />
+            </div>
+            <div>
+              <label style={{ fontSize: 11, color: "var(--c-text-muted)", display: "block", marginBottom: 3 }}>有効期限（日）</label>
+              <Input type="number" value={hdrValidityDays} onChange={e => setHdrValidityDays(e.target.value)} min={1} />
+            </div>
+            <div style={{ gridColumn: "1 / -1" }}>
+              <label style={{ fontSize: 11, color: "var(--c-text-muted)", display: "block", marginBottom: 3 }}>備考</label>
+              <textarea value={hdrRemarks} onChange={e => setHdrRemarks(e.target.value)} rows={2}
+                style={{ width: "100%", boxSizing: "border-box", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", background: "var(--c-surface)", color: "var(--c-text)", padding: "6px 10px", fontSize: 13, resize: "vertical" }}
+              />
+            </div>
+          </div>
+        ) : (
+          /* 表示モード */
+          <div style={{ display: "grid", gridTemplateColumns: "88px 1fr 88px 1fr", gap: "6px 12px", fontSize: 13, alignItems: "baseline" }}>
+            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>宛先</span>
+            <span style={{ gridColumn: "2 / -1", color: "var(--c-primary)", fontWeight: 600 }}>
+              {project?.client_name ? `${project.client_name} 御中` : "—"}
+            </span>
+            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>件名</span>
+            <span style={{ gridColumn: "2 / -1" }}>{project?.project_name || quote.project_name_snapshot || "—"}</span>
+            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>工事場所</span>
+            <span style={{ color: "var(--c-primary)" }}>{hdrLocation || "—"}</span>
+            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>工期</span>
+            <span>{hdrPeriodStart && hdrPeriodEnd ? `${hdrPeriodStart}〜${hdrPeriodEnd}` : hdrPeriodStart || hdrPeriodEnd || "—"}</span>
+            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>支払条件</span>
+            <span style={{ color: "var(--c-primary)" }}>{hdrPayment || "—"}</span>
+            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>有効期限</span>
+            <span>発行日より {hdrValidityDays} 日</span>
+            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>見積日</span>
+            <span style={{ color: "var(--c-primary)" }}>{hdrIssueDate || "—"}</span>
+            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>担当者</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              {project?.sales_person_name ? (
+                <>
+                  <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--c-primary)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                    {(project.sales_person_name.split(/[\s　]/)[0] || "").slice(0, 1)}
+                  </span>
+                  {project.sales_person_name}
+                </>
+              ) : "—"}
+            </span>
+            {hdrRemarks && (
+              <>
+                <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>備考</span>
+                <span style={{ gridColumn: "2 / -1", whiteSpace: "pre-wrap" }}>{hdrRemarks}</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* ── 2カラム本体 ── */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 264px", gap: 12, alignItems: "start" }}>
 
@@ -768,8 +988,119 @@ export default function QuoteDetailPage() {
             handleStamp={handleStamp}
             showMsg={showMsg}
           />
+          <button
+            onClick={() => setApprovalModalOpen(true)}
+            style={{
+              width: "100%", marginTop: 8, padding: "8px 0",
+              background: "var(--c-primary)", color: "#fff", border: "none",
+              borderRadius: "var(--r-md)", fontSize: 12, fontWeight: 600, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+            承認依頼を送信
+          </button>
         </div>
       </div>
+
+      {/* ── 見積条件書 ── */}
+      <div className="card" style={{ padding: "14px 18px", marginTop: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>見積条件書</div>
+          <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>ナンバリングは自動</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            {conditionTemplates.length > 0 && (
+              <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
+                onClick={() => setShowTmplModal(true)}>テンプレから挿入</Button>
+            )}
+            <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
+              onClick={() => { setAddingCondition(true); setNewConditionText(""); }}>＋ 追加</Button>
+          </div>
+        </div>
+
+        {conditionItems.length === 0 && !addingCondition && (
+          <p style={{ fontSize: 12, color: "var(--c-text-muted)", textAlign: "center", padding: "12px 0" }}>
+            条件書の項目がありません。「＋ 追加」またはテンプレートから挿入してください。
+          </p>
+        )}
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {conditionItems.map((item, idx) => (
+            <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: editingConditionId === item.id ? "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" : "var(--c-surface-2)" }}>
+              <span style={{ minWidth: 24, fontSize: 12, fontWeight: 700, color: "var(--c-text-muted)", paddingTop: 4 }}>{idx + 1}.</span>
+              {editingConditionId === item.id ? (
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <textarea value={editingConditionText} onChange={e => setEditingConditionText(e.target.value)} rows={3}
+                    style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", border: "1px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical" }}
+                    autoFocus
+                  />
+                  <div style={{ display: "flex", gap: 4 }}>
+                    <button onClick={() => handleUpdateConditionItem(item.id, editingConditionText)}
+                      style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer" }}>保存</button>
+                    <button onClick={() => setEditingConditionId(null)}
+                      style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>キャンセル</button>
+                  </div>
+                </div>
+              ) : (
+                <span style={{ flex: 1, fontSize: 12, lineHeight: 1.6, whiteSpace: "pre-wrap", paddingTop: 3 }}>{item.content}</span>
+              )}
+              {editingConditionId !== item.id && (
+                <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                  <button onClick={() => handleMoveConditionItem(idx, -1)} disabled={idx === 0}
+                    style={{ background: "none", border: "none", cursor: idx === 0 ? "not-allowed" : "pointer", color: "var(--c-text-muted)", padding: "2px 4px" }}>↑</button>
+                  <button onClick={() => handleMoveConditionItem(idx, 1)} disabled={idx === conditionItems.length - 1}
+                    style={{ background: "none", border: "none", cursor: idx === conditionItems.length - 1 ? "not-allowed" : "pointer", color: "var(--c-text-muted)", padding: "2px 4px" }}>↓</button>
+                  <button onClick={() => { setEditingConditionId(item.id); setEditingConditionText(item.content); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-text-muted)", fontSize: 11, padding: "2px 6px" }}>編集</button>
+                  <button onClick={() => { if (confirm("この項目を削除しますか？")) handleDeleteConditionItem(item.id); }}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-danger)", fontSize: 11, padding: "2px 6px" }}>削除</button>
+                </div>
+              )}
+            </div>
+          ))}
+
+          {addingCondition && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" }}>
+              <span style={{ minWidth: 24, fontSize: 12, fontWeight: 700, color: "var(--c-text-muted)", paddingTop: 4 }}>{conditionItems.length + 1}.</span>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                <textarea value={newConditionText} onChange={e => setNewConditionText(e.target.value)} rows={3} autoFocus
+                  placeholder="条件書の内容を入力..."
+                  style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", border: "1px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical" }}
+                />
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button onClick={() => handleAddConditionItem(newConditionText)}
+                    style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer" }}>追加</button>
+                  <button onClick={() => setAddingCondition(false)}
+                    style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>キャンセル</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* テンプレート選択モーダル */}
+      {showTmplModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}
+          onClick={() => setShowTmplModal(false)}>
+          <div style={{ background: "var(--c-surface)", borderRadius: "var(--r-lg)", boxShadow: "0 20px 60px rgba(0,0,0,.3)", width: 520, maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--c-border)", fontWeight: 700, fontSize: 14 }}>テンプレートから挿入</div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
+              {conditionTemplates.map(t => (
+                <button key={t.id} onClick={() => { handleAddConditionItem(t.content); setShowTmplModal(false); }}
+                  style={{ textAlign: "left", padding: "8px 12px", borderRadius: "var(--r-md)", border: "1px solid var(--c-border)", background: "var(--c-surface-2)", cursor: "pointer", fontSize: 12, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                  {t.section_name && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--c-text-muted)", display: "block", marginBottom: 2 }}>{t.section_name}</span>}
+                  {t.content}
+                </button>
+              ))}
+            </div>
+            <div style={{ padding: "10px 16px", borderTop: "1px solid var(--c-border)", textAlign: "right" }}>
+              <button onClick={() => setShowTmplModal(false)} style={{ fontSize: 12, padding: "4px 14px", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>閉じる</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 業者見積から取り込みモーダル */}
       {importOpen && (() => {
@@ -784,7 +1115,125 @@ export default function QuoteDetailPage() {
           />
         );
       })()}
+
+      {/* 承認依頼モーダル */}
+      {approvalModalOpen && (
+        <ApprovalModal
+          quoteId={quoteId}
+          projectId={projectId}
+          quoteNumber={quote.quote_number}
+          stampUsers={stampUsers}
+          currentUserId={user?.id ?? ""}
+          onClose={() => setApprovalModalOpen(false)}
+          onSent={() => { setApprovalModalOpen(false); showMsg("承認依頼を送信しました"); }}
+        />
+      )}
     </AppShell>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 承認依頼モーダル
+// ---------------------------------------------------------------------------
+
+function ApprovalModal({
+  quoteId, projectId, quoteNumber, stampUsers, currentUserId, onClose, onSent,
+}: {
+  quoteId: string; projectId: string; quoteNumber: string | null;
+  stampUsers: UserOption[]; currentUserId: string;
+  onClose: () => void; onSent: () => void;
+}) {
+  const [step1, setStep1] = useState(currentUserId);
+  const [step2, setStep2] = useState("");
+  const [step3, setStep3] = useState("");
+  const [skip2, setSkip2] = useState(false);
+  const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    if (!step1 || !step3) { alert("担当と承認者を選択してください"); return; }
+    setSending(true);
+    try {
+      const steps = [
+        { approver_id: step1, role_label: "担当", required: true },
+        ...(!skip2 && step2 ? [{ approver_id: step2, role_label: "確認", required: false }] : []),
+        { approver_id: step3, role_label: "承認", required: true },
+      ];
+      await apiFetch(`/api/v1/projects/${projectId}/quotes/${quoteId}/approval-requests`, {
+        method: "POST",
+        body: JSON.stringify({ steps, request_comment: comment || null }),
+      });
+      onSent();
+    } catch (e) { alert(`エラー: ${(e as Error).message}`); }
+    finally { setSending(false); }
+  };
+
+  const sel = (label: string, val: string, setVal: (v: string) => void) => (
+    <select value={val} onChange={e => setVal(e.target.value)}
+      style={{ flex: 1, fontSize: 12, padding: "5px 8px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", background: "var(--c-surface)" }}>
+      <option value="">選択してください</option>
+      {stampUsers.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+    </select>
+  );
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={onClose}>
+      <div style={{ background: "var(--c-surface)", borderRadius: "var(--r-lg)", boxShadow: "0 20px 60px rgba(0,0,0,.3)", width: 560, overflow: "hidden" }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ padding: "16px 20px 14px", borderBottom: "1px solid var(--c-border)", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 36, height: 36, background: "color-mix(in oklab,var(--c-primary) 12%,var(--c-surface))", borderRadius: "var(--r-md)", display: "grid", placeItems: "center" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--c-primary)" strokeWidth="1.6"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+          </div>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>承認依頼を作成</div>
+            <div style={{ fontSize: 11, color: "var(--c-text-muted)" }}>{quoteNumber || "見積書"} · 順次承認</div>
+          </div>
+          <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--c-text-muted)" }}>
+            <X size={16} />
+          </button>
+        </div>
+
+        <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {/* ステップ一覧 */}
+          {[
+            { no: 1, label: "担当", val: step1, set: setStep1, required: true },
+            { no: 2, label: "確認", val: step2, set: setStep2, required: false, skip: skip2, setSkip: setSkip2 },
+            { no: 3, label: "承認", val: step3, set: setStep3, required: true },
+          ].map(s => (
+            <div key={s.no} style={{ display: "grid", gridTemplateColumns: "28px 52px 1fr auto", gap: 10, alignItems: "center", padding: "10px 12px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", opacity: s.skip ? 0.5 : 1 }}>
+              <div style={{ width: 22, height: 22, background: "var(--c-primary)", color: "#fff", borderRadius: "var(--r-sm)", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700 }}>{s.no}</div>
+              <div style={{ fontSize: 11, fontWeight: 700, background: "var(--c-surface-2)", borderRadius: "var(--r-pill)", padding: "3px 8px", textAlign: "center" }}>{s.label}</div>
+              {s.skip ? <span style={{ fontSize: 12, color: "var(--c-text-muted)" }}>スキップ</span> : sel(s.label, s.val, s.set)}
+              {!s.required && (
+                <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--c-text-muted)", cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <input type="checkbox" checked={s.skip} onChange={e => s.setSkip?.(e.target.checked)} />スキップ
+                </label>
+              )}
+              {s.required && <div />}
+            </div>
+          ))}
+
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, display: "block", marginBottom: 4, color: "var(--c-text-muted)" }}>依頼コメント（任意）</label>
+            <textarea value={comment} onChange={e => setComment(e.target.value)} rows={3} placeholder="例：見積金額を確定したいです。ご確認ください。"
+              style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "6px 10px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", background: "var(--c-surface)", resize: "vertical" }} />
+          </div>
+
+          <div style={{ padding: "8px 12px", background: "color-mix(in oklab,var(--c-info) 10%,var(--c-surface))", borderRadius: "var(--r-md)", fontSize: 12, borderLeft: "3px solid var(--c-primary)" }}>
+            📱 アプリ内通知が各承認者に送信されます
+          </div>
+        </div>
+
+        <div style={{ padding: "10px 20px", borderTop: "1px solid var(--c-border)", background: "var(--c-surface-2)", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "6px 16px", fontSize: 12, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer" }}>キャンセル</button>
+          <button onClick={handleSend} disabled={sending}
+            style={{ padding: "6px 20px", fontSize: 12, fontWeight: 700, background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-md)", cursor: "pointer" }}>
+            {sending ? "送信中..." : "承認依頼を送信"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

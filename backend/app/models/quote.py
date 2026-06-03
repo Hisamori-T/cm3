@@ -63,6 +63,9 @@ class Quote(Base, TimestampMixin):
     items: Mapped[list["QuoteItem"]] = relationship(
         "QuoteItem", back_populates="quote", order_by="QuoteItem.row_no"
     )
+    condition_items: Mapped[list["QuoteConditionItem"]] = relationship(  # type: ignore[name-defined]
+        "QuoteConditionItem", back_populates="quote", order_by="QuoteConditionItem.display_order", cascade="all, delete-orphan"
+    )
 
 
 class QuoteVersion(Base, TimestampMixin):

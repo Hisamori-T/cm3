@@ -31,6 +31,8 @@ from app.modules.estimate.routers.quote_core import router as quote_core_router
 from app.modules.estimate.routers.quote_versions import router as quote_versions_router
 from app.modules.estimate.routers.quote_sections import router as quote_sections_router
 from app.modules.estimate.routers.acknowledgments import router as acknowledgments_router
+from app.api.v1.conditions import router as conditions_router
+from app.api.v1.approvals import router as approvals_router
 
 # ── report ────────────────────────────────────────────────────────────────────
 from app.modules.report.routers.orders import router as orders_router
@@ -138,6 +140,8 @@ app.include_router(quote_core_router, prefix=PREFIX)
 app.include_router(quote_versions_router, prefix=PREFIX)
 app.include_router(quote_sections_router, prefix=PREFIX)
 app.include_router(acknowledgments_router, prefix=PREFIX)
+app.include_router(conditions_router, prefix=PREFIX)
+app.include_router(approvals_router, prefix=PREFIX)
 
 # report
 app.include_router(orders_router, prefix=PREFIX)
