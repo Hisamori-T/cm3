@@ -151,6 +151,19 @@ export default function QuoteDetailPage() {
   // 承認依頼モーダル
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
 
+  // 承認ワークフロー
+  const [approvalRequests, setApprovalRequests] = useState<{
+    id: string;
+    status: string;
+    requester_id: string;
+    request_comment: string | null;
+    created_at: string;
+    steps: {
+      id: string; step_no: number; approver_id: string; approver_name: string;
+      role_label: string; required: boolean; status: string; comment: string | null; decided_at: string | null;
+    }[];
+  }[]>([]);
+
   // 値引き編集
   const [editingDiscount, setEditingDiscount] = useState(false);
   const [discountInput, setDiscountInput] = useState("");
@@ -184,6 +197,11 @@ export default function QuoteDetailPage() {
       setHdrRemarks(detail.remarks || "");
       setConditionItems(condItems);
       setConditionTemplates(condTmpls);
+
+      // 承認依頼を非同期で取得（失敗しても続行）
+      apiFetch<typeof approvalRequests>(`/api/v1/projects/${projectId}/quotes/${quoteId}/approval-requests`)
+        .then(setApprovalRequests)
+        .catch(() => {});
       // QCDSから原価を取得（404なら未作成）
       apiFetch<QCDSSummary>(`/api/v1/projects/${projectId}/qcds`)
         .then(q => setQcds(q))
@@ -682,6 +700,161 @@ export default function QuoteDetailPage() {
         </div>
       }
     >
+      {/* ── 承認ステータスバー ── */}
+      {(() => {
+        const pending = approvalRequests.find(r => r.status === "pending");
+        if (!pending) return null;
+        const doneCount = pending.steps.filter(s => s.status === "approved").length;
+        const total = pending.steps.length;
+        const pendingStep = pending.steps.find(s => s.status === "pending");
+        return (
+          <div style={{
+            background: "color-mix(in oklab, var(--c-warn) 8%, var(--c-surface))",
+            border: "1px solid color-mix(in oklab, var(--c-warn) 35%, var(--c-border))",
+            borderRadius: "var(--r-lg)", padding: "14px 18px",
+            display: "grid", gridTemplateColumns: "auto 1fr auto",
+            gap: 18, alignItems: "center", marginBottom: 12,
+          }}>
+            {/* パルスアイコン */}
+            <div style={{
+              width: 32, height: 32, borderRadius: "50%",
+              background: "var(--c-warn)", color: "#fff",
+              display: "grid", placeItems: "center", flexShrink: 0,
+              boxShadow: "0 0 0 4px color-mix(in oklab, var(--c-warn) 25%, transparent)",
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
+              </svg>
+            </div>
+            {/* 説明 */}
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-text)" }}>
+                承認待ち（{doneCount} / {total} 完了）
+              </div>
+              <div style={{ fontSize: 12, color: "var(--c-text-muted)", marginTop: 2 }}>
+                {pendingStep ? `残り承認者: ${pendingStep.approver_name}（${pendingStep.role_label}）` : "全ステップ完了待ち"}
+              </div>
+            </div>
+            {/* ステップ + 取り下げボタン */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {pending.steps.map((s, i) => {
+                  const isDone = s.status === "approved";
+                  const isCur = s.status === "pending";
+                  return (
+                    <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {i > 0 && (
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--c-text-subtle)" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
+                      )}
+                      <div style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "5px 10px", background: "var(--c-surface)",
+                        border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", fontSize: 12,
+                      }}>
+                        <span style={{
+                          width: 18, height: 18, borderRadius: "50%",
+                          background: isDone ? "var(--c-success)" : isCur ? "var(--c-warn)" : "var(--c-surface-2)",
+                          border: `1.5px solid ${isDone ? "var(--c-success)" : isCur ? "var(--c-warn)" : "var(--c-border-strong)"}`,
+                          display: "grid", placeItems: "center", flexShrink: 0,
+                          color: isDone || isCur ? "#fff" : "var(--c-text-subtle)", fontSize: 10, fontWeight: 700,
+                        }}>
+                          {isDone ? "✓" : isCur ? "●" : s.step_no}
+                        </span>
+                        <div>
+                          <div style={{ fontSize: 10, color: "var(--c-text-muted)", fontWeight: 600 }}>{s.role_label}</div>
+                          <div style={{ fontWeight: 600 }}>{s.approver_name.split(/[\s　]/)[0]}</div>
+                        </div>
+                        {s.decided_at && (
+                          <span style={{ fontSize: 10, color: "var(--c-text-subtle)", fontFamily: "var(--ff-mono)" }}>
+                            {new Date(s.decided_at).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ width: 1, height: 32, background: "var(--c-border)", margin: "0 4px" }} />
+              <button
+                onClick={async () => {
+                  if (!confirm("承認依頼を取り下げますか？")) return;
+                  try {
+                    await apiFetch(`/api/v1/approval-requests/${pending.id}/withdraw`, { method: "POST" });
+                    setApprovalRequests(prev => prev.map(r => r.id === pending.id ? { ...r, status: "withdrawn" } : r));
+                  } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+                }}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--c-text-muted)", fontSize: 12,
+                  display: "flex", alignItems: "center", gap: 4, padding: "4px 8px",
+                  borderRadius: "var(--r-sm)",
+                }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                依頼を取り下げる
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── ロック通知（承認待ち中） ── */}
+      {approvalRequests.some(r => r.status === "pending") && (
+        <div style={{
+          display: "flex", gap: 10, alignItems: "center",
+          padding: "9px 14px",
+          background: "var(--c-info-bg)",
+          borderRadius: "var(--r-md)", fontSize: 12,
+          borderLeft: "3px solid var(--c-info)", marginBottom: 12,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-info)" strokeWidth="1.8" style={{ flexShrink: 0 }}>
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+          <span>
+            承認待ち中のため編集はロックされています。編集する場合は <strong>「依頼を取り下げる」</strong> を押してください。
+            <strong style={{ color: "var(--c-warn)" }}>編集すると全承認が自動リセット</strong>され、再依頼が必要になります。
+          </span>
+        </div>
+      )}
+
+      {/* ── Quote Hero ── */}
+      {quote && (
+        <div style={{
+          background: "var(--c-surface)", border: "1px solid var(--c-border)",
+          borderRadius: "var(--r-lg)", padding: "14px 18px",
+          display: "flex", alignItems: "center", gap: 14, marginBottom: 12,
+        }}>
+          <span style={{
+            fontFamily: "var(--ff-mono)", fontSize: 13, color: "var(--c-text-muted)",
+            background: "var(--c-surface-2)", padding: "3px 9px",
+            borderRadius: "var(--r-md)", fontWeight: 600, flexShrink: 0,
+          }}>
+            {quote.quote_number || "—"}
+          </span>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>御見積書</h2>
+            <p style={{ margin: "2px 0 0", fontSize: 12, color: "var(--c-text-muted)" }}>
+              {project?.project_name || quote.project_name_snapshot || ""}
+              {project?.client_name ? ` · ${project.client_name} 御中` : ""}
+            </p>
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              onClick={() => setApprovalModalOpen(true)}
+              style={{
+                padding: "5px 12px", fontSize: 12, fontWeight: 600,
+                border: "1px solid var(--c-border)", borderRadius: "var(--r-md)",
+                cursor: "pointer", background: "var(--c-surface)",
+                display: "flex", alignItems: "center", gap: 4,
+              }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
+              承認依頼
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── 見積書ヘッダー ── */}
       <div className="card" style={{ padding: "14px 18px", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -735,47 +908,77 @@ export default function QuoteDetailPage() {
             </div>
           </div>
         ) : (
-          /* 表示モード */
-          <div style={{ display: "grid", gridTemplateColumns: "88px 1fr 88px 1fr", gap: "6px 12px", fontSize: 13, alignItems: "baseline" }}>
-            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>宛先</span>
-            <span style={{ gridColumn: "2 / -1", color: "var(--c-primary)", fontWeight: 600 }}>
-              {project?.client_name ? `${project.client_name} 御中` : "—"}
-            </span>
-            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>件名</span>
-            <span style={{ gridColumn: "2 / -1" }}>{project?.project_name || quote.project_name_snapshot || "—"}</span>
-            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>工事場所</span>
-            <span style={{ color: "var(--c-primary)" }}>{hdrLocation || "—"}</span>
-            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>工期</span>
-            <span>{hdrPeriodStart && hdrPeriodEnd ? `${hdrPeriodStart}〜${hdrPeriodEnd}` : hdrPeriodStart || hdrPeriodEnd || "—"}</span>
-            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>支払条件</span>
-            <span style={{ color: "var(--c-primary)" }}>{hdrPayment || "—"}</span>
-            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>有効期限</span>
-            <span>発行日より {hdrValidityDays} 日</span>
-            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>見積日</span>
-            <span style={{ color: "var(--c-primary)" }}>{hdrIssueDate || "—"}</span>
-            <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>担当者</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {project?.sales_person_name ? (
-                <>
-                  <span style={{ width: 22, height: 22, borderRadius: "50%", background: "var(--c-primary)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                    {(project.sales_person_name.split(/[\s　]/)[0] || "").slice(0, 1)}
-                  </span>
-                  {project.sales_person_name}
-                </>
-              ) : "—"}
-            </span>
-            {hdrRemarks && (
-              <>
-                <span style={{ color: "var(--c-text-muted)", fontSize: 12 }}>備考</span>
-                <span style={{ gridColumn: "2 / -1", whiteSpace: "pre-wrap" }}>{hdrRemarks}</span>
-              </>
-            )}
-          </div>
+          /* 表示モード — qf-grid（ボーダー付きテーブル）*/
+          (() => {
+            const K: React.CSSProperties = {
+              background: "var(--c-surface-2)", color: "var(--c-text-muted)",
+              fontSize: 12, fontWeight: 500,
+              padding: "9px 12px", borderBottom: "1px solid var(--c-border)",
+              borderRight: "1px solid var(--c-border)",
+              display: "flex", alignItems: "center", minHeight: 36,
+            };
+            const V: React.CSSProperties = {
+              fontSize: 13, padding: "9px 12px",
+              borderBottom: "1px solid var(--c-border)",
+              borderRight: "1px solid var(--c-border)",
+              display: "flex", alignItems: "center", minHeight: 36,
+            };
+            const Vr: React.CSSProperties = { ...V, borderRight: "none" }; // 右端
+            const period = hdrPeriodStart && hdrPeriodEnd
+              ? `${hdrPeriodStart}〜${hdrPeriodEnd}`
+              : hdrPeriodStart || hdrPeriodEnd || "—";
+            return (
+              <div style={{
+                display: "grid", gridTemplateColumns: "100px 1fr 100px 1fr",
+                borderTop: "1px solid var(--c-border)",
+              }}>
+                {/* 宛先 */}
+                <div style={K}>宛先</div>
+                <div style={{ ...Vr, gridColumn: "2 / span 3", fontWeight: 600 }}>
+                  {project?.client_name ? `${project.client_name}　御中` : "—"}
+                </div>
+                {/* 件名 */}
+                <div style={K}>件名</div>
+                <div style={{ ...Vr, gridColumn: "2 / span 3" }}>
+                  {project?.project_name || quote.project_name_snapshot || "—"}
+                </div>
+                {/* 工事場所 | 工期 */}
+                <div style={K}>工事場所</div>
+                <div style={V}>{hdrLocation || "—"}</div>
+                <div style={K}>工期</div>
+                <div style={Vr}>{period}</div>
+                {/* 支払条件 | 有効期限 */}
+                <div style={K}>支払条件</div>
+                <div style={V}>{hdrPayment || "—"}</div>
+                <div style={K}>有効期限</div>
+                <div style={Vr}>発行日より {hdrValidityDays} 日</div>
+                {/* 見積日 | 担当者 */}
+                <div style={K}>見積日</div>
+                <div style={V}>{hdrIssueDate || "—"}</div>
+                <div style={K}>担当者</div>
+                <div style={{ ...Vr, gap: 6 }}>
+                  {project?.sales_person_name ? (
+                    <>
+                      <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--c-primary)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, flexShrink: 0 }}>
+                        {(project.sales_person_name.split(/[\s　]/)[0] || "").slice(0, 1)}
+                      </span>
+                      {project.sales_person_name}
+                    </>
+                  ) : "—"}
+                </div>
+                {/* 備考 */}
+                <div style={{ ...K, borderBottom: "none" }}>備考</div>
+                <div style={{ ...Vr, gridColumn: "2 / span 3", borderBottom: "none", whiteSpace: "pre-wrap", alignItems: "flex-start", paddingTop: 10, paddingBottom: 10, lineHeight: 1.6 }}>
+                  {hdrRemarks || "—"}
+                </div>
+              </div>
+            );
+          })()
         )}
       </div>
 
       {/* ── 2カラム本体 ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 264px", gap: 12, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "2.3fr 1fr", gap: 12, alignItems: "start" }}>
 
         {/* ── 左カラム: 大項目ブロック ── */}
         <div>
@@ -1000,6 +1203,82 @@ export default function QuoteDetailPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><path d="M22 4L12 14.01l-3-3"/></svg>
             承認依頼を送信
           </button>
+
+          {/* 承認コメント・履歴 */}
+          {(() => {
+            // 全承認依頼からコメントを収集（新しい順）
+            const comments: { name: string; role: string; body: string; at: string }[] = [];
+            for (const req of approvalRequests) {
+              // 依頼コメント
+              if (req.request_comment) {
+                const requester = stampUsers.find(u => u.id === req.requester_id);
+                comments.push({
+                  name: requester?.full_name || "依頼者",
+                  role: "承認依頼",
+                  body: req.request_comment,
+                  at: req.created_at,
+                });
+              }
+              // ステップコメント（承認/差戻し）
+              for (const step of req.steps) {
+                if (step.comment && step.decided_at) {
+                  comments.push({
+                    name: step.approver_name,
+                    role: `${step.role_label}・${step.status === "approved" ? "承認" : "差戻し"}`,
+                    body: step.comment,
+                    at: step.decided_at,
+                  });
+                }
+              }
+            }
+            // 新しい順にソート
+            comments.sort((a, b) => b.at.localeCompare(a.at));
+            if (comments.length === 0) return null;
+            return (
+              <div style={{
+                padding: 14, background: "var(--c-surface)",
+                border: "1px solid var(--c-border)", borderRadius: "var(--r-lg)", marginTop: 12,
+              }}>
+                <div style={{
+                  fontSize: 11, fontWeight: 700, color: "var(--c-text-muted)",
+                  letterSpacing: "0.06em", textTransform: "uppercase" as const, marginBottom: 10,
+                }}>
+                  承認コメント · 履歴
+                </div>
+                {comments.map((c, i) => {
+                  const initial = (c.name.split(/[\s　]/)[0] || "").slice(0, 1);
+                  const colors = ["var(--c-status-progress)", "var(--c-primary)", "var(--c-success)", "var(--c-status-billed)"];
+                  const bg = colors[i % colors.length];
+                  return (
+                    <div key={i} style={{
+                      display: "grid", gridTemplateColumns: "28px 1fr", gap: 10,
+                      padding: "8px 0",
+                      borderBottom: i < comments.length - 1 ? "1px dashed var(--c-border)" : "none",
+                      fontSize: 12,
+                    }}>
+                      <div style={{
+                        width: 24, height: 24, borderRadius: "50%", background: bg, color: "#fff",
+                        display: "grid", placeItems: "center", fontSize: 10, fontWeight: 700,
+                      }}>{initial}</div>
+                      <div>
+                        <div style={{ display: "flex", gap: 6, alignItems: "baseline", marginBottom: 2 }}>
+                          <span style={{ fontWeight: 600, fontSize: 12 }}>{c.name}</span>
+                          <span style={{
+                            fontSize: 10, padding: "1px 5px", borderRadius: "var(--r-pill)",
+                            background: "var(--c-surface-2)", color: "var(--c-text-muted)",
+                          }}>{c.role}</span>
+                          <span style={{ color: "var(--c-text-subtle)", fontSize: 10, fontFamily: "var(--ff-mono)", marginLeft: "auto" }}>
+                            {new Date(c.at).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })} {new Date(c.at).toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        <div style={{ color: "var(--c-text)", lineHeight: 1.5 }}>{c.body}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
