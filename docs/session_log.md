@@ -3329,3 +3329,42 @@ TypeScript の `onClick` 型エラーが未修正のままだった。
 - VPS デプロイ（session 2026-06-03 の承認ワークフロー改修を本番に反映）
 
 ---
+
+## Session 2026-06-04（続き）— 工事台帳 全面改修・デプロイ
+
+### 作業内容
+
+ひさんからのフィードバック①〜⑧ + 取決チェックボタン修正を一括実装・デプロイ。
+
+| # | 変更内容 | 実装場所 |
+|---|---|---|
+| ① | タブ位置を詳細とQCDSの間に移動 | ProjectSubNav.tsx |
+| ② | 承認: 4枠独立の押印依頼フロー（通知送信・押印権限チェック） | migration + ledger_router + page |
+| ③ | 各フィールドをクリックで個別編集（グローバル編集ボタン廃止） | ledger/page.tsx |
+| ④ | 現場経費: QCDSから6項目自動計算 + クリックで個別上書き | ledger_router + page |
+| ⑤-1 | 取決金額: セルクリックでインライン編集 | page + PATCH /direct-works/{id} |
+| ⑤-2 | 支払開始月: ドロップダウンで選択 → 右6ヶ月分表示 | page |
+| ⑤-3 | 支払計: 今月以前の月のみ合計（isPastOrCurrent） | page |
+| ⑥ | 案件=顧客見積自動取得、受注=注文請書自動取得 | ledger_router（Acknowledgment クエリ追加） |
+| ⑦ | 工事価格=注文請書金額優先表示 | ledger_router |
+| ⑧ | 右上の全体編集ボタン削除 → 各フィールド個別編集ボタン | page |
+| + | 取決済チェックボックスをクリック動作に変更 | page + PATCH API |
+
+### migration
+- `v6w7x8y9z0a1`: ledger_approvals に approver_user_id/requested_by_id/requested_at 追加
+- `v6w7x8y9z0a1`: project_ledger_meta に expense_overrides JSONB 追加
+
+### デプロイ確認
+- migration v6w7x8y9z0a1 (head) 適用確認
+- 新カラム (approver_user_id / requested_by_id / requested_at) DB確認済み
+- API HTTP 200 / Web HTTP 200 確認済み
+
+### コミット
+- `cf0e5db`: feat: 工事台帳 全面改修
+
+### 次のアクション
+- ブラウザで工事台帳ページの目視確認（承認依頼・経費内訳・表4インライン編集）
+- Phase G-4: PDF/Excel 出力
+- 残確認事項 Q2〜Q5
+
+---
