@@ -3003,3 +3003,229 @@ TypeScript の `onClick` 型エラーが未修正のままだった。
 - 請求書ページの修正（必要であれば）
 
 ---
+
+## Session 2026-06-03 — 顧客見積書レイアウト全面改修・承認ワークフロー修正
+
+### 作業内容
+
+#### レイアウト（quote.html 完全準拠）
+- 左カラムを `display: flex; flex-direction: column; gap: 12` に変更（quote.html `.q-grid` 左列準拠）
+- 右カラムを `position: sticky` から `display: flex; flex-direction: column; gap: 0` に変更
+- 見積条件書カードを**左カラム内**（sections 直後）へ移動（従来は2カラムグリッド外・右カラム内に誤配置）
+- テンプレート選択モーダルをグリッド外（AppShell 直下）へ移動し、正しくポータル表示
+- 見積書ヘッダーカードの `marginBottom: 12` を削除（flex gap で管理）
+- JSX の div 入れ子を修正（旧コードは見積条件書・showTmplModal が右カラム内に誤ネストされていた）
+
+#### 承認ワークフロー修正
+- **Backend**: `create_approval_request` で step1 の approver が依頼者本人の場合、自動承認（`status="approved"`, `decided_at=now`）し、通知は step2 以降に送信 → 自己通知・自己依頼バグを解消
+- **Frontend**: `onSent` コールバックで `load()` を呼び出し → 承認依頼送信後に承認ステータスバーが即時表示されるよう修正
+- **AppShell**: 通知パネルの通知アイテムに `onClick` 追加 → `related_type === "approval_request"` の場合に `/approvals` ページへ遷移
+
+### 変更ファイル
+- `frontend/src/app/projects/[id]/quote/[quote_id]/page.tsx` — レイアウト全面改修・onSent修正
+- `backend/app/api/v1/approvals.py` — 自己承認ロジック追加
+- `frontend/src/components/layout/AppShell.tsx` — 通知クリックで/approvals遷移
+
+### 次のアクション
+- VPS デプロイ後に顧客見積書ページの動作確認（左カラム・右カラムのトップ横並び・見積条件書の位置）
+- 承認依頼フローのエンドツーエンド確認（step1自動承認・バー表示・通知クリック）
+
+---
+
+## Session 2026-06-03 — 承認ワークフロー全面改修
+
+### 作業内容
+
+#### バグ修正: 承認してもQuote/PDFに反映されない
+- **根本原因**: `decide_approval_step` がワークフロー（ApprovalStep）のみ更新し、Quote のスタンプフィールド（`person_in_charge_id` / `reviewer_id` / `approver_id`）を同期していなかった
+- **修正**: `_ROLE_TO_STAMP` マッピングを追加し、ステップ承認時に対応する Quote フィールドも更新するよう修正
+
+#### Backend 拡張 (approvals.py)
+- `ApprovalRequestRead` に `project_id`・`quote_number`・`project_name` を追加（顧客見積ページへのリンクに必要）
+- `_req_read(r, quote)` が Quote オブジェクトを受け取り、上記フィールドを返すよう変更
+- 全エンドポイント（list / create / decide / withdraw）で Quote を一緒にロードして `_req_read` に渡す
+- `my_approvals` エンドポイント:
+  - withdrawn 案件を「あなたの承認待ち」から除外
+  - `requested_by_me` で pending のみでなく approved（完了済み）も取得
+  - `completed` キーを追加（承認済み依頼一覧）
+  - 全 quote_id を一括 IN クエリでロードしてパフォーマンス改善
+
+#### 承認待ちページ全面再設計 (approvals/page.tsx)
+- タブ廃止 → 1ページにセクション4つ（折りたたみ可能）：
+  - あなたの承認待ち（黄色、デフォルト展開）
+  - 差戻された案件（赤、デフォルト展開）
+  - あなたが依頼中（青、デフォルト展開）
+  - 完了済み（緑、デフォルト折りたたみ）
+- 各カード行をクリック → `/projects/{project_id}/quote/{quote_id}` に遷移
+- 「あなたの役割」バッジ表示（担当・確認・承認 のうち現在ユーザーが担当するもの）
+- ステップチップに「あなた」ラベルと pending 時の黄色ハイライトを追加
+
+#### ApprovalStamps コンポーネント改善
+- メタテキストを「次の未押印者名 の承認待ち · 承認後にこの位置に印影が押されます」に変更
+- 全承認済みは緑色で「全員承認済み」表示
+- N/M 承認済み + 次の待ちユーザー名を同時表示
+
+### 変更ファイル
+- `backend/app/api/v1/approvals.py` — スタンプ同期・schema拡張・my_approvals完了済み追加
+- `frontend/src/app/approvals/page.tsx` — 全面再設計
+- `frontend/src/modules/estimate/ApprovalStamps.tsx` — メタテキスト改善
+
+### 次のアクション
+## Session 2026-06-03 — アーキテクチャ違反修正（監査対応）
+
+### 作業内容
+
+#### Fix 1: cross-module import 解消（Rule 1）
+- `modules/project/router.py` が `modules/estimate/services/quote_service` を直接 import していた違反を解消
+- `create_initial_quote` 関数を `shared/services/quote_init.py` に移動
+- `modules/project/router.py` → `app.shared.services.quote_init` から import に変更
+- `modules/estimate/services/quote_service.py` → `shared` からの re-export shim に変更（後方互換）
+
+#### Fix 2: fmtYen/fmtNum 未使用（Rule 3）
+- `qcds/page.tsx` に独自定義されていた `yen(v)`・`numStr(v)` 関数を削除
+- `fmtYen`, `fmtNum` を `@/lib/format` から import
+- `yen(v)` → QCDS 固有の 0="—" 処理のみの薄いアダプタとして残し、内部は `fmtYen` を使用
+- `numStr(v)` → `fmtNum(v)` に全て置換（replace_all）
+- inline `toLocaleString()` を全て `fmtYen` / `fmtNum` に置換（KPI strip・原価階段・シナリオテーブル）
+
+### 変更ファイル
+- `backend/app/shared/services/quote_init.py` — 新規作成（create_initial_quote を shared 層へ）
+- `backend/app/modules/project/router.py` — import 先を shared に変更
+- `backend/app/modules/estimate/services/quote_service.py` — re-export shim に変更
+- `frontend/src/app/projects/[id]/qcds/page.tsx` — fmtYen/fmtNum 統一
+
+---
+
+- 承認フローの動作確認（承認 → 顧客見積のスタンプ反映・PDF反映）
+- 承認待ちページで顧客見積へのリンクが機能するか確認
+- テストデータの承認依頼が複数溜まっている場合、withdrawまたは完了させてクリーンアップ
+
+---
+
+## Session 2026-06-03 — Phase B-3-3 / Phase C-4-4 実装開始前記録
+
+### 12_VSCode変更指示書 実施状況（2026-06-03 現在）
+
+| Phase | スコープ | 状態 |
+|---|---|---|
+| Phase A | 案件サブナビゲーション | ✅ 完了（layout.tsx + ProjectSubNav.tsx）|
+| Phase B | スキャン-QCDS連動 | ⚠ 一部完了 |
+| ↳ B-1 | DB スキーマ（soft_delete, source_scan_result_id）| ✅ マイグレーション済み |
+| ↳ B-2 | bulk-apply / bulk-delete API | ✅ 実装済み |
+| ↳ B-3-1 | スキャン一覧チェックボックス・一括操作 | ✅ 実装済み |
+| ↳ B-3-2 | スキャン詳細→一覧自動遷移 | ✅ 実装済み |
+| ↳ **B-3-3** | **QCDS 1業者=1行グロス + アコーディオン明細** | ❌ **未実装** |
+| Phase C | 顧客マスタ | ⚠ 一部完了 |
+| ↳ C-1〜C-3 | DBスキーマ・API | ✅ 実装済み |
+| ↳ C-4-1/2/3 | 顧客一覧・詳細・検索コンポーネント | ✅ 実装済み |
+| ↳ **C-4-4** | **案件新規作成→顧客マスタ連携（client_id 連携）** | ❌ **未実装** |
+| Phase D | 帳票連動・注文請書 | ✅ 完了 |
+| Phase E | 見積書階層構造・テンプレ | ✅ 完了 |
+| Phase F | 複数請求書・ステータス | ⚠ 基本機能のみ |
+
+### 今セッションの実装スコープ
+1. **B-3-3**: QCDS 直接工事費テーブルに [▼] ボタン追加 → source_scan_result_id がある行をアコーディオン展開して scan_result_items の明細を表示
+2. **C-4-4**: `CreateProjectModal` に顧客検索選択を追加 → 案件作成時に `client_id` を設定
+
+### 実装結果
+
+#### B-3-3 (QCDS アコーディオン)
+- **調査の結果、既に実装済みであることを確認** — `QCDSDirectWorkTable.tsx` に `▼/▶` トグルボタン + `toggleRow()` 関数 + `scanItems` state が実装済みだった
+- `qcds/page.tsx` に `expandedRows`, `scanItems`, `toggleRow` が実装済みであることを確認
+- 対応不要（完了済み）
+
+#### C-4-4 (案件作成→顧客マスタ連携)
+- `CreateProjectModal.tsx` の「発注者」フィールドをフリーテキスト → **顧客マスタ検索コンポーネント**に改修
+- インクリメンタルサーチ（300ms デバウンス） → `/api/v1/clients/search?q=&limit=8` を呼び出し
+- 候補サジェストリスト（顧客名 + コード）
+- 顧客選択時: `client_id` を POST body に含める + 「✓ マスタ連携済」バッジ表示
+- 未選択時: 旧来の `client_name` フリーテキストとして送信（後方互換）
+- 「解除」ボタンで連携クリア
+
+### 変更ファイル
+- `frontend/src/modules/project/CreateProjectModal.tsx` — 顧客マスタ連携検索に改修
+
+---
+
+## Session 2026-06-03 — 工事台帳設計提案（Phase G）
+
+→ ユーザーより工事台帳タブ（Phase C 以降）の設計依頼を受領。次セッションにて設計提案を実施予定。
+
+---
+
+---
+
+## Session 2026-06-03 — 承認ワークフロー追加修正・印影プレビュー全面改修
+
+### 作業内容
+
+#### 承認依頼モーダル改善
+- 既存スタンプ（`personInChargeId` / `reviewerId` / `approverId`）を自動入力
+- 前回承認済みのステップはグリーンボーダー＋「✓ 承認済」バッジで視覚化
+- バリデーションメッセージを分割（「担当者を選択してください」「承認者を選択してください」）
+
+#### Backend: 既存スタンプ済みユーザーの自動承認
+- `create_approval_request` で既にスタンプ済みの同一ユーザーを選択した場合、自動承認
+- 通知は最初の pending ステップへ送信
+
+#### 承認待ちページ全面改修
+- セクション見出しを常時表示（空でも「該当する依頼はありません」メッセージ表示）
+- count=0 のセクションはデフォルト折りたたみ
+- セクション順: 承認待ち → 依頼中 → 差し戻し → 完了済み
+- ローディング完了後は常にセクション表示（空ページにならない）
+
+#### 印影プレビュー全面改修
+- **押印機能を完全廃止** → 純粋な表示コンポーネント化
+- `stampTarget` / `stampLoading` / `handleStamp` 削除（state・関数とも削除）
+- 担当スタンプ: `project.sales_person_id` から自動表示（押印操作不要）
+- 「の承認待ち」テキスト: `approvalRequests` の pending step から正しい承認者名を取得
+  - 旧: Quote のスタンプフィールドから推測（未承認なら null のため間違いが発生）
+  - 新: `approvalRequests.find(pending).steps.find(pending).approver_name` で正確に表示
+- 承認依頼なし → 「承認依頼を送信すると印影が配置されます」
+
+### 変更ファイル
+- `frontend/src/app/projects/[id]/quote/[quote_id]/page.tsx` — ApprovalModal既存スタンプ自動入力・stampハンドラ削除
+- `backend/app/api/v1/approvals.py` — 既存スタンプ済みユーザーの自動承認
+- `frontend/src/app/approvals/page.tsx` — セクション常時表示・順序修正
+- `frontend/src/modules/estimate/ApprovalStamps.tsx` — 全面改修（純粋表示化）
+
+### 次のアクション
+- 承認依頼 → 奴間 正人の承認待ち が正しく表示されるか確認
+- 見積ヘッダーの担当者変更 → 印影プレビューへの反映確認
+- 承認待ちページの4セクション常時表示確認
+
+---
+
+## Session 2026-06-04 — 出面台帳バグ修正・実装ロードマップ設計書作成
+
+### バグ修正（出面台帳）
+
+1. **業者欄が空白になる問題**
+   - 原因: `Vendor.name` で参照していたが、API は `vendor_name` を返している型ミス
+   - 修正: `interface Vendor { name: string }` → `vendor_name: string` + option タグの表示名を修正
+
+2. **月カレンダーが小さくて見にくい問題**
+   - 原因: `input type="month"` がブラウザ標準UIで小さい
+   - 修正: `‹ 2026年6月 › 今月` カスタムナビゲーターに変更
+
+### 設計書作成
+
+- `docs/13_実装ロードマップ_2026.md` を新規作成
+  - Phase F-R（請求書入金管理）
+  - Phase G（工事台帳 — DB・API・フロントエンド・PDF/Excel出力）
+  - Phase H（出面台帳強化 — QCDS/カレンダー/日報連携）
+  - Phase I（CSV出力・会計ソフト連携 — 最終Phase）
+  - Phase J（権限制御強化）
+  - 工事台帳の手動入力/自動取得の視覚区別ルール
+  - 未決定事項（表4レイアウト・会計ソフト名など）確認リスト
+
+### 変更ファイル
+- `frontend/src/app/projects/[id]/attendance/page.tsx` — バグ修正2件
+- `docs/13_実装ロードマップ_2026.md` — 新規作成
+
+### 次のアクション
+- 出面台帳の動作確認（業者名表示・月ナビゲーター）
+- ひさんより表4のスクショ・会計ソフト情報を受領後、設計書を更新
+- Phase F-R（請求書入金管理）から実装開始を検討
+
+---

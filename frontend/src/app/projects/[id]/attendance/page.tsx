@@ -31,7 +31,7 @@ interface Summary {
 
 interface Vendor {
   id: string;
-  name: string;
+  vendor_name: string;
 }
 
 function currentYearMonth(): string {
@@ -113,12 +113,32 @@ export default function AttendancePage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--sp-4)", flexWrap: "wrap", gap: "var(--sp-2)" }}>
           <h2 style={{ fontWeight: 700, fontSize: "var(--fs-lg)" }}>出面台帳</h2>
           <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center" }}>
-            <Input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              style={{ width: 160 }}
-            />
+            {/* 月ナビゲーター（ブラウザ依存の小さいカレンダーを廃止） */}
+            <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", padding: "4px 8px" }}>
+              <button
+                onClick={() => {
+                  const [y, m] = month.split("-").map(Number);
+                  const d = new Date(y, m - 2);
+                  setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+                }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", fontSize: 16, color: "var(--c-text-muted)", borderRadius: "var(--r-sm)" }}
+              >‹</button>
+              <span style={{ fontWeight: 700, fontSize: 15, minWidth: 100, textAlign: "center" }}>
+                {month.replace("-", "年")}月
+              </span>
+              <button
+                onClick={() => {
+                  const [y, m] = month.split("-").map(Number);
+                  const d = new Date(y, m);
+                  setMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+                }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", fontSize: 16, color: "var(--c-text-muted)", borderRadius: "var(--r-sm)" }}
+              >›</button>
+              <button
+                onClick={() => setMonth(currentYearMonth())}
+                style={{ fontSize: 11, padding: "2px 8px", background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: "var(--r-pill)", cursor: "pointer", color: "var(--c-text-muted)", marginLeft: 4 }}
+              >今月</button>
+            </div>
             <Button onClick={() => setShowAdd(!showAdd)}>+ 手動追加</Button>
           </div>
         </div>
@@ -186,7 +206,7 @@ export default function AttendancePage() {
                 }}
               >
                 <option value="">業者を選択</option>
-                {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                {vendors.map((v) => <option key={v.id} value={v.id}>{v.vendor_name}</option>)}
               </select>
             </div>
             <div style={{ flex: "0 0 140px" }}>
