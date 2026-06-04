@@ -3277,6 +3277,38 @@ TypeScript の `onClick` 型エラーが未修正のままだった。
 
 ---
 
+## Session 2026-06-04（続き）— Phase G VPS デプロイ・動作確認
+
+### 作業内容
+
+**デプロイ手順**
+1. ソースを tar.gz 圧縮（467KB）→ SCP 転送 → サーバーで展開
+2. `cmv3-api` リビルド → 起動時の `uv run alembic upgrade head` で migration `u5v6w7x8y9z0` 自動適用
+3. TypeScript ビルドエラー修正（`TD` コンポーネントの `colSpan` prop 未定義）→ 修正後 `cmv3-web` リビルド
+4. `docker restart cmv3-nginx`
+
+**動作確認（全項目 OK）**
+- `GET /api/v1/health` → HTTP 200
+- migration `u5v6w7x8y9z0 (head)` 適用確認
+- `project_ledger_meta` / `ledger_approvals` テーブル存在確認（2案件×4枠=8行 初期データ）
+- `GET /projects/{id}/ledger` → 承認枠4件・直接工事費4行を正常返却
+- `POST /projects/{id}/ledger/approve` → 押印 OK（approved_at 記録確認）
+- `DELETE /projects/{id}/ledger/approve/{role}` → 取消 OK（204）
+- 工事台帳ページ HTTP 200 + サブナビ「工事台帳」タブ HTML 内に存在確認
+
+**修正したバグ（TypeScript ビルドエラー）**
+- `TD` コンポーネントが `colSpan` を受け付けない → `colSpan?: number` を追加
+
+### 変更ファイル
+- `frontend/src/app/projects/[id]/ledger/page.tsx` — colSpan 修正
+
+### 次のアクション
+- ブラウザで工事台帳ページの目視確認
+- Phase G-4: PDF/Excel 出力
+- 残確認事項 Q2〜Q5 をひさんに確認
+
+---
+
 ## Session 2026-06-04（続き）— 前セッション再開・コミット
 
 ### 作業内容

@@ -35,9 +35,9 @@ function TH({ children, style }: { children: React.ReactNode; style?: React.CSSP
     </th>
   );
 }
-function TD({ children, style, num }: { children: React.ReactNode; style?: React.CSSProperties; num?: boolean }) {
+function TD({ children, style, num, colSpan }: { children?: React.ReactNode; style?: React.CSSProperties; num?: boolean; colSpan?: number }) {
   return (
-    <td style={{
+    <td colSpan={colSpan} style={{
       padding: "5px 8px", fontSize: 12, border: "1px solid var(--c-border)",
       textAlign: num ? "right" : undefined,
       fontFamily: num ? "var(--ff-mono)" : undefined, ...style,
