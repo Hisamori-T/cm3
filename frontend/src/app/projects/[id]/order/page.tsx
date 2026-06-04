@@ -557,7 +557,7 @@ export default function OrderPage() {
                 )}
 
                 {/* ─ 2カラムボディ ─ */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "2.3fr 1fr", gap: 12 }}>
 
                   {/* 左: 発注先・件名フォーム */}
                   <div className="card" style={{ padding: "16px 20px" }}>
