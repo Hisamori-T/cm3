@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, SmallInteger, String, Text, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -36,6 +36,7 @@ class ProjectLedgerMeta(Base, TimestampMixin):
     prev_construction_self: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     target_profit_rate: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     target_profit_amount: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
+    expense_overrides: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="ledger_meta")
 
@@ -57,9 +58,19 @@ class LedgerApproval(Base):
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     display_order: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=0)
+    # 押印依頼フィールド
+    approver_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    requested_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default="now()"
     )
 
     project: Mapped["Project"] = relationship("Project", back_populates="ledger_approvals")
-    approver: Mapped["User | None"] = relationship("User")
+    approver: Mapped["User | None"] = relationship("User", foreign_keys=[approver_id])
+    approver_user: Mapped["User | None"] = relationship("User", foreign_keys=[approver_user_id])
+    requested_by: Mapped["User | None"] = relationship("User", foreign_keys=[requested_by_id])

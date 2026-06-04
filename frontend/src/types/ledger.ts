@@ -6,6 +6,11 @@ export interface LedgerApprovalRead {
   approved_at: string | null;
   comment: string | null;
   display_order: number;
+  // 押印依頼
+  approver_user_id: string | null;
+  approver_user_name: string | null;
+  requested_by_name: string | null;
+  requested_at: string | null;
 }
 
 export interface LedgerDirectWorkRead {
@@ -23,9 +28,11 @@ export interface LedgerDirectWorkRead {
 }
 
 export interface LedgerExpenseItemRead {
+  system_key: string;
   item_name: string;
-  amount: number | null;
-  section: string;
+  computed_amount: number;
+  override_amount: number | null;
+  display_amount: number;
 }
 
 export interface LedgerCostSummary {
@@ -65,7 +72,9 @@ export interface LedgerResponse {
   quote_number: string | null;
   quote_issue_date: string | null;
   quote_total_amount: number | null;
-  award_date: string | null;
+  ack_issue_date: string | null;
+  ack_total_amount: number | null;
+  ack_number: string | null;
   information_history: string | null;
   client_requirements: string | null;
   target_profit_rate: number | null;
