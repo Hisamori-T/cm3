@@ -3230,6 +3230,53 @@ TypeScript の `onClick` 型エラーが未修正のままだった。
 
 ---
 
+## Session 2026-06-04（続き）— Phase F-R 確認・Phase G 工事台帳 G-1〜G-3 実装
+
+### 作業内容
+
+#### Phase F-R 完了確認
+- バックエンド（migration d1e2f3a4b5c6・invoices.py）・フロントエンド（invoice/page.tsx・invoice/[invoice_id]/page.tsx）とも実装済みを確認
+- 動作確認チェックリスト5項目すべてコード上で確認（入金記録追加・自動ステータス遷移・invoice-summary ビュー）
+- 設計書の F-R セクションを「✅ 実装確認済み」に更新
+
+#### Phase G-1: DBスキーマ
+- migration `u5v6w7x8y9z0`: `project_ledger_meta` / `ledger_approvals` 新規作成
+- 既存カラムとの重複整理（original_client_name / prev_construction_year 等は `projects` 既存）
+- `models/ledger.py` 新規作成（ProjectLedgerMeta / LedgerApproval）
+- `models/project.py` + `__init__.py` にリレーション追加
+
+#### Phase G-2: API
+- `modules/project/ledger_router.py` 新規作成（4エンドポイント）
+  - `GET /projects/{id}/ledger` — 工事台帳全データ集約
+  - `PATCH /projects/{id}/ledger/meta` — 手動入力フィールド更新
+  - `POST /projects/{id}/ledger/approve` — 承認スタンプ押印
+  - `DELETE /projects/{id}/ledger/approve/{role_label}` — 押印取消
+
+#### Phase G-3: フロントエンド
+- `frontend/src/types/ledger.ts` — 型定義
+- `frontend/src/app/projects/[id]/ledger/page.tsx` — 工事台帳ページ
+  - 左カラム: 基本情報（工事番号〜当社担当）、手動入力フィールド（黄背景＝未入力）
+  - 右カラム: 承認スタンプ4枠（押印・取消）、案件/受注情報、目標営業利益
+  - 工事割出3列テーブル（実行予算・取決見通・精算見通）
+  - 表4統合テーブル（実行予算+取決見通+月別精算）
+- `ProjectSubNav.tsx` に「工事台帳」タブ追加
+
+### 設計差異（設計書に追記）
+- `project_ledger_meta` は重複フィールドを除外（5フィールドのみ追加）
+- `agreement_checked`・`payment_completed` は `qcds_direct_works` に既存 → 追加不要
+- `award_date` は `projects` に未存在 → 将来対応
+
+### コミット
+- `0fac380`: feat: Phase G 工事台帳 G-1〜G-3 実装
+
+### 次のアクション
+- VPS デプロイ（migration u5v6w7x8y9z0 適用 + cmv3-api/web rebuild）
+- 工事台帳ページ動作確認（案件一覧 → 案件詳細 → 工事台帳タブ）
+- Phase G-4: PDF/Excel 出力（WeasyPrint / openpyxl）
+- 残確認事項 Q2〜Q5（PDFレイアウト・天候KY・会計ソフト名・出来高請求）をひさんに確認
+
+---
+
 ## Session 2026-06-04（続き）— 前セッション再開・コミット
 
 ### 作業内容
