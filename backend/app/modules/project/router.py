@@ -25,7 +25,7 @@ from app.models.project import Project
 from app.models.qcds import QCDS
 from app.models.quote import Quote, QuoteVersion
 from app.models.user import User
-from app.modules.estimate.services.quote_service import create_initial_quote
+from app.shared.services.quote_init import create_initial_quote
 from app.schemas.project import (
     EditHistoryItem,
     EditHistoryResponse,

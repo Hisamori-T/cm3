@@ -14,6 +14,7 @@ import type {
 import type { ScanResultItem } from "@/types/scan";
 import type { ProjectDetail } from "@/types/project";
 import { Button } from "@/components/ui/button";
+import { fmtYen, fmtNum } from "@/lib/format";
 import { QCDSDirectWorkTable } from "@/modules/estimate/QCDSDirectWorkTable";
 import {
   QCDSExpensePanel,
@@ -27,14 +28,8 @@ import {
 // ───────────────────────────────────────────────
 // ユーティリティ
 // ───────────────────────────────────────────────
-function yen(v: number | null | undefined) {
-  if (v == null || v === 0) return "—";
-  return `¥${Math.round(v).toLocaleString()}`;
-}
-function numStr(v: number | null | undefined) {
-  if (v == null) return "—";
-  return Math.round(v).toLocaleString();
-}
+// QCDS では 0 も「未入力」扱いで "—" 表示
+const yen = (v: number | null | undefined) => v ? fmtYen(v) : "—";
 function pct(v: number) {
   return `${(v * 100).toFixed(1)}%`;
 }
@@ -369,15 +364,15 @@ export default function QCDSPage() {
           <div className="k">工事価格（顧客）</div>
           <div className="v">
             <span className="yen">¥</span>
-            {price > 0 ? price.toLocaleString() : "未設定"}
+            {price > 0 ? fmtNum(price) : "未設定"}
           </div>
-          <div className="p">{price > 0 ? `税込 ¥${Math.round(price * 1.1).toLocaleString()}` : "—"}</div>
+          <div className="p">{price > 0 ? `税込 ${fmtYen(Math.round(price * 1.1))}` : "—"}</div>
         </div>
         <div>
           <div className="k">直接工事費（A）</div>
           <div className="v">
             <span className="yen">¥</span>
-            {directCost > 0 ? directCost.toLocaleString() : "—"}
+            {directCost > 0 ? fmtNum(directCost) : "—"}
           </div>
           <div className="p">{price > 0 && directCost > 0 ? `直工率 ${pct(directCost / price)}` : "—"}</div>
         </div>
@@ -385,7 +380,7 @@ export default function QCDSPage() {
           <div className="k">経費（B）</div>
           <div className="v">
             <span className="yen">¥</span>
-            {siteOverhead > 0 ? siteOverhead.toLocaleString() : "—"}
+            {siteOverhead > 0 ? fmtNum(siteOverhead) : "—"}
           </div>
           <div className="p">{price > 0 && siteOverhead > 0 ? pct(siteOverhead / price) : "—"}</div>
         </div>
@@ -393,7 +388,7 @@ export default function QCDSPage() {
           <div className="k">実行予算 合計</div>
           <div className="v">
             <span className="yen">¥</span>
-            {totalBudget > 0 ? totalBudget.toLocaleString() : "—"}
+            {totalBudget > 0 ? fmtNum(totalBudget) : "—"}
           </div>
           <div className="p">{price > 0 && totalBudget > 0 ? `実行比率 ${pct(totalBudget / price)}` : "—"}</div>
         </div>
@@ -401,7 +396,7 @@ export default function QCDSPage() {
           <div className="k">営業利益①</div>
           <div className="v">
             <span className="yen">¥</span>
-            {calc ? calc.operating_profit.toLocaleString() : "—"}
+            {calc ? fmtNum(calc.operating_profit) : "—"}
           </div>
           <div className="p">{calc ? `営利率 ${pct(calc.operating_profit_rate)}` : "—"}</div>
         </div>
@@ -453,7 +448,7 @@ export default function QCDSPage() {
                 {price > 0 && aTotal > 0 ? pct(aTotal / price) : "—"}
               </td>
               <td className="num" style={{ width: 120 }}>
-                {aTotal > 0 ? `¥${aTotal.toLocaleString()}` : "—"}
+                {aTotal > 0 ? fmtYen(aTotal) : "—"}
               </td>
             </tr>
           </tbody>
@@ -506,9 +501,9 @@ export default function QCDSPage() {
           <div className="col-header">工事原価Ⅱ (A+B全部)</div>
 
           <div className="label-col">工事費</div>
-          <div><div className="ll"><span className="nm">直工原価</span><span className="vv">{directCost > 0 ? `¥${directCost.toLocaleString()}` : "—"}</span></div></div>
-          <div><div className="ll"><span className="nm">工事原価</span><span className="vv">{costI > 0 ? `¥${costI.toLocaleString()}` : "—"}</span></div></div>
-          <div><div className="ll"><span className="nm">工事原価</span><span className="vv">{costII > 0 ? `¥${costII.toLocaleString()}` : "—"}</span></div></div>
+          <div><div className="ll"><span className="nm">直工原価</span><span className="vv">{directCost > 0 ? fmtYen(directCost) : "—"}</span></div></div>
+          <div><div className="ll"><span className="nm">工事原価</span><span className="vv">{costI > 0 ? fmtYen(costI) : "—"}</span></div></div>
+          <div><div className="ll"><span className="nm">工事原価</span><span className="vv">{costII > 0 ? fmtYen(costII) : "—"}</span></div></div>
 
           <div className="label-col">原価率</div>
           <div><div className="ll"><span className="nm">直工率</span><span className="vv">{price > 0 && directCost > 0 ? pct(directCost / price) : "—"}</span></div></div>
@@ -516,9 +511,9 @@ export default function QCDSPage() {
           <div><div className="ll"><span className="nm">原価率</span><span className="vv">{price > 0 && costII > 0 ? pct(costII / price) : "—"}</span></div></div>
 
           <div className="label-col highlight">粗利益</div>
-          <div className="highlight"><div className="ll"><span className="nm">直工利益</span><span className="vv">{price > 0 && directCost > 0 ? `¥${(price - directCost).toLocaleString()}` : "—"}</span></div></div>
-          <div className="highlight"><div className="ll"><span className="nm">粗利益</span><span className="vv">{price > 0 && costI > 0 ? `¥${(price - costI).toLocaleString()}` : "—"}</span></div></div>
-          <div className="highlight"><div className="ll"><span className="nm">粗利益</span><span className="vv">{price > 0 && costII > 0 ? `¥${(price - costII).toLocaleString()}` : "—"}</span></div></div>
+          <div className="highlight"><div className="ll"><span className="nm">直工利益</span><span className="vv">{price > 0 && directCost > 0 ? fmtYen(price - directCost) : "—"}</span></div></div>
+          <div className="highlight"><div className="ll"><span className="nm">粗利益</span><span className="vv">{price > 0 && costI > 0 ? fmtYen(price - costI) : "—"}</span></div></div>
+          <div className="highlight"><div className="ll"><span className="nm">粗利益</span><span className="vv">{price > 0 && costII > 0 ? fmtYen(price - costII) : "—"}</span></div></div>
 
           <div className="label-col highlight" style={{ borderBottom: "none" }}>粗利率</div>
           <div className="highlight" style={{ borderBottom: "none" }}>
@@ -604,13 +599,13 @@ export default function QCDSPage() {
               </tr>
               <tr className="subtotal">
                 <td colSpan={3} style={{ textAlign: "right" }}>C 計</td>
-                <td className="num">{cTotal > 0 ? numStr(cTotal) : "—"}</td>
+                <td className="num">{cTotal > 0 ? fmtNum(cTotal) : "—"}</td>
                 <td />
               </tr>
               <tr className="grand">
                 <td colSpan={3} style={{ textAlign: "right" }}>実行予算 合計 (A+B+C)</td>
                 <td className="num">
-                  {calc ? numStr(calc.total_cost + calc.general_admin_cost) : "—"}
+                  {calc ? fmtNum(calc.total_cost + calc.general_admin_cost) : "—"}
                 </td>
                 <td />
               </tr>
@@ -650,9 +645,9 @@ export default function QCDSPage() {
                 return (
                   <tr key={ratio}>
                     <td>{label}</td>
-                    <td>{base > 0 ? base.toLocaleString() : "—"}</td>
-                    <td>{scenarioPrice > 0 ? scenarioPrice.toLocaleString() : "—"}</td>
-                    <td>{profit !== 0 ? profit.toLocaleString() : "0"}</td>
+                    <td>{base > 0 ? fmtNum(base) : "—"}</td>
+                    <td>{scenarioPrice > 0 ? fmtNum(scenarioPrice) : "—"}</td>
+                    <td>{profit !== 0 ? fmtNum(profit) : "0"}</td>
                     <td>{(profitRate * 100).toFixed(1)}%</td>
                   </tr>
                 );
@@ -665,9 +660,9 @@ export default function QCDSPage() {
                       ? ` (${pct((costII + generalAdmin) / price)})`
                       : ""}
                   </td>
-                  <td>{costII > 0 ? costII.toLocaleString() : "—"}</td>
-                  <td>{price.toLocaleString()}</td>
-                  <td>{calc ? calc.operating_profit.toLocaleString() : "—"}</td>
+                  <td>{costII > 0 ? fmtNum(costII) : "—"}</td>
+                  <td>{fmtNum(price)}</td>
+                  <td>{calc ? fmtNum(calc.operating_profit) : "—"}</td>
                   <td>{calc ? pct(calc.operating_profit_rate) : "—"}</td>
                 </tr>
               )}

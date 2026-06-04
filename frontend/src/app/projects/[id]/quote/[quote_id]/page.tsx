@@ -170,8 +170,6 @@ export default function QuoteDetailPage() {
 
   // 承認スタンプ
   const [stampUsers, setStampUsers] = useState<UserOption[]>([]);
-  const [stampTarget, setStampTarget] = useState<"person_in_charge" | "reviewer" | "approver" | null>(null);
-  const [stampLoading, setStampLoading] = useState(false);
 
   // ── データ取得 ────────────────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -220,23 +218,6 @@ export default function QuoteDetailPage() {
     apiFetch<UserOption[]>("/api/v1/auth/users").then(setStampUsers).catch(() => {});
   }, []);
 
-  // 承認スタンプ押印
-  const handleStamp = async (stampType: "person_in_charge" | "reviewer" | "approver", userId: string, stamp: boolean) => {
-    if (!quote) return;
-    setStampLoading(true);
-    try {
-      await apiFetch(`/api/v1/projects/${projectId}/quotes/${quoteId}/approve`, {
-        method: "POST",
-        body: JSON.stringify({ stamp_type: stampType, user_id: userId, stamp }),
-      });
-      setStampTarget(null);
-      await load();
-    } catch (e) {
-      showMsg(`押印失敗: ${(e as Error).message}`);
-    } finally {
-      setStampLoading(false);
-    }
-  };
 
   const showMsg = (text: string) => {
     setMsg(text);
@@ -855,8 +836,14 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
-      {/* ── 見積書ヘッダー ── */}
-      <div className="card" style={{ padding: "14px 18px", marginBottom: 12 }}>
+      {/* ── 2カラム本体 ── */}
+      <div style={{ display: "grid", gridTemplateColumns: "2.3fr 1fr", gap: 12, alignItems: "start" }}>
+
+        {/* ── 左カラム: 大項目ブロック ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+
+          {/* ── 見積書ヘッダー ── */}
+          <div className="card" style={{ padding: "14px 18px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "var(--c-text)" }}>見積書ヘッダー</div>
@@ -977,11 +964,6 @@ export default function QuoteDetailPage() {
         )}
       </div>
 
-      {/* ── 2カラム本体 ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "2.3fr 1fr", gap: 12, alignItems: "start" }}>
-
-        {/* ── 左カラム: 大項目ブロック ── */}
-        <div>
           {quote.sections.length === 0 && (
             <div style={{
               padding: "20px 16px", marginBottom: 8, borderRadius: "var(--r-md)",
@@ -1154,10 +1136,83 @@ export default function QuoteDetailPage() {
               </Button>
             </div>
           </div>
-        </div>
 
-        {/* ── 右カラム: スティッキー集計パネル ── */}
-        <div style={{ position: "sticky", top: 12 }}>
+          {/* ── 見積条件書 ── */}
+          <div className="card" style={{ padding: "14px 18px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700 }}>見積条件書</div>
+              <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>ナンバリングは自動</span>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                {conditionTemplates.length > 0 && (
+                  <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
+                    onClick={() => setShowTmplModal(true)}>テンプレから挿入</Button>
+                )}
+                <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
+                  onClick={() => { setAddingCondition(true); setNewConditionText(""); }}>＋ 追加</Button>
+              </div>
+            </div>
+            {conditionItems.length === 0 && !addingCondition && (
+              <p style={{ fontSize: 12, color: "var(--c-text-muted)", textAlign: "center", padding: "12px 0" }}>
+                条件書の項目がありません。「＋ 追加」またはテンプレートから挿入してください。
+              </p>
+            )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {conditionItems.map((item, idx) => (
+                <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: editingConditionId === item.id ? "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" : "var(--c-surface-2)" }}>
+                  <span style={{ minWidth: 24, fontSize: 12, fontWeight: 700, color: "var(--c-text-muted)", paddingTop: 4 }}>{idx + 1}.</span>
+                  {editingConditionId === item.id ? (
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                      <textarea value={editingConditionText} onChange={e => setEditingConditionText(e.target.value)} rows={3}
+                        style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", border: "1px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical" }}
+                        autoFocus
+                      />
+                      <div style={{ display: "flex", gap: 4 }}>
+                        <button onClick={() => handleUpdateConditionItem(item.id, editingConditionText)}
+                          style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer" }}>保存</button>
+                        <button onClick={() => setEditingConditionId(null)}
+                          style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>キャンセル</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span style={{ flex: 1, fontSize: 12, lineHeight: 1.6, whiteSpace: "pre-wrap", paddingTop: 3 }}>{item.content}</span>
+                  )}
+                  {editingConditionId !== item.id && (
+                    <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                      <button onClick={() => handleMoveConditionItem(idx, -1)} disabled={idx === 0}
+                        style={{ background: "none", border: "none", cursor: idx === 0 ? "not-allowed" : "pointer", color: "var(--c-text-muted)", padding: "2px 4px" }}>↑</button>
+                      <button onClick={() => handleMoveConditionItem(idx, 1)} disabled={idx === conditionItems.length - 1}
+                        style={{ background: "none", border: "none", cursor: idx === conditionItems.length - 1 ? "not-allowed" : "pointer", color: "var(--c-text-muted)", padding: "2px 4px" }}>↓</button>
+                      <button onClick={() => { setEditingConditionId(item.id); setEditingConditionText(item.content); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-text-muted)", fontSize: 11, padding: "2px 6px" }}>編集</button>
+                      <button onClick={() => { if (confirm("この項目を削除しますか？")) handleDeleteConditionItem(item.id); }}
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-danger)", fontSize: 11, padding: "2px 6px" }}>削除</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {addingCondition && (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" }}>
+                  <span style={{ minWidth: 24, fontSize: 12, fontWeight: 700, color: "var(--c-text-muted)", paddingTop: 4 }}>{conditionItems.length + 1}.</span>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                    <textarea value={newConditionText} onChange={e => setNewConditionText(e.target.value)} rows={3} autoFocus
+                      placeholder="条件書の内容を入力..."
+                      style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", border: "1px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical" }}
+                    />
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button onClick={() => handleAddConditionItem(newConditionText)}
+                        style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer" }}>追加</button>
+                      <button onClick={() => setAddingCondition(false)}
+                        style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>キャンセル</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>{/* 左カラム end */}
+
+        {/* ── 右カラム ── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 0, minWidth: 0 }}>
           <QuoteTotals
             quoteNumber={quote.quote_number}
             sections={quote.sections}
@@ -1177,19 +1232,18 @@ export default function QuoteDetailPage() {
             sectionItems={sectionItems}
           />
           <ApprovalStamps
-            personInChargeId={quote.person_in_charge_id}
-            personInChargeConfirmedAt={quote.person_in_charge_confirmed_at}
+            personInChargeId={project?.sales_person_id || null}
             reviewerId={quote.reviewer_id}
             reviewedAt={quote.reviewed_at}
             approverId={quote.approver_id}
             approvedAt={quote.approved_at}
             stampUsers={stampUsers}
-            stampTarget={stampTarget}
-            setStampTarget={setStampTarget}
-            stampLoading={stampLoading}
-            userRole={user?.role ?? ""}
-            handleStamp={handleStamp}
-            showMsg={showMsg}
+            pendingApproverName={(() => {
+              const pending = approvalRequests.find(r => r.status === "pending");
+              if (!pending) return null;
+              const step = pending.steps.find(s => s.status === "pending");
+              return step?.approver_name ?? null;
+            })()}
           />
           <button
             onClick={() => setApprovalModalOpen(true)}
@@ -1279,84 +1333,8 @@ export default function QuoteDetailPage() {
               </div>
             );
           })()}
-        </div>
-      </div>
-
-      {/* ── 見積条件書 ── */}
-      <div className="card" style={{ padding: "14px 18px", marginTop: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>見積条件書</div>
-          <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>ナンバリングは自動</span>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-            {conditionTemplates.length > 0 && (
-              <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
-                onClick={() => setShowTmplModal(true)}>テンプレから挿入</Button>
-            )}
-            <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
-              onClick={() => { setAddingCondition(true); setNewConditionText(""); }}>＋ 追加</Button>
-          </div>
-        </div>
-
-        {conditionItems.length === 0 && !addingCondition && (
-          <p style={{ fontSize: 12, color: "var(--c-text-muted)", textAlign: "center", padding: "12px 0" }}>
-            条件書の項目がありません。「＋ 追加」またはテンプレートから挿入してください。
-          </p>
-        )}
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {conditionItems.map((item, idx) => (
-            <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: editingConditionId === item.id ? "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" : "var(--c-surface-2)" }}>
-              <span style={{ minWidth: 24, fontSize: 12, fontWeight: 700, color: "var(--c-text-muted)", paddingTop: 4 }}>{idx + 1}.</span>
-              {editingConditionId === item.id ? (
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                  <textarea value={editingConditionText} onChange={e => setEditingConditionText(e.target.value)} rows={3}
-                    style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", border: "1px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical" }}
-                    autoFocus
-                  />
-                  <div style={{ display: "flex", gap: 4 }}>
-                    <button onClick={() => handleUpdateConditionItem(item.id, editingConditionText)}
-                      style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer" }}>保存</button>
-                    <button onClick={() => setEditingConditionId(null)}
-                      style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>キャンセル</button>
-                  </div>
-                </div>
-              ) : (
-                <span style={{ flex: 1, fontSize: 12, lineHeight: 1.6, whiteSpace: "pre-wrap", paddingTop: 3 }}>{item.content}</span>
-              )}
-              {editingConditionId !== item.id && (
-                <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
-                  <button onClick={() => handleMoveConditionItem(idx, -1)} disabled={idx === 0}
-                    style={{ background: "none", border: "none", cursor: idx === 0 ? "not-allowed" : "pointer", color: "var(--c-text-muted)", padding: "2px 4px" }}>↑</button>
-                  <button onClick={() => handleMoveConditionItem(idx, 1)} disabled={idx === conditionItems.length - 1}
-                    style={{ background: "none", border: "none", cursor: idx === conditionItems.length - 1 ? "not-allowed" : "pointer", color: "var(--c-text-muted)", padding: "2px 4px" }}>↓</button>
-                  <button onClick={() => { setEditingConditionId(item.id); setEditingConditionText(item.content); }}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-text-muted)", fontSize: 11, padding: "2px 6px" }}>編集</button>
-                  <button onClick={() => { if (confirm("この項目を削除しますか？")) handleDeleteConditionItem(item.id); }}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-danger)", fontSize: 11, padding: "2px 6px" }}>削除</button>
-                </div>
-              )}
-            </div>
-          ))}
-
-          {addingCondition && (
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" }}>
-              <span style={{ minWidth: 24, fontSize: 12, fontWeight: 700, color: "var(--c-text-muted)", paddingTop: 4 }}>{conditionItems.length + 1}.</span>
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                <textarea value={newConditionText} onChange={e => setNewConditionText(e.target.value)} rows={3} autoFocus
-                  placeholder="条件書の内容を入力..."
-                  style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", border: "1px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical" }}
-                />
-                <div style={{ display: "flex", gap: 4 }}>
-                  <button onClick={() => handleAddConditionItem(newConditionText)}
-                    style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer" }}>追加</button>
-                  <button onClick={() => setAddingCondition(false)}
-                    style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>キャンセル</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
+        </div>{/* 右カラム end */}
+      </div>{/* 2カラムグリッド end */}
 
       {/* テンプレート選択モーダル */}
       {showTmplModal && (
@@ -1381,7 +1359,6 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
-      {/* 業者見積から取り込みモーダル */}
       {importOpen && (() => {
         const vendorVersions = quote.versions.filter(v => quote.items.some(i => i.version_id === v.id));
         return (
@@ -1403,8 +1380,14 @@ export default function QuoteDetailPage() {
           quoteNumber={quote.quote_number}
           stampUsers={stampUsers}
           currentUserId={user?.id ?? ""}
+          personInChargeId={quote.person_in_charge_id}
+          reviewerId={quote.reviewer_id}
+          approverId={quote.approver_id}
+          personInChargeConfirmedAt={quote.person_in_charge_confirmed_at}
+          reviewedAt={quote.reviewed_at}
+          approvedAt={quote.approved_at}
           onClose={() => setApprovalModalOpen(false)}
-          onSent={() => { setApprovalModalOpen(false); showMsg("承認依頼を送信しました"); }}
+          onSent={() => { setApprovalModalOpen(false); showMsg("承認依頼を送信しました"); load(); }}
         />
       )}
     </AppShell>
@@ -1416,21 +1399,32 @@ export default function QuoteDetailPage() {
 // ---------------------------------------------------------------------------
 
 function ApprovalModal({
-  quoteId, projectId, quoteNumber, stampUsers, currentUserId, onClose, onSent,
+  quoteId, projectId, quoteNumber, stampUsers, currentUserId,
+  personInChargeId, reviewerId, approverId,
+  personInChargeConfirmedAt, reviewedAt, approvedAt,
+  onClose, onSent,
 }: {
   quoteId: string; projectId: string; quoteNumber: string | null;
   stampUsers: UserOption[]; currentUserId: string;
+  personInChargeId: string | null; reviewerId: string | null; approverId: string | null;
+  personInChargeConfirmedAt: string | null; reviewedAt: string | null; approvedAt: string | null;
   onClose: () => void; onSent: () => void;
 }) {
-  const [step1, setStep1] = useState(currentUserId);
-  const [step2, setStep2] = useState("");
-  const [step3, setStep3] = useState("");
+  const [step1, setStep1] = useState(personInChargeId || currentUserId);
+  const [step2, setStep2] = useState(reviewerId || "");
+  const [step3, setStep3] = useState(approverId || "");
   const [skip2, setSkip2] = useState(false);
   const [comment, setComment] = useState("");
   const [sending, setSending] = useState(false);
 
+  // 既にスタンプ済み（前回承認済み）かどうか
+  const step1AlreadyApproved = !!(personInChargeId && personInChargeId === step1 && personInChargeConfirmedAt);
+  const step2AlreadyApproved = !!(reviewerId && reviewerId === step2 && reviewedAt);
+  const step3AlreadyApproved = !!(approverId && approverId === step3 && approvedAt);
+
   const handleSend = async () => {
-    if (!step1 || !step3) { alert("担当と承認者を選択してください"); return; }
+    if (!step1) { alert("担当者を選択してください"); return; }
+    if (!step3) { alert("承認者を選択してください"); return; }
     setSending(true);
     try {
       const steps = [
@@ -1447,12 +1441,20 @@ function ApprovalModal({
     finally { setSending(false); }
   };
 
-  const sel = (label: string, val: string, setVal: (v: string) => void) => (
-    <select value={val} onChange={e => setVal(e.target.value)}
-      style={{ flex: 1, fontSize: 12, padding: "5px 8px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", background: "var(--c-surface)" }}>
-      <option value="">選択してください</option>
-      {stampUsers.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-    </select>
+  const sel = (label: string, val: string, setVal: (v: string) => void, alreadyApproved: boolean) => (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6 }}>
+      <select value={val} onChange={e => setVal(e.target.value)}
+        style={{ flex: 1, fontSize: 12, padding: "5px 8px", border: `1px solid ${alreadyApproved ? "var(--c-success)" : "var(--c-border)"}`, borderRadius: "var(--r-md)", background: alreadyApproved ? "color-mix(in oklab,var(--c-success) 8%,var(--c-surface))" : "var(--c-surface)" }}>
+        <option value="">選択してください</option>
+        {stampUsers.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+      </select>
+      {alreadyApproved && (
+        <span style={{ fontSize: 10, color: "var(--c-success)", fontWeight: 700, whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 2 }}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>
+          承認済
+        </span>
+      )}
+    </div>
   );
 
   return (
@@ -1476,14 +1478,16 @@ function ApprovalModal({
         <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
           {/* ステップ一覧 */}
           {[
-            { no: 1, label: "担当", val: step1, set: setStep1, required: true },
-            { no: 2, label: "確認", val: step2, set: setStep2, required: false, skip: skip2, setSkip: setSkip2 },
-            { no: 3, label: "承認", val: step3, set: setStep3, required: true },
+            { no: 1, label: "担当", val: step1, set: setStep1, required: true, alreadyApproved: step1AlreadyApproved },
+            { no: 2, label: "確認", val: step2, set: setStep2, required: false, skip: skip2, setSkip: setSkip2, alreadyApproved: step2AlreadyApproved },
+            { no: 3, label: "承認", val: step3, set: setStep3, required: true, alreadyApproved: step3AlreadyApproved },
           ].map(s => (
-            <div key={s.no} style={{ display: "grid", gridTemplateColumns: "28px 52px 1fr auto", gap: 10, alignItems: "center", padding: "10px 12px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", opacity: s.skip ? 0.5 : 1 }}>
-              <div style={{ width: 22, height: 22, background: "var(--c-primary)", color: "#fff", borderRadius: "var(--r-sm)", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700 }}>{s.no}</div>
+            <div key={s.no} style={{ display: "grid", gridTemplateColumns: "28px 52px 1fr auto", gap: 10, alignItems: "center", padding: "10px 12px", border: `1px solid ${s.alreadyApproved ? "color-mix(in oklab,var(--c-success) 30%,var(--c-border))" : "var(--c-border)"}`, borderRadius: "var(--r-md)", opacity: s.skip ? 0.5 : 1 }}>
+              <div style={{ width: 22, height: 22, background: s.alreadyApproved ? "var(--c-success)" : "var(--c-primary)", color: "#fff", borderRadius: "var(--r-sm)", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 700 }}>
+                {s.alreadyApproved ? "✓" : s.no}
+              </div>
               <div style={{ fontSize: 11, fontWeight: 700, background: "var(--c-surface-2)", borderRadius: "var(--r-pill)", padding: "3px 8px", textAlign: "center" }}>{s.label}</div>
-              {s.skip ? <span style={{ fontSize: 12, color: "var(--c-text-muted)" }}>スキップ</span> : sel(s.label, s.val, s.set)}
+              {s.skip ? <span style={{ fontSize: 12, color: "var(--c-text-muted)" }}>スキップ</span> : sel(s.label, s.val, s.set, s.alreadyApproved ?? false)}
               {!s.required && (
                 <label style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "var(--c-text-muted)", cursor: "pointer", whiteSpace: "nowrap" }}>
                   <input type="checkbox" checked={s.skip} onChange={e => s.setSkip?.(e.target.checked)} />スキップ

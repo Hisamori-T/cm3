@@ -420,11 +420,19 @@ export function AppShell({ children, breadcrumbs, action }: AppShellProps) {
                     {notifs.length === 0 ? (
                       <div style={{ padding: "20px 16px", textAlign: "center", fontSize: 12, color: "var(--c-text-muted)" }}>通知はありません</div>
                     ) : notifs.map(n => (
-                      <div key={n.id} style={{
-                        padding: "10px 14px", borderBottom: "1px solid var(--c-border)",
-                        background: n.is_read ? "transparent" : "color-mix(in oklab,var(--c-primary) 5%,var(--c-surface))",
-                        fontSize: 12,
-                      }}>
+                      <div key={n.id}
+                        onClick={() => {
+                          if (n.related_type === "approval_request") {
+                            setNotifOpen(false);
+                            router.push("/approvals");
+                          }
+                        }}
+                        style={{
+                          padding: "10px 14px", borderBottom: "1px solid var(--c-border)",
+                          background: n.is_read ? "transparent" : "color-mix(in oklab,var(--c-primary) 5%,var(--c-surface))",
+                          fontSize: 12,
+                          cursor: n.related_type === "approval_request" ? "pointer" : "default",
+                        }}>
                         <div style={{ fontWeight: 600, marginBottom: 2 }}>{n.title}</div>
                         {n.body && <div style={{ color: "var(--c-text-muted)", fontSize: 11, lineHeight: 1.4 }}>{n.body}</div>}
                         <div style={{ color: "var(--c-text-subtle)", fontSize: 10, marginTop: 4 }}>{new Date(n.created_at).toLocaleString("ja-JP")}</div>

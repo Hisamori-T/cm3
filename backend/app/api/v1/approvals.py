@@ -17,6 +17,14 @@ from app.models.approval import ApprovalRequest, ApprovalStep, Notification
 from app.models.quote import Quote
 from app.models.user import User
 
+# role_label → Quote フィールドのマッピング
+_ROLE_TO_STAMP: dict[str, tuple[str, str]] = {
+    "担当": ("person_in_charge_id", "person_in_charge_confirmed_at"),
+    "確認": ("reviewer_id", "reviewed_at"),
+    "審査": ("reviewer_id", "reviewed_at"),
+    "承認": ("approver_id", "approved_at"),
+}
+
 router = APIRouter(tags=["approvals"])
 
 
@@ -48,6 +56,9 @@ class ApprovalStepRead(BaseModel):
 class ApprovalRequestRead(BaseModel):
     id: uuid.UUID
     quote_id: uuid.UUID
+    project_id: uuid.UUID | None = None
+    quote_number: str | None = None
+    project_name: str | None = None
     requester_id: uuid.UUID
     requester_name: str
     status: str
@@ -87,10 +98,13 @@ def _step_read(s: ApprovalStep) -> ApprovalStepRead:
     )
 
 
-def _req_read(r: ApprovalRequest) -> ApprovalRequestRead:
+def _req_read(r: ApprovalRequest, quote: "Quote | None" = None) -> ApprovalRequestRead:
     return ApprovalRequestRead(
         id=r.id,
         quote_id=r.quote_id,
+        project_id=quote.project_id if quote else None,
+        quote_number=quote.quote_number if quote else None,
+        project_name=quote.project_name_snapshot if quote else None,
         requester_id=r.requester_id,
         requester_name=r.requester.full_name if r.requester else "",
         status=r.status,
@@ -134,7 +148,8 @@ async def list_approval_requests(
         .options(selectinload(ApprovalRequest.requester), selectinload(ApprovalRequest.steps).selectinload(ApprovalStep.approver))
         .order_by(ApprovalRequest.created_at.desc())
     )).scalars().all()
-    return [_req_read(r) for r in rows]
+    quote = (await db.execute(select(Quote).where(Quote.id == quote_id))).scalar_one_or_none()
+    return [_req_read(r, quote) for r in rows]
 
 
 @router.post("/projects/{project_id}/quotes/{quote_id}/approval-requests", response_model=ApprovalRequestRead, status_code=status.HTTP_201_CREATED)
@@ -159,27 +174,51 @@ async def create_approval_request(
     db.add(req)
     await db.flush()
 
+    # 既存スタンプマップ（role_label → (stamped_user_id, stamped_at)）
+    _existing_stamps = {
+        "担当": (str(quote.person_in_charge_id) if quote.person_in_charge_id else None, quote.person_in_charge_confirmed_at),
+        "確認": (str(quote.reviewer_id) if quote.reviewer_id else None, quote.reviewed_at),
+        "審査": (str(quote.reviewer_id) if quote.reviewer_id else None, quote.reviewed_at),
+        "承認": (str(quote.approver_id) if quote.approver_id else None, quote.approved_at),
+    } if quote else {}
+
+    now = datetime.now(timezone.utc)
     for idx, step_in in enumerate(body.steps, start=1):
+        # step1 が依頼者自身、または既にスタンプ済みの同一ユーザーなら自動承認
+        is_self_step1 = idx == 1 and str(step_in.approver_id) == str(current_user.id)
+        ex_user, ex_at = _existing_stamps.get(step_in.role_label, (None, None))
+        already_stamped = (ex_user is not None and str(step_in.approver_id) == ex_user and ex_at is not None)
+        auto_approve = is_self_step1 or already_stamped
         step = ApprovalStep(
             request_id=req.id,
             step_no=idx,
             approver_id=step_in.approver_id,
             role_label=step_in.role_label,
             required=step_in.required,
-            status="pending",
+            status="approved" if auto_approve else "pending",
+            decided_at=now if auto_approve else None,
         )
         db.add(step)
 
-    # 第1ステップの承認者に通知
+    # 通知先を決定（自動承認された全ステップをスキップして最初の pending に通知）
     if body.steps:
-        first = body.steps[0]
-        await _create_notification(
-            db, first.approver_id,
-            title=f"【承認依頼】{quote.quote_number or '見積書'} の承認をお願いします",
-            body=body.request_comment,
-            related_type="approval_request",
-            related_id=req.id,
-        )
+        first_pending_idx = None
+        for i, step_in in enumerate(body.steps):
+            is_s1_self = i == 0 and str(step_in.approver_id) == str(current_user.id)
+            ex_u, ex_a = _existing_stamps.get(step_in.role_label, (None, None))
+            _already = ex_u is not None and str(step_in.approver_id) == ex_u and ex_a is not None
+            if not (is_s1_self or _already):
+                first_pending_idx = i
+                break
+        if first_pending_idx is not None:
+            notify_target = body.steps[first_pending_idx]
+            await _create_notification(
+                db, notify_target.approver_id,
+                title=f"【承認依頼】{quote.quote_number or '見積書'} の承認をお願いします",
+                body=body.request_comment,
+                related_type="approval_request",
+                related_id=req.id,
+            )
 
     await db.commit()
 
@@ -187,7 +226,7 @@ async def create_approval_request(
         select(ApprovalRequest).where(ApprovalRequest.id == req.id)
         .options(selectinload(ApprovalRequest.requester), selectinload(ApprovalRequest.steps).selectinload(ApprovalStep.approver))
     )).scalar_one()
-    return _req_read(loaded)
+    return _req_read(loaded, quote)
 
 
 @router.post("/approval-requests/{request_id}/decide", response_model=ApprovalRequestRead)
@@ -214,6 +253,14 @@ async def decide_approval_step(
     my_step.status = "approved" if body.action == "approve" else "rejected"
     my_step.comment = body.comment
     my_step.decided_at = now
+
+    # 承認時: Quote のスタンプフィールドを同期
+    if body.action == "approve":
+        quote = (await db.execute(select(Quote).where(Quote.id == req.quote_id))).scalar_one_or_none()
+        if quote and my_step.role_label in _ROLE_TO_STAMP:
+            id_field, at_field = _ROLE_TO_STAMP[my_step.role_label]
+            setattr(quote, id_field, current_user.id)
+            setattr(quote, at_field, now)
 
     if body.action == "reject":
         req.status = "rejected"
@@ -251,7 +298,8 @@ async def decide_approval_step(
 
     await db.commit()
     await db.refresh(req)
-    return _req_read(req)
+    q = (await db.execute(select(Quote).where(Quote.id == req.quote_id))).scalar_one_or_none()
+    return _req_read(req, q)
 
 
 @router.post("/approval-requests/{request_id}/withdraw", response_model=ApprovalRequestRead)
@@ -272,7 +320,8 @@ async def withdraw_approval_request(
     req.status = "withdrawn"
     await db.commit()
     await db.refresh(req)
-    return _req_read(req)
+    q = (await db.execute(select(Quote).where(Quote.id == req.quote_id))).scalar_one_or_none()
+    return _req_read(req, q)
 
 
 # ── 通知 API ──────────────────────────────────────────────────────────────────
@@ -347,7 +396,12 @@ async def my_approvals(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """自分が関わる承認依頼サマリー（要承認・依頼中・差戻し）。"""
+    """自分が関わる承認依頼サマリー（要承認・依頼中・差戻し・完了）。"""
+    opts = [
+        selectinload(ApprovalRequest.requester),
+        selectinload(ApprovalRequest.steps).selectinload(ApprovalStep.approver),
+    ]
+
     # 自分が承認者として pending のステップ
     pending_steps = (await db.execute(
         select(ApprovalStep)
@@ -358,19 +412,35 @@ async def my_approvals(
         )
     )).scalars().all()
 
-    # 自分が依頼した pending/rejected
+    # 自分が依頼した全ステータス（withdrawn 除く）
     my_requests = (await db.execute(
         select(ApprovalRequest)
-        .where(ApprovalRequest.requester_id == current_user.id, ApprovalRequest.status.in_(["pending", "rejected"]))
-        .options(selectinload(ApprovalRequest.steps).selectinload(ApprovalStep.approver))
+        .where(ApprovalRequest.requester_id == current_user.id,
+               ApprovalRequest.status.in_(["pending", "rejected", "approved"]))
+        .options(*opts)
         .order_by(ApprovalRequest.created_at.desc())
     )).scalars().all()
 
+    # 全 quote_id を収集して一括ロード
+    all_reqs = [s.request for s in pending_steps] + my_requests
+    quote_ids = list({r.quote_id for r in all_reqs})
+    quotes_rows = (await db.execute(select(Quote).where(Quote.id.in_(quote_ids)))).scalars().all()
+    quote_map = {q.id: q for q in quotes_rows}
+
+    def read(r: ApprovalRequest) -> ApprovalRequestRead:
+        return _req_read(r, quote_map.get(r.quote_id))
+
     pending_requests = [r for r in my_requests if r.status == "pending"]
     rejected_requests = [r for r in my_requests if r.status == "rejected"]
+    completed_requests = [r for r in my_requests if r.status == "approved"]
+
+    # awaiting からは withdrawn 済み依頼を除外
+    awaiting_req_ids = {s.request.id for s in pending_steps}
+    awaiting_reqs = [s.request for s in pending_steps if s.request.status == "pending"]
 
     return {
-        "awaiting_my_approval": [_req_read(s.request) for s in pending_steps],
-        "requested_by_me": [_req_read(r) for r in pending_requests],
-        "rejected": [_req_read(r) for r in rejected_requests],
+        "awaiting_my_approval": [read(r) for r in awaiting_reqs],
+        "requested_by_me": [read(r) for r in pending_requests],
+        "rejected": [read(r) for r in rejected_requests],
+        "completed": [read(r) for r in completed_requests],
     }
