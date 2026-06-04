@@ -22,6 +22,7 @@ from app.modules.vendor.router import router as vendor_router
 
 # ── project ───────────────────────────────────────────────────────────────────
 from app.modules.project.kanban_router import router as kanban_router
+from app.modules.project.ledger_router import router as ledger_router
 from app.modules.project.router import router as project_router
 from app.modules.project.comments_router import router as comments_router
 
@@ -131,6 +132,7 @@ app.include_router(vendor_router, prefix=PREFIX)
 
 # project (kanban を先に登録)
 app.include_router(kanban_router, prefix=PREFIX)
+app.include_router(ledger_router, prefix=PREFIX)
 app.include_router(project_router, prefix=PREFIX)
 app.include_router(comments_router, prefix=PREFIX)
 

@@ -8,6 +8,7 @@ from app.models.daily_report import DailyReport as DailyReport, DailyReportAttac
 from app.models.gantt import ProjectTask as ProjectTask, WorkTypeMaster as WorkTypeMaster
 from app.models.history import EditHistory as EditHistory
 from app.models.invoice import Invoice as Invoice, InvoiceItem as InvoiceItem, Payment as Payment
+from app.models.ledger import LedgerApproval as LedgerApproval, ProjectLedgerMeta as ProjectLedgerMeta
 from app.models.master import ProjectNumberSequence as ProjectNumberSequence, StampTaxTable as StampTaxTable
 from app.models.order import Order as Order
 from app.models.progress import ProgressAttachment as ProgressAttachment, ProgressLog as ProgressLog
@@ -32,7 +33,9 @@ __all__ = [
     "EditHistory",
     "Invoice",
     "InvoiceItem",
+    "LedgerApproval",
     "Payment",
+    "ProjectLedgerMeta",
     "Order",
     "ProgressAttachment",
     "ProgressLog",
