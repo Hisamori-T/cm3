@@ -49,6 +49,8 @@ def _to_read(inv: Invoice) -> InvoiceRead:
         billing_percentage=float(inv.billing_percentage) if inv.billing_percentage is not None else None,
         billing_note=inv.billing_note,
         payment_due_date=inv.payment_due_date,
+        split_sequence=inv.split_sequence,
+        split_total=inv.split_total,
         items=[
             InvoiceItemRead(
                 id=i.id, row_no=i.row_no, item_name=i.item_name,
@@ -282,6 +284,111 @@ async def unlink_invoice_from_quote(
         select(Invoice).options(*_load_options()).where(Invoice.id == invoice_id)
     )).scalar_one()
     return _to_read(inv)
+
+
+@router.post(
+    "/projects/{project_id}/invoices/{invoice_id}/auto-split",
+    response_model=list[InvoiceRead],
+    status_code=status.HTTP_201_CREATED,
+)
+async def auto_split_invoice(
+    project_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[InvoiceRead]:
+    """割合(%)から残りの請求書を自動作成する。
+
+    例: 25% → 4枚 (25/25/25/25)、30% → 3枚 (30/30/40)
+    最後の1枚は端数込みの金額になる。
+    """
+    inv = (await db.execute(
+        select(Invoice)
+        .options(*_load_options())
+        .where(Invoice.id == invoice_id, Invoice.project_id == project_id)
+    )).scalar_one_or_none()
+    if inv is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="請求書が見つかりません")
+    if inv.billing_method != "percentage" or not inv.billing_percentage:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="割合請求のみ自動分割できます")
+    if inv.split_total:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="すでに自動分割済みです")
+
+    project = (await db.execute(
+        select(Project).where(Project.id == project_id)
+    )).scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
+
+    pct = float(inv.billing_percentage)
+    n_total = int(100 / pct)  # 総枚数 (floor)
+    last_pct = 100.0 - (n_total - 1) * pct
+
+    # 顧客見積の税抜合計を取得（分割金額の基準）
+    from app.models.quote import Quote
+    quote_subtotal: float | None = None
+    quote_row = (await db.execute(
+        select(Quote.subtotal).where(Quote.project_id == project_id)
+        .order_by(Quote.created_at.desc()).limit(1)
+    )).scalar_one_or_none()
+    if quote_row is not None:
+        quote_subtotal = float(quote_row)
+
+    # 現在の請求書を split 1/n に更新
+    inv.split_sequence = 1
+    inv.split_total = n_total
+    if quote_subtotal:
+        inv.current_purchase = int(quote_subtotal * pct / 100)
+        _calc_totals(inv)
+
+    # 現在の請求書件数（採番用）
+    count_now = (await db.execute(
+        select(func.count(Invoice.id)).where(Invoice.project_id == project_id)
+    )).scalar_one()
+
+    created = []
+    for i in range(2, n_total + 1):
+        this_pct = last_pct if i == n_total else pct
+        # 最後は端数を含む残額
+        if i == n_total and quote_subtotal:
+            already = sum(
+                int(quote_subtotal * pct / 100) for _ in range(1, n_total)
+            )
+            purchase_amount = int(quote_subtotal - already)
+        elif quote_subtotal:
+            purchase_amount = int(quote_subtotal * pct / 100)
+        else:
+            purchase_amount = None
+
+        seq_no = count_now + (i - 1)
+        new_inv = Invoice(
+            project_id=project_id,
+            invoice_number=f"{project.project_number}-請{seq_no}",
+            billing_method=inv.billing_method,
+            billing_percentage=this_pct,
+            billing_note=inv.billing_note,
+            current_purchase=purchase_amount,
+            split_sequence=i,
+            split_total=n_total,
+        )
+        _calc_totals(new_inv)
+        db.add(new_inv)
+        created.append(new_inv)
+
+    await db.commit()
+
+    # 元の請求書を再取得
+    result_inv = (await db.execute(
+        select(Invoice).options(*_load_options()).where(Invoice.id == invoice_id)
+    )).scalar_one()
+    all_results = [result_inv]
+    for c in created:
+        refreshed = (await db.execute(
+            select(Invoice).options(*_load_options()).where(Invoice.id == c.id)
+        )).scalar_one()
+        all_results.append(refreshed)
+
+    return [_to_read(r) for r in all_results]
 
 
 @router.delete(

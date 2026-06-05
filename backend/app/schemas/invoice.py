@@ -101,6 +101,8 @@ class InvoiceRead(BaseModel):
     billing_percentage: float | None
     billing_note: str | None
     payment_due_date: date | None
+    split_sequence: int | None
+    split_total: int | None
     items: list[InvoiceItemRead]
     payments: list[PaymentRead]
     created_at: datetime

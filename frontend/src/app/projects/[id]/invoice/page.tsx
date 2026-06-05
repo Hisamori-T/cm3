@@ -300,6 +300,11 @@ export default function InvoiceListPage() {
                         style={{ color: "var(--c-primary)", textDecoration: "none" }}
                       >
                         {inv.invoice_number || "（番号なし）"}
+                        {inv.split_sequence && inv.split_total && (
+                          <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 400, color: "var(--c-text-muted)" }}>
+                            {inv.split_sequence}/{inv.split_total}回
+                          </span>
+                        )}
                       </Link>
                     </td>
                     <td style={{ fontSize: 12 }}>{fmtDate(inv.issue_date)}</td>

@@ -53,6 +53,8 @@ export interface InvoiceRead {
   billing_percentage: number | null;
   billing_note: string | null;
   payment_due_date: string | null;
+  split_sequence: number | null;
+  split_total: number | null;
   items: InvoiceItemRead[];
   payments: PaymentRead[];
   created_at: string;

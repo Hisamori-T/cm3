@@ -1,5 +1,6 @@
 """請求書・請求書明細・入金記録モデル。"""
 import uuid
+import sqlalchemy as sa
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -48,6 +49,8 @@ class Invoice(Base, TimestampMixin):
     )
     billing_note: Mapped[str | None] = mapped_column(Text, nullable=True)
     payment_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    split_sequence: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    split_total: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
 
     # relationships
     project: Mapped["Project"] = relationship("Project", back_populates="invoices")

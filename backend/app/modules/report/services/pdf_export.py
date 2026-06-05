@@ -860,128 +860,200 @@ def generate_invoice_pdf(invoice: Any, project: Any, company: CompanyInfo,
     return weasyprint.HTML(string=html_str).write_pdf()
 
 
+_INVOICE_CSS = """
+* { box-sizing: border-box; margin: 0; padding: 0; }
+@page { size: A4 portrait; margin: 12mm 14mm 14mm 14mm; }
+body {
+  font-family: 'Noto Serif CJK JP', 'Noto Sans CJK JP', serif;
+  font-size: 10pt; color: #000;
+}
+.proj-ref { text-align: right; font-size: 9pt; margin-bottom: 6pt; }
+.title { text-align: center; font-size: 18pt; font-weight: bold; letter-spacing: 14px; margin: 6pt 0 10pt; }
+.meta-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10pt; }
+.client-block { flex: 1; padding-right: 10pt; }
+.client-name { font-size: 13pt; border-bottom: 1.2pt solid #000; padding-bottom: 4pt; margin-bottom: 5pt; }
+.greeting { font-size: 8.5pt; color: #444; }
+.company-block { width: 195pt; text-align: left; }
+.company-logo-row { display: flex; align-items: center; gap: 6pt; margin-bottom: 4pt; }
+.company-name-large { font-size: 14pt; font-weight: bold; }
+.company-info { font-size: 8pt; color: #222; line-height: 1.55; }
+/* 6列サマリ */
+.summary-table { width: 100%; border-collapse: collapse; margin-bottom: 10pt; font-size: 9.5pt; }
+.summary-table th {
+  border: 0.8pt solid #888; background: #f5f5f5; text-align: center;
+  padding: 3pt 2pt; font-weight: normal; font-size: 8.5pt;
+}
+.summary-table td { border: 0.8pt solid #888; text-align: right; padding: 4pt 6pt; }
+.summary-table .highlight { background: #fffbd0; font-weight: bold; font-size: 10.5pt; }
+/* 明細テーブル */
+.items-table { width: 100%; border-collapse: collapse; margin-bottom: 8pt; font-size: 9.5pt; }
+.items-table th { border: 0.8pt solid #888; background: #e8edf5; text-align: center; padding: 3pt 4pt; }
+.items-table td { border: 0.8pt solid #888; padding: 3pt 5pt; }
+.items-table .right { text-align: right; font-family: monospace; }
+.items-table .center { text-align: center; }
+.items-table .calc-row td { background: #f0f4fa; }
+.items-table .total-row td { background: #1F4E79; color: #fff; font-weight: bold; }
+/* 振込先 */
+.bank-section { margin-left: auto; width: 55%; }
+.bank-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+.bank-table td { border: 0.8pt solid #888; padding: 3pt 8pt; }
+.bank-table .bank-label { background: #f0f4fa; font-weight: bold; width: 35%; }
+"""
+
+
 def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: list) -> str:
     logo_url = _logo_data_url()
-    logo_img = f'<img src="{logo_url}" style="height:28pt; display:block; margin-bottom:3pt;" alt="CLAP">' if logo_url else ""
+    logo_img = f'<img src="{logo_url}" style="height:32pt;" alt="CLAP">' if logo_url else ""
+
     client_name = getattr(project, "client_name", "") or ""
     inv_number = getattr(invoice, "invoice_number", "") or ""
-    issued_at = _fmt_date(getattr(invoice, "issue_date", None) or getattr(invoice, "created_at", None))
-    due_date = _fmt_date(getattr(invoice, "payment_due_date", None))
+    issue_date = getattr(invoice, "issue_date", None)
+    issued_at_str = _fmt_date(issue_date or getattr(invoice, "created_at", None))
+    project_number = getattr(project, "project_number", "") or ""
+
     subtotal = float(getattr(invoice, "current_purchase", None) or 0)
     tax_amount = float(getattr(invoice, "tax_amount", None) or 0)
     total = float(getattr(invoice, "total_amount", None) or 0)
-    project_number = getattr(project, "project_number", "") or ""
+    prev_balance = float(getattr(invoice, "previous_balance", None) or 0)
+    received = float(getattr(invoice, "received_amount", None) or 0)
+    balance_fwd = prev_balance - received
 
-    paid_total = sum(float(p.amount or 0) for p in payments)
-    balance_forward = 0
-    current_amount = total
+    # n/n回目ラベル
+    seq = getattr(invoice, "split_sequence", None)
+    tot = getattr(invoice, "split_total", None)
+    split_label = f"（第{seq}回 / 全{tot}回）" if seq and tot else ""
 
+    # 発行日の年月日分割（空欄表示用）
+    if issue_date:
+        from datetime import date as date_cls
+        if hasattr(issue_date, 'year'):
+            yr, mo, dy = issue_date.year, issue_date.month, issue_date.day
+        else:
+            yr, mo, dy = "", "", ""
+    else:
+        yr, mo, dy = "", "", ""
+
+    # 明細行
     items_html = ""
     for item in sorted(getattr(invoice, "items", []) or [], key=lambda x: getattr(x, "row_no", 0)):
-        items_html += f"""
-        <tr>
-          <td class="center">{_fmt_date(getattr(item,'item_date',None))}</td>
-          <td>{_h(item.description or '')}</td>
-          <td class="right">{_fmt_yen(item.amount)}</td>
-          <td class="small">{_h(item.remarks or '')}</td>
+        items_html += f"""<tr>
+          <td class="center">{_fmt_date(getattr(item, 'item_date', None))}</td>
+          <td>{_h(getattr(item, 'item_name', '') or getattr(item, 'description', '') or '')}</td>
+          <td class="right">{_fmt_yen(getattr(item, 'amount', None))}</td>
+          <td class="center">{_h(getattr(item, 'remarks', '') or '')}</td>
         </tr>"""
     if not items_html:
-        items_html = f"""
-        <tr>
-          <td></td>
-          <td>{_h(project.project_name)}</td>
+        items_html = f"""<tr>
+          <td class="center"></td>
+          <td>{_h(getattr(project, 'project_name', ''))}</td>
           <td class="right">{_fmt_yen(subtotal)}</td>
           <td></td>
         </tr>"""
 
+    # 振込先
+    bank_rows = ""
+    if co.bank_name or co.bank_branch:
+        bank_name_full = f"{_h(co.bank_name or '')}　{_h(co.bank_branch or '')}".strip()
+        acct = f"{_h(co.bank_account_type or '')}　{_h(co.bank_account_number or '')}".strip()
+        holder = _h(co.bank_account_holder or co.name or "")
+        bank_rows = f"""
+        <tr><td colspan="2" style="font-size:8pt;background:#fff;">お振込みの場合は、下記銀行へお願い致します。</td></tr>
+        <tr><td class="bank-label">振込銀行</td><td>{bank_name_full}</td></tr>
+        <tr><td class="bank-label">口座番号</td><td>{acct}</td></tr>
+        <tr><td class="bank-label">口座名義</td><td>{holder}</td></tr>"""
+
     return f"""<!DOCTYPE html>
 <html lang="ja"><head><meta charset="UTF-8">
-<style>{_BASE_CSS}
-  .inv-header {{ display: flex; justify-content: space-between; margin-bottom: 12pt; }}
-  .inv-summary {{ border: 0.8pt solid #888; padding: 6pt 10pt; margin-bottom: 10pt; }}
-  .inv-summary table {{ width: auto; }}
-  .inv-summary td {{ border: none; padding: 2pt 16pt 2pt 4pt; }}
-</style></head>
+<style>{_INVOICE_CSS}</style></head>
 <body>
 
-  <div class="inv-header">
-    <div>
-      <div class="small muted">弊社工事番号：{_h(project_number)}</div>
-      <div class="small muted">発行日：{issued_at}</div>
-    </div>
-    <div class="small muted" style="text-align:right;">
-      請求番号：{_h(inv_number)}<br>
-      支払期限：{due_date}
-    </div>
+<!-- 右上: 工事番号・日付 -->
+<div class="proj-ref">
+  弊社工事番号：{_h(project_number)}&nbsp;&nbsp;&nbsp;
+  {yr}年&nbsp;&nbsp;{mo}月&nbsp;&nbsp;{dy}日
+</div>
+
+<!-- タイトル -->
+<div class="title">請　求　書{split_label}</div>
+
+<!-- 顧客 ／ 会社情報 -->
+<div class="meta-row">
+  <div class="client-block">
+    <div class="client-name">{_h(client_name) if client_name else '&nbsp;'}　御中</div>
+    <div class="greeting">毎度ありがとうございます。下記の通りご請求申し上げます。</div>
   </div>
-
-  <h1>請　求　書</h1>
-
-  <div style="display:flex; justify-content:space-between; margin-bottom:12pt;">
-    <div>
-      <div style="font-size:13pt; border-bottom:1pt solid #111; padding-bottom:3pt; margin-bottom:6pt;">
-        {_h(client_name)}　御中
-      </div>
-      <div class="info-grid">
-        <span class="info-label">工事名称</span>
-        <span class="info-value">{_h(project.project_name)}</span>
-      </div>
-    </div>
-    <div class="company-block" style="width:200pt;">
+  <div class="company-block">
+    <div class="company-logo-row">
       {logo_img}
-      <div class="company-name">{_h(co.name)}</div>
-      <div>〒{_h(co.postal_code)} {_h(co.address)}</div>
-      <div>TEL: {_h(co.tel)}</div>
-      <div class="small muted">登録番号 {_h(co.tax_reg_no)}</div>
+      <span class="company-name-large">株式会社　クラップ</span>
+    </div>
+    <div class="company-info">
+      本社　{_h(co.address or "福井県坂井市三国町錦3-4-2")}<br>
+      TEL&nbsp;{_h(co.tel or "0776-81-8330")}&nbsp;&nbsp;FAX{_h(co.fax or "0776-81-8331")}<br>
+      代表取締役&nbsp;{_h(getattr(co, 'representative', '') or "奴間 正人")}<br>
+      <br>
+      登録番号：{_h(co.tax_reg_no or "T5210001007332")}
     </div>
   </div>
+</div>
 
-  <div class="inv-summary no-break">
-    <table>
-      <tr><td class="muted small">前月請求額</td><td class="right">{_fmt_yen(balance_forward)}</td></tr>
-      <tr><td class="muted small">御入金</td><td class="right">{_fmt_yen(paid_total)}</td></tr>
-      <tr><td class="muted small">差引残高</td><td class="right">{_fmt_yen(balance_forward - paid_total)}</td></tr>
-      <tr><td class="muted small" style="border-top:1pt solid #888;">当月御買上額（税抜）</td>
-          <td class="right" style="border-top:1pt solid #888;">{_fmt_yen(subtotal)}</td></tr>
-      <tr><td class="muted small">消費税額（10%）</td><td class="right">{_fmt_yen(tax_amount)}</td></tr>
-      <tr style="font-size:11pt; font-weight:bold;">
-        <td style="color:#1F4E79;">今回御請求額</td>
-        <td class="right" style="color:#1F4E79;">{_fmt_yen(total)}</td>
-      </tr>
-    </table>
-  </div>
+<!-- 6列サマリ -->
+<table class="summary-table">
+  <thead>
+    <tr>
+      <th>前月御請求額</th>
+      <th>御　入　金</th>
+      <th>差引残高</th>
+      <th>当月御買上額</th>
+      <th>今回消費税額</th>
+      <th>今回御請求額</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>{_fmt_yen(prev_balance) if prev_balance else ""}</td>
+      <td>{_fmt_yen(received) if received else ""}</td>
+      <td>{_fmt_yen(balance_fwd) if balance_fwd else ""}</td>
+      <td>{_fmt_yen(subtotal)}</td>
+      <td>{_fmt_yen(tax_amount)}</td>
+      <td class="highlight">{_fmt_yen(total)}</td>
+    </tr>
+  </tbody>
+</table>
 
-  <table style="margin-bottom:10pt;">
-    <thead>
-      <tr>
-        <th style="width:14%">日付</th>
-        <th style="width:46%">工事名・備考</th>
-        <th style="width:20%">金額</th>
-        <th style="width:20%">摘要</th>
-      </tr>
-    </thead>
-    <tbody>
-      {items_html}
-      <tr class="subtotal-row">
-        <td colspan="2" class="bold">小　計</td>
-        <td class="right bold">{_fmt_yen(subtotal)}</td><td></td>
-      </tr>
-      <tr class="tax-row">
-        <td colspan="2">消費税（10%）</td>
-        <td class="right">{_fmt_yen(tax_amount)}</td><td></td>
-      </tr>
-      <tr class="total-row">
-        <td colspan="2">合　計</td>
-        <td class="right">{_fmt_yen(total)}</td><td></td>
-      </tr>
-    </tbody>
+<!-- 明細テーブル -->
+<table class="items-table">
+  <thead>
+    <tr>
+      <th style="width:12%">日　付</th>
+      <th>工事名・備考</th>
+      <th style="width:18%">金　額</th>
+      <th style="width:14%">摘　要</th>
+    </tr>
+  </thead>
+  <tbody>
+    {items_html}
+    <tr class="calc-row">
+      <td></td><td style="text-align:center">計</td>
+      <td class="right">{_fmt_yen(subtotal)}</td><td></td>
+    </tr>
+    <tr class="calc-row">
+      <td></td><td>消費税（10%）</td>
+      <td class="right">{_fmt_yen(tax_amount)}</td><td></td>
+    </tr>
+    <tr class="total-row">
+      <td></td><td style="text-align:center">合　計</td>
+      <td class="right">{_fmt_yen(total)}</td><td></td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- 振込先 -->
+<div class="bank-section">
+  <table class="bank-table">
+    {bank_rows}
   </table>
-
-  <div class="company-block small no-break">
-    <div class="bold" style="margin-bottom:3pt;">【振込先】</div>
-    {_h(co.bank_name)}　{_h(co.bank_branch)}　{_h(co.bank_account_type)}　{_h(co.bank_account_number)}<br>
-    口座名義：{_h(co.bank_account_holder)}
-  </div>
+</div>
 
 </body></html>"""
 

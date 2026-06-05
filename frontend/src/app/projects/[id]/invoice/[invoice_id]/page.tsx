@@ -182,6 +182,24 @@ export default function InvoiceDetailPage() {
     }
   }
 
+  const [splitting, setSplitting] = useState(false);
+
+  async function handleAutoSplit() {
+    const pct = parseFloat(billingPercentage);
+    if (isNaN(pct) || pct <= 0) { showMsg("割合(%)を入力してから自動分割してください"); return; }
+    const n = Math.floor(100 / pct);
+    const lastPct = 100 - (n - 1) * pct;
+    const preview = Array.from({ length: n }, (_, i) => i < n - 1 ? `${pct}%` : `${lastPct}%`).join("・");
+    if (!confirm(`${n}枚の請求書を自動作成します。\n${preview}\n\nよろしいですか？`)) return;
+    setSplitting(true);
+    try {
+      await apiFetch(`/api/v1/projects/${projectId}/invoices/${invoiceId}/auto-split`, { method: "POST" });
+      showMsg(`${n}枚の請求書を作成しました`);
+      await load();
+    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+    finally { setSplitting(false); }
+  }
+
   function applyPctModal() {
     const pct = parseFloat(modalPct);
     if (!isNaN(pct) && quoteSubtotal !== null) {
@@ -208,7 +226,7 @@ export default function InvoiceDetailPage() {
         { label: "案件一覧", href: "/projects" },
         { label: "案件詳細", href: `/projects/${projectId}` },
         { label: "請求書一覧", href: `/projects/${projectId}/invoice` },
-        { label: inv?.invoice_number || "請求書詳細" },
+        { label: inv ? `${inv.invoice_number || "請求書"}${inv.split_sequence && inv.split_total ? ` （第${inv.split_sequence}回/全${inv.split_total}回）` : ""}` : "請求書詳細" },
       ]}
       action={
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -377,6 +395,26 @@ export default function InvoiceDetailPage() {
                       </button>
                     )}
                   </div>
+                  {!isPaid && !inv?.split_total && billingPercentage && (
+                    <button
+                      onClick={handleAutoSplit}
+                      disabled={splitting}
+                      style={{
+                        marginTop: 6, display: "flex", alignItems: "center", gap: 4,
+                        padding: "5px 12px", fontSize: 12, cursor: "pointer",
+                        border: "1px solid var(--c-primary)", borderRadius: "var(--r-md)",
+                        background: "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface))",
+                        color: "var(--c-primary)", whiteSpace: "nowrap",
+                      }}
+                    >
+                      {splitting ? "作成中…" : `残り請求書を自動作成 (${Math.floor(100 / parseFloat(billingPercentage || "1"))}枚に分割)`}
+                    </button>
+                  )}
+                  {inv?.split_sequence && inv?.split_total && (
+                    <div style={{ marginTop: 4, fontSize: 11, color: "var(--c-success)", fontWeight: 600 }}>
+                      ✓ 第{inv.split_sequence}回 / 全{inv.split_total}回
+                    </div>
+                  )}
                 </LI>
               )}
               <LI label="備考">
