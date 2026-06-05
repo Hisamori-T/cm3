@@ -958,8 +958,10 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
         work_rmk = getattr(invoice, "work_remarks", None) or ""
         proj_name = _h(getattr(project, "project_name", ""))
         desc_cell = f"{proj_name}<br><span style='font-size:8.5pt;color:#444;'>{_h(work_desc)}</span>" if work_desc else proj_name
-        # 摘要欄: work_remarks が指定されていれば優先、なければ n/n
-        if work_rmk:
+        # 摘要欄: n/n + work_remarks を両方表示（work_remarks がなければ n/n のみ）
+        if work_rmk and seq and tot:
+            rmk_td = f'<td style="font-size:8.5pt;text-align:center;">{seq}回 / {tot}回<br><span style="color:#444;">{_h(work_rmk)}</span></td>'
+        elif work_rmk:
             rmk_td = f'<td style="font-size:8.5pt;text-align:center;">{_h(work_rmk)}</td>'
         else:
             rmk_td = split_label_td

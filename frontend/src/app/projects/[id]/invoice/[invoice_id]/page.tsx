@@ -397,25 +397,25 @@ export default function InvoiceDetailPage() {
           <div className="card" style={{ padding: "16px 20px" }}>
             <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>PDF 明細欄テキスト</h2>
             <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-              <LI label="工事名・備考欄（追記テキスト）">
+              <LI label="工事名・備考欄（補足テキスト）">
                 <Input
                   value={workDescription}
                   onChange={e => setWorkDescription(e.target.value)}
-                  disabled={isReadOnly}
-                  placeholder="工事名の下に表示される補足テキスト（任意）"
+                  disabled={isPaid}
+                  placeholder="工事名の下に補足内容を追記（任意）"
                 />
               </LI>
-              <LI label="摘要欄">
+              <LI label="摘要欄（工事名・備考欄に追記した場合の適用内容）">
                 <Input
                   value={workRemarks}
                   onChange={e => setWorkRemarks(e.target.value)}
-                  disabled={isReadOnly}
-                  placeholder="例: 最終回、前払い等（任意）"
+                  disabled={isPaid}
+                  placeholder="例: 塗装工事、鉄骨工事 等（任意）"
                 />
               </LI>
             </div>
             <div style={{ marginTop: 8, fontSize: 11, color: "var(--c-text-muted)" }}>
-              ※ 摘要欄を入力すると「{inv?.split_sequence && inv?.split_total ? `${inv.split_sequence}回/${inv.split_total}回` : "n回/n回"}」の代わりに表示されます
+              ※ 工事名・備考欄の補足テキストを入力した場合、摘要欄にその内容の説明を記入できます
             </div>
           </div>
 
