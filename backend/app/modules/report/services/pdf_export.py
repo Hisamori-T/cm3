@@ -1026,7 +1026,7 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
     <tr>
       <td>{_fmt_yen(prev_balance) if prev_balance else ""}</td>
       <td>{_fmt_yen(received) if received else ""}</td>
-      <td>{_fmt_yen(balance_fwd) if balance_fwd else ""}</td>
+      <td>{_fmt_yen(balance_fwd) if (prev_balance or received) else ""}</td>
       <td>{_fmt_yen(subtotal)}</td>
       <td>{_fmt_yen(tax_amount)}</td>
       <td class="highlight">{_fmt_yen(total)}</td>
