@@ -242,14 +242,14 @@ async def export_invoice_pdf(
     """請求書をPDFで出力する。"""
     project = await _get_project(project_id, db)
     invoice = (await db.execute(
-        select(Invoice).where(Invoice.id == invoice_id, Invoice.project_id == project_id)
+        select(Invoice)
+        .options(selectinload(Invoice.items), selectinload(Invoice.payments))
+        .where(Invoice.id == invoice_id, Invoice.project_id == project_id)
     )).scalar_one_or_none()
     if invoice is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="請求書が見つかりません")
 
-    payments = (await db.execute(
-        select(Payment).where(Payment.invoice_id == invoice_id)
-    )).scalars().all()
+    payments = list(invoice.payments)
 
     co = await _get_company(db)
     data = pdf_export.generate_invoice_pdf(invoice, project, co, list(payments))
