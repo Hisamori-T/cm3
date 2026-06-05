@@ -256,8 +256,10 @@ export default function InvoiceDetailPage() {
   }
 
   const purchase = currentPurchase ? parseFloat(currentPurchase) : null;
-  const tax = purchase !== null ? Math.floor(purchase * 0.10) : null;
-  const total = purchase !== null && tax !== null ? purchase + tax : null;
+  const extraTotal = extraRows.reduce((s, r) => s + (r.amount ? parseFloat(r.amount) || 0 : 0), 0);
+  const purchaseAll = (purchase ?? 0) + extraTotal;
+  const tax = purchaseAll > 0 ? Math.floor(purchaseAll * 0.10) : null;
+  const total = purchaseAll > 0 ? purchaseAll + (tax ?? 0) : null;
   const outstanding = prevBalance && receivedAmount
     ? parseFloat(prevBalance) - parseFloat(receivedAmount)
     : null;

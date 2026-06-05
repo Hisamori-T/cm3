@@ -81,9 +81,9 @@ def _to_read(inv: Invoice) -> InvoiceRead:
     )
 
 
-def _calc_totals(inv: Invoice) -> None:
-    """請求書の税額・合計・差引残高を再計算する。"""
-    purchase = float(inv.current_purchase or 0)
+def _calc_totals(inv: Invoice, extra_amount: float = 0.0) -> None:
+    """請求書の税額・合計・差引残高を再計算する（追記行の金額を含む）。"""
+    purchase = float(inv.current_purchase or 0) + extra_amount
     prev = float(inv.previous_balance or 0)
     received = float(inv.received_amount or 0)
     inv.outstanding_balance = prev - received
@@ -215,7 +215,10 @@ async def update_invoice(
         val = getattr(body, field, None)
         if val is not None:
             setattr(inv, field, val)
-    _calc_totals(inv)
+
+    # 追記行（items）の金額合計を計算して total_amount に反映
+    extra_amount = sum(float(item.amount or 0) for item in (body.items or []))
+    _calc_totals(inv, extra_amount=extra_amount)
 
     if body.items is not None:
         for old in list(inv.items):
