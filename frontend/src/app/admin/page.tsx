@@ -17,7 +17,6 @@ type AdminSection =
   | "stamp-tax"
   | "quote-conditions"
   | "clauses"
-  | "qcds-templates"
   | "audit-log"
   | "backup"
   | "system";
@@ -29,7 +28,6 @@ const NAV: { section: AdminSection; label: string; group: string; badge?: number
   { section: "stamp-tax",       label: "印紙税表",         group: "マスタ" },
   { section: "quote-conditions",label: "見積条件文",       group: "マスタ" },
   { section: "clauses",         label: "基本契約約款",     group: "マスタ" },
-  { section: "qcds-templates",  label: "QCDSテンプレート", group: "マスタ" },
   { section: "audit-log",       label: "監査ログ",         group: "運用" },
   { section: "backup",          label: "バックアップ",     group: "運用" },
   { section: "system",          label: "システム状態",     group: "運用" },
@@ -574,145 +572,6 @@ function ClausesSection() {
 
 // ─── QCDSテンプレートセクション ────────────────────────────────────────────────
 
-interface QCDSTemplate {
-  id: string; name: string; description: string;
-  labor_insurance_rate: number; construction_insurance_rate: number;
-  office_supplies: number; communication_cost: number; misc_cost: number;
-  site_staff_salary_rate: number; shared_overhead_rate: number;
-  general_admin_rate: number; target_operating_profit_rate: number;
-}
-
-type QCDSTemplateForm = {
-  name: string; description: string;
-  labor_insurance_rate: string; construction_insurance_rate: string;
-  office_supplies: string; communication_cost: string; misc_cost: string;
-  site_staff_salary_rate: string; shared_overhead_rate: string;
-  general_admin_rate: string; target_operating_profit_rate: string;
-};
-
-const RATE_FIELDS: { key: keyof QCDSTemplateForm; label: string; unit: string }[] = [
-  { key: "labor_insurance_rate",         label: "労災保険率(%)",       unit: "%" },
-  { key: "construction_insurance_rate",  label: "工事保険率(%)",       unit: "%" },
-  { key: "site_staff_salary_rate",       label: "現場担当給与率(%)",   unit: "%" },
-  { key: "shared_overhead_rate",         label: "共通配賦率(%)",       unit: "%" },
-  { key: "general_admin_rate",           label: "一般管理率(%)",       unit: "%" },
-  { key: "target_operating_profit_rate", label: "目標営業利益率(%)",   unit: "%" },
-  { key: "office_supplies",             label: "事務用品費(円)",       unit: "円" },
-  { key: "communication_cost",           label: "通信交通費(円)",       unit: "円" },
-  { key: "misc_cost",                    label: "雑費(円)",             unit: "円" },
-];
-
-function toForm(t: QCDSTemplate): QCDSTemplateForm {
-  return {
-    name: t.name, description: t.description ?? "",
-    labor_insurance_rate: (t.labor_insurance_rate * 100).toFixed(4),
-    construction_insurance_rate: (t.construction_insurance_rate * 100).toFixed(4),
-    office_supplies: String(Math.round(t.office_supplies)),
-    communication_cost: String(Math.round(t.communication_cost)),
-    misc_cost: String(Math.round(t.misc_cost)),
-    site_staff_salary_rate: (t.site_staff_salary_rate * 100).toFixed(2),
-    shared_overhead_rate: (t.shared_overhead_rate * 100).toFixed(2),
-    general_admin_rate: (t.general_admin_rate * 100).toFixed(2),
-    target_operating_profit_rate: (t.target_operating_profit_rate * 100).toFixed(1),
-  };
-}
-
-function fromForm(f: QCDSTemplateForm): Record<string, unknown> {
-  return {
-    name: f.name, description: f.description || undefined,
-    labor_insurance_rate: Number(f.labor_insurance_rate) / 100,
-    construction_insurance_rate: Number(f.construction_insurance_rate) / 100,
-    site_staff_salary_rate: Number(f.site_staff_salary_rate) / 100,
-    shared_overhead_rate: Number(f.shared_overhead_rate) / 100,
-    general_admin_rate: Number(f.general_admin_rate) / 100,
-    target_operating_profit_rate: Number(f.target_operating_profit_rate) / 100,
-    office_supplies: Number(f.office_supplies),
-    communication_cost: Number(f.communication_cost),
-    misc_cost: Number(f.misc_cost),
-  };
-}
-
-function QCDSTemplatesSection() {
-  const [templates, setTemplates] = useState<QCDSTemplate[]>([]);
-  const [editing, setEditing] = useState<string | "new" | null>(null);
-  const [editForm, setEditForm] = useState<QCDSTemplateForm>({ name: "", description: "", labor_insurance_rate: "0.1973", construction_insurance_rate: "0.2095", office_supplies: "2000", communication_cost: "10000", misc_cost: "5000", site_staff_salary_rate: "3.50", shared_overhead_rate: "5.00", general_admin_rate: "3.50", target_operating_profit_rate: "10.0" });
-  const [msg, setMsg] = useState("");
-
-  const load = () => apiFetch<QCDSTemplate[]>("/api/v1/admin/qcds-templates").then(setTemplates).catch(console.error);
-  useEffect(() => { load(); }, []);
-
-  const save = async () => {
-    try {
-      if (editing === "new") {
-        await apiFetch("/api/v1/admin/qcds-templates", { method: "POST", body: JSON.stringify(fromForm(editForm)) });
-      } else if (editing) {
-        await apiFetch(`/api/v1/admin/qcds-templates/${editing}`, { method: "PATCH", body: JSON.stringify(fromForm(editForm)) });
-      }
-      setEditing(null); load(); setMsg("保存しました"); setTimeout(() => setMsg(""), 3000);
-    } catch { /* ignore */ }
-  };
-
-  return (
-    <div>
-      <h1 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 700 }}>QCDSテンプレート</h1>
-      <p style={{ margin: "0 0 18px", color: "var(--c-text-muted)", fontSize: 13 }}>業種別の経費率・保険料率プリセットを管理します。{msg && <span style={{ color: "var(--c-success)", marginLeft: 8 }}>{msg}</span>}</p>
-
-      {/* 編集フォーム */}
-      {editing !== null && (
-        <div className="card" style={{ padding: "20px", marginBottom: 16, border: "2px solid var(--c-primary)" }}>
-          <div style={{ fontWeight: 700, marginBottom: 14, fontSize: 15 }}>{editing === "new" ? "新規テンプレート追加" : "テンプレート編集"}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-            <div style={{ gridColumn: "1/-1" }}>
-              <label style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text-muted)", display: "block", marginBottom: 4 }}>テンプレート名 *</label>
-              <input className="input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={{ width: "100%" }} />
-            </div>
-            {RATE_FIELDS.map(({ key, label, unit }) => (
-              <div key={key}>
-                <label style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text-muted)", display: "block", marginBottom: 4 }}>{label}</label>
-                <input className="input" type="number"
-                  step={unit === "円" ? "1" : "0.0001"}
-                  min={unit === "円" ? "0" : undefined}
-                  value={editForm[key]}
-                  onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} style={{ width: "100%" }} />
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-primary" onClick={save}>保存</button>
-            <button className="btn" onClick={() => setEditing(null)}>キャンセル</button>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-        <button className="btn btn-primary btn-sm" onClick={() => { setEditForm({ name: "", description: "", labor_insurance_rate: "0.1973", construction_insurance_rate: "0.2095", office_supplies: "2000", communication_cost: "10000", misc_cost: "5000", site_staff_salary_rate: "3.50", shared_overhead_rate: "5.00", general_admin_rate: "3.50", target_operating_profit_rate: "10.0" }); setEditing("new"); }}>
-          + テンプレート追加
-        </button>
-      </div>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {templates.map(t => (
-          <div key={t.id} className="card" style={{ padding: "14px 18px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontWeight: 600 }}>{t.name}</div>
-              <button className="btn btn-ghost btn-sm" style={{ fontSize: 11 }} onClick={() => { setEditForm(toForm(t)); setEditing(t.id); }}>編集</button>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", fontSize: 12, color: "var(--c-text-muted)" }}>
-              <span>労災 {(t.labor_insurance_rate * 100).toFixed(4)}%</span>
-              <span>工事保険 {(t.construction_insurance_rate * 100).toFixed(4)}%</span>
-              <span>現場給与 {(t.site_staff_salary_rate * 100).toFixed(1)}%</span>
-              <span>共通配賦 {(t.shared_overhead_rate * 100).toFixed(1)}%</span>
-              <span>一般管理 {(t.general_admin_rate * 100).toFixed(1)}%</span>
-              <span>目標利益 {(t.target_operating_profit_rate * 100).toFixed(1)}%</span>
-            </div>
-          </div>
-        ))}
-        {templates.length === 0 && <div style={{ textAlign: "center", padding: 40, color: "var(--c-text-subtle)" }}>テンプレートがありません</div>}
-      </div>
-    </div>
-  );
-}
-
 // ─── 監査ログセクション ────────────────────────────────────────────────────────
 
 interface AuditItem { id: string; entity_type: string; change_type: string; changed_by_name: string | null; changed_at: string; }
@@ -1055,7 +914,6 @@ export default function AdminPage() {
       case "quote-conditions":return <QuoteConditionsSection />;
       case "approval-route":  return <ApprovalRouteSection />;
       case "clauses":         return <ClausesSection />;
-      case "qcds-templates":  return <QCDSTemplatesSection />;
       case "audit-log":       return <AuditLogSection />;
       case "backup":          return <BackupSection />;
       case "system":          return <SystemStatusSection />;
