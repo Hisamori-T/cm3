@@ -680,6 +680,18 @@ export default function InvoiceDetailPage() {
                   <span className="num">{fmt(outstanding)}</span>
                 </div>
               )}
+              {extraTotal > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--c-text-muted)", marginBottom: 4 }}>
+                  <span>追記行合計（税抜）</span>
+                  <span className="num">+ {fmt(extraTotal)}</span>
+                </div>
+              )}
+              {extraTotal > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, color: "var(--c-text)", marginBottom: 4, paddingBottom: 4, borderBottom: "1px solid var(--c-border)" }}>
+                  <span>小計（税抜）</span>
+                  <span className="num">{fmt(purchaseAll)}</span>
+                </div>
+              )}
               {tax !== null && (
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--c-text-muted)", marginBottom: 4 }}>
                   <span>消費税 (10%)</span>
