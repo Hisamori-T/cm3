@@ -602,7 +602,17 @@ def _render_quote_html(quote: Any, project: Any, items: list, sections: list,
 
     # ── 備考 ──────────────────────────────────────────────────────────────────
     remarks_raw = getattr(quote, "remarks", "") or ""
-    remarks_html = _h(remarks_raw).replace("\n", "<br>") if remarks_raw else ""
+    # 改行を <br> に変換。「：」と本文を flex で横並びにして2行目以降の字下げを揃える
+    if remarks_raw:
+        remarks_lines = _h(remarks_raw).replace("\n", "<br>")
+        remarks_html = (
+            '<div style="display:flex;align-items:flex-start;line-height:1.5;">'
+            '<span style="flex-shrink:0;white-space:nowrap;">：&nbsp;</span>'
+            f'<span style="flex:1;">{remarks_lines}</span>'
+            '</div>'
+        )
+    else:
+        remarks_html = ""
 
     # ── 担当者連絡先ブロック ──────────────────────────────────────────────────
     contact_block = ""
@@ -682,7 +692,7 @@ def _render_quote_html(quote: Any, project: Any, items: list, sections: list,
                     <td class="condition-label">工 期</td>
                     <td>： {_h(period_str)}</td>
                 </tr>
-                {"<tr class='no-border'><td class='condition-label'>備 考</td><td class='remarks-content'>： " + remarks_html + "</td></tr>" if remarks_html else "<tr class='no-border'><td class='condition-label'>備 考</td><td></td></tr>"}
+                {"<tr class='no-border'><td class='condition-label'>備 考</td><td class='remarks-content'>" + remarks_html + "</td></tr>" if remarks_html else "<tr class='no-border'><td class='condition-label'>備 考</td><td></td></tr>"}
             </table>
         </div>
 
