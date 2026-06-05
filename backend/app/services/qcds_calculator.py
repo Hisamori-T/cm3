@@ -32,7 +32,9 @@ class QCDSCalcResult:
     construction_insurance: float = 0.0  # 工事保険
     stamp_cost: float = 0.0             # 請負に関する契約印紙代
     receipt_cost: float = 0.0           # 売り上げの領収書
-    special_insurance: float = 0.0       # 特殊保険
+    special_insurance: float = 0.0       # 特殊保険（汎用）
+    special_insurance_equipment: float = 0.0   # 特殊保険（設備生産物）
+    special_insurance_demolition: float = 0.0  # 特殊保険（解体工事賠責）
     site_personnel_cost: float = 0.0     # 現場担当者給与
     fixed_overhead: float = 0.0          # 事務用品+通信交通+雑費+予備費+産廃
     site_overhead_total: float = 0.0     # B合計（現場経費+事業部小計+カスタム行）
@@ -88,6 +90,8 @@ def calculate_qcds(
     r.stamp_cost = stamp_cost
     r.receipt_cost = receipt_cost
     r.special_insurance = round(pp * float(qcds.special_insurance_rate or 0))
+    r.special_insurance_equipment = round(pp * float(getattr(qcds, "special_insurance_equipment_rate", 0) or 0))
+    r.special_insurance_demolition = round(pp * float(getattr(qcds, "special_insurance_demolition_rate", 0) or 0))
 
     # B-2: 現場担当者給与（実績 or 工事価格ベース）
     if qcds.actual_site_personnel_cost:
@@ -110,6 +114,8 @@ def calculate_qcds(
         + r.stamp_cost
         + r.receipt_cost
         + r.special_insurance
+        + r.special_insurance_equipment
+        + r.special_insurance_demolition
         + r.site_personnel_cost
         + r.fixed_overhead
     )
@@ -147,6 +153,8 @@ _SYSTEM_FIELDS = {
     "stamp_cost",
     "receipt_cost",
     "special_insurance",
+    "special_insurance_equipment",
+    "special_insurance_demolition",
     "fixed_overhead",
     "site_personnel_cost",
     "construction_dept_overhead",
@@ -203,6 +211,8 @@ def apply_expense_item_overrides(
         + r.stamp_cost
         + r.receipt_cost
         + r.special_insurance
+        + r.special_insurance_equipment
+        + r.special_insurance_demolition
         + r.site_personnel_cost
         + r.fixed_overhead
         + custom_b

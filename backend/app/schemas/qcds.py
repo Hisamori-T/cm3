@@ -78,6 +78,8 @@ class QCDSInput(BaseModel):
     labor_insurance_rate: float = 0.001973
     construction_insurance_rate: float = 0.002095
     special_insurance_rate: float = 0.000110
+    special_insurance_equipment_rate: float = 0.000110
+    special_insurance_demolition_rate: float = 0.019053
     office_supplies: float = 2000
     communication_cost: float = 10000
     misc_cost: float = 5000
@@ -110,6 +112,8 @@ class QCDSCalcFields(BaseModel):
     stamp_cost: float
     receipt_cost: float
     special_insurance: float
+    special_insurance_equipment: float = 0.0
+    special_insurance_demolition: float = 0.0
     site_personnel_cost: float
     fixed_overhead: float
     site_overhead_total: float
@@ -134,6 +138,8 @@ class QCDSResponse(BaseModel):
     labor_insurance_rate: float
     construction_insurance_rate: float
     special_insurance_rate: float
+    special_insurance_equipment_rate: float = 0.000110
+    special_insurance_demolition_rate: float = 0.019053
     office_supplies: float
     communication_cost: float
     misc_cost: float

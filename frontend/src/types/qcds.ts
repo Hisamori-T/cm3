@@ -71,6 +71,8 @@ export interface QCDSInput {
   labor_insurance_rate?: number;
   construction_insurance_rate?: number;
   special_insurance_rate?: number;
+  special_insurance_equipment_rate?: number;
+  special_insurance_demolition_rate?: number;
   office_supplies?: number;
   communication_cost?: number;
   misc_cost?: number;
@@ -93,6 +95,8 @@ export interface QCDSCalcFields {
   stamp_cost: number;
   receipt_cost: number;
   special_insurance: number;
+  special_insurance_equipment: number;
+  special_insurance_demolition: number;
   site_personnel_cost: number;
   fixed_overhead: number;
   site_overhead_total: number;
@@ -115,6 +119,8 @@ export interface QCDSResponse {
   labor_insurance_rate: number;
   construction_insurance_rate: number;
   special_insurance_rate: number;
+  special_insurance_equipment_rate: number;
+  special_insurance_demolition_rate: number;
   office_supplies: number;
   communication_cost: number;
   misc_cost: number;

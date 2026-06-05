@@ -17,22 +17,43 @@ export interface LocalExpenseItem extends ExpenseItemInput {
 // 自動計算マッピング
 // ───────────────────────────────────────────────
 export const SYSTEM_CALC_MAP: Record<string, (c: QCDSCalcFields) => number> = {
-  labor_insurance:              c => c.labor_insurance,
-  construction_insurance:       c => c.construction_insurance,
-  stamp_cost:                   c => c.stamp_cost,
-  receipt_cost:                 c => c.receipt_cost,
-  special_insurance:            c => c.special_insurance,
-  fixed_overhead:               c => c.fixed_overhead,
-  site_personnel_cost:          c => c.site_personnel_cost,
-  construction_dept_overhead:   c => c.construction_dept_overhead,
-  shared_overhead:              c => c.shared_overhead,
-  general_admin_cost:           c => c.general_admin_cost,
+  labor_insurance:                c => c.labor_insurance,
+  construction_insurance:         c => c.construction_insurance,
+  stamp_cost:                     c => c.stamp_cost,
+  receipt_cost:                   c => c.receipt_cost,
+  special_insurance:              c => c.special_insurance,
+  special_insurance_equipment:    c => c.special_insurance_equipment ?? 0,
+  special_insurance_demolition:   c => c.special_insurance_demolition ?? 0,
+  fixed_overhead:                 c => c.fixed_overhead,
+  site_personnel_cost:            c => c.site_personnel_cost,
+  construction_dept_overhead:     c => c.construction_dept_overhead,
+  shared_overhead:                c => c.shared_overhead,
+  general_admin_cost:             c => c.general_admin_cost,
 };
+
+/** ドロップダウンの選択肢 */
+export const EXPENSE_OPTIONS: { value: string; label: string; section: "B_site" | "B_dept" | "C" }[] = [
+  { value: "labor_insurance",              label: "労災保険料",                  section: "B_site" },
+  { value: "construction_insurance",       label: "工事保険・賠償責任保険",      section: "B_site" },
+  { value: "special_insurance",            label: "特殊保険",                    section: "B_site" },
+  { value: "special_insurance_equipment",  label: "特殊保険（設備生産物）",      section: "B_site" },
+  { value: "special_insurance_demolition", label: "特殊保険（解体工事賠責）",    section: "B_site" },
+  { value: "stamp_cost",                   label: "請負に関する契約印紙代",       section: "B_site" },
+  { value: "receipt_cost",                 label: "売り上げの領収書",             section: "B_site" },
+  { value: "fixed_overhead",               label: "事務用品・通信交通費・雑費",   section: "B_site" },
+  { value: "site_personnel_cost",          label: "現場担当者給与",               section: "B_dept" },
+  { value: "construction_dept_overhead",   label: "工事部経費（共通）",           section: "B_dept" },
+  { value: "shared_overhead",              label: "共通経費",                    section: "B_dept" },
+  { value: "general_admin_cost",           label: "一般管理費",                  section: "C" },
+  { value: "__custom__",                   label: "その他（手動入力）",           section: "B_site" },
+];
 
 type HeaderForFormula = {
   labor_insurance_rate?: number;
   construction_insurance_rate?: number;
   special_insurance_rate?: number;
+  special_insurance_equipment_rate?: number;
+  special_insurance_demolition_rate?: number;
   office_supplies?: number;
   communication_cost?: number;
   misc_cost?: number;
@@ -66,6 +87,10 @@ export function computedFormulaStr(
       return `受取金額(税込) ¥${n(taxIncl)} → 第17号文書 自動計算`;
     case "special_insurance":
       return `工事価格 ¥${n(pp)} × ${r(header.special_insurance_rate ?? 0)}`;
+    case "special_insurance_equipment":
+      return `工事価格 ¥${n(pp)} × ${r(header.special_insurance_equipment_rate ?? 0)}`;
+    case "special_insurance_demolition":
+      return `工事価格 ¥${n(pp)} × ${r(header.special_insurance_demolition_rate ?? 0)}`;
     case "fixed_overhead":
       return `事務${n(header.office_supplies ?? 0)} + 通信${n(header.communication_cost ?? 0)} + 雑費${n(header.misc_cost ?? 0)}` +
         (header.spare_cost ? ` + 予備費${n(header.spare_cost)}` : "") +
@@ -108,19 +133,52 @@ export function ExpenseRow({
   const displayAmt = hasOverride ? item.amount_override! : (calcValue ?? null);
   const isAutoCalc = isSystem && !hasOverride;
 
+  // ドロップダウンの現在値: system_key が既知オプションにあればそれ、なければ "__custom__"
+  const knownKeys = new Set(EXPENSE_OPTIONS.map(o => o.value));
+  const dropdownValue = item.system_key && knownKeys.has(item.system_key)
+    ? item.system_key
+    : "__custom__";
+
+  function handleDropdownChange(val: string) {
+    if (val === "__custom__") {
+      onChange({ system_key: null, item_name: item.item_name || "" });
+    } else {
+      const opt = EXPENSE_OPTIONS.find(o => o.value === val);
+      onChange({ system_key: val, item_name: opt?.label ?? val });
+    }
+  }
+
   return (
     <tr>
       <td className="no" style={{ fontSize: 11 }}>{rowIndex}</td>
-      <td className="editable">
-        <input
-          type="text"
-          value={item.item_name}
-          onChange={e => onChange({ item_name: e.target.value })}
+      <td className="editable" style={{ minWidth: 160 }}>
+        <select
+          value={dropdownValue}
+          onChange={e => handleDropdownChange(e.target.value)}
           style={{
             border: "none", background: "transparent", outline: "none",
             width: "100%", fontSize: 12, color: "var(--c-text)",
+            cursor: "pointer", appearance: "auto",
           }}
-        />
+        >
+          {EXPENSE_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+        {dropdownValue === "__custom__" && (
+          <input
+            type="text"
+            value={item.item_name}
+            onChange={e => onChange({ item_name: e.target.value })}
+            placeholder="項目名を入力"
+            style={{
+              border: "none", borderTop: "1px solid var(--c-border)",
+              background: "transparent", outline: "none",
+              width: "100%", fontSize: 11, color: "var(--c-text)",
+              marginTop: 2, paddingTop: 2,
+            }}
+          />
+        )}
       </td>
       <td className="editable">
         {effectiveFormula && (

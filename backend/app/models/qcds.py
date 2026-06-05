@@ -32,6 +32,8 @@ class QCDS(Base, TimestampMixin):
     labor_insurance_rate: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False, default=0.001973)
     construction_insurance_rate: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False, default=0.002095)
     special_insurance_rate: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False, default=0.000110)
+    special_insurance_equipment_rate: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False, default=0.000110)
+    special_insurance_demolition_rate: Mapped[float] = mapped_column(Numeric(8, 6), nullable=False, default=0.019053)
     office_supplies: Mapped[float] = mapped_column(Numeric(12, 0), nullable=False, default=2000)
     communication_cost: Mapped[float] = mapped_column(Numeric(12, 0), nullable=False, default=10000)
     misc_cost: Mapped[float] = mapped_column(Numeric(12, 0), nullable=False, default=5000)
