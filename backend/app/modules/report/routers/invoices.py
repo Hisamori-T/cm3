@@ -55,6 +55,7 @@ def _to_read(inv: Invoice) -> InvoiceRead:
         parent_invoice_id=inv.parent_invoice_id,
         work_description=inv.work_description,
         work_remarks=inv.work_remarks,
+        completion_date=inv.completion_date,
         items=[
             InvoiceItemRead(
                 id=i.id, row_no=i.row_no, item_name=i.item_name,
@@ -209,7 +210,7 @@ async def update_invoice(
     for field in (
         "issue_date", "previous_balance", "received_amount", "current_purchase",
         "status", "billing_method", "billing_percentage", "billing_note", "payment_due_date",
-        "work_description", "work_remarks",
+        "work_description", "work_remarks", "completion_date",
     ):
         val = getattr(body, field, None)
         if val is not None:

@@ -53,6 +53,7 @@ class Invoice(Base, TimestampMixin):
     split_total: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     work_description: Mapped[str | None] = mapped_column(Text, nullable=True)
     work_remarks: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    completion_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     # v2: 総額+分割連動
     invoice_type: Mapped[str] = mapped_column(String(20), nullable=False, default="standalone")
     parent_invoice_id: Mapped[uuid.UUID | None] = mapped_column(

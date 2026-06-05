@@ -918,59 +918,41 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
     received = float(getattr(invoice, "received_amount", None) or 0)
     balance_fwd = prev_balance - received
 
-    # n/n回目ラベル（摘要欄に表示）
+    # n/n回目ラベル（摘要欄・1行目に表示）
     seq = getattr(invoice, "split_sequence", None)
     tot = getattr(invoice, "split_total", None)
-    split_label_td = (
-        f'<td style="font-size:8.5pt;color:#555;text-align:center;">{seq}回 / {tot}回</td>'
-        if seq and tot else '<td></td>'
-    )
+    split_label = f"{seq}回 / {tot}回" if seq and tot else ""
 
-    # 発行日の年月日分割（空欄表示用）
-    if issue_date:
-        if hasattr(issue_date, 'year'):
-            yr, mo, dy = issue_date.year, issue_date.month, issue_date.day
-        else:
-            yr, mo, dy = "", "", ""
+    # 工事完了日（completion_date 優先、なければ空欄）
+    completion_date = getattr(invoice, "completion_date", None)
+    if completion_date and hasattr(completion_date, "year"):
+        comp_date_str = f"{completion_date.year}/{completion_date.month:02d}/{completion_date.day:02d}"
     else:
-        yr, mo, dy = "", "", ""
+        comp_date_str = ""
 
-    # 日付列に使う発行日（空なら空欄）
-    item_date_str = f"{yr}/{mo:02d}/{dy:02d}" if yr else ""
+    # 1行目（固定）: プロジェクト名 / 金額 / n/n
+    first_row = f"""<tr>
+      <td class="center">{comp_date_str}</td>
+      <td>{_h(getattr(project, "project_name", ""))}</td>
+      <td class="right">{_fmt_yen(subtotal)}</td>
+      <td style="font-size:8.5pt;color:#555;text-align:center;">{split_label}</td>
+    </tr>"""
 
-    # 明細行（items がある場合は1行目の摘要欄に n/n を入れる）
-    content_rows = ""
-    items_sorted = sorted(getattr(invoice, "items", []) or [], key=lambda x: getattr(x, "row_no", 0))
-    for idx, item in enumerate(items_sorted):
-        remarks_td = (
-            split_label_td if idx == 0
-            else f'<td class="center">{_h(getattr(item, "remarks", "") or "")}</td>'
-        )
-        content_rows += f"""<tr>
-          <td class="center">{item_date_str}</td>
-          <td>{_h(getattr(item, 'item_name', '') or getattr(item, 'description', '') or '')}</td>
-          <td class="right">{_fmt_yen(getattr(item, 'amount', None))}</td>
-          {remarks_td}
+    # 2行目以降（ユーザー追記行）: items を使用（description に日付を格納）
+    extra_rows = ""
+    for item in sorted(getattr(invoice, "items", []) or [], key=lambda x: getattr(x, "row_no", 0)):
+        item_text = _h(getattr(item, "item_name", "") or "")
+        item_rmk = _h(getattr(item, "remarks", "") or "")
+        item_amt = getattr(item, "amount", None)
+        item_date = _h(getattr(item, "description", "") or "")  # description に日付文字列を格納
+        extra_rows += f"""<tr>
+          <td class="center" style="font-size:8.5pt;">{item_date}</td>
+          <td style="padding-left:14pt;">{item_text}</td>
+          <td class="right">{_fmt_yen(item_amt) if item_amt else ""}</td>
+          <td style="font-size:8.5pt;text-align:center;">{item_rmk}</td>
         </tr>"""
-    if not content_rows:
-        # 明細なし → 工事名行を生成（work_description / work_remarks を使用）
-        work_desc = getattr(invoice, "work_description", None) or ""
-        work_rmk = getattr(invoice, "work_remarks", None) or ""
-        proj_name = _h(getattr(project, "project_name", ""))
-        desc_cell = f"{proj_name}<br><span style='font-size:8.5pt;color:#444;'>{_h(work_desc)}</span>" if work_desc else proj_name
-        # 摘要欄: n/n + work_remarks を両方表示（work_remarks がなければ n/n のみ）
-        if work_rmk and seq and tot:
-            rmk_td = f'<td style="font-size:8.5pt;text-align:center;">{seq}回 / {tot}回<br><span style="color:#444;">{_h(work_rmk)}</span></td>'
-        elif work_rmk:
-            rmk_td = f'<td style="font-size:8.5pt;text-align:center;">{_h(work_rmk)}</td>'
-        else:
-            rmk_td = split_label_td
-        content_rows = f"""<tr>
-          <td class="center">{item_date_str}</td>
-          <td>{desc_cell}</td>
-          <td class="right">{_fmt_yen(subtotal)}</td>
-          {rmk_td}
-        </tr>"""
+
+    content_rows = first_row + extra_rows
 
     # 空行（合計10行分埋める）
     used = content_rows.count("<tr>")

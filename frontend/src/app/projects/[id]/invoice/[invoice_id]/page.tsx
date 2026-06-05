@@ -61,6 +61,10 @@ export default function InvoiceDetailPage() {
   const [billingNote, setBillingNote] = useState("");
   const [workDescription, setWorkDescription] = useState("");
   const [workRemarks, setWorkRemarks] = useState("");
+  const [completionDate, setCompletionDate] = useState("");
+  // 追記行（InvoiceItems: {id?, date, text, amount, remarks}）
+  type ExtraRow = { id?: string; date: string; text: string; amount: string; remarks: string };
+  const [extraRows, setExtraRows] = useState<ExtraRow[]>([]);
 
   // 割合モーダル
   const [showPctModal, setShowPctModal] = useState(false);
@@ -96,6 +100,14 @@ export default function InvoiceDetailPage() {
       setBillingNote(data.billing_note || "");
       setWorkDescription(data.work_description || "");
       setWorkRemarks(data.work_remarks || "");
+      setCompletionDate(data.completion_date || "");
+      setExtraRows(data.items.map((i, idx) => ({
+        id: i.id,
+        date: "",  // InvoiceItem に date がないため空
+        text: i.item_name || "",
+        amount: i.amount?.toString() || "",
+        remarks: i.remarks || "",
+      })));
       // 総額請求書なら子（split）を取得
       if (data.invoice_type === "total") {
         const all = await apiFetch<InvoiceRead[]>(`/api/v1/projects/${projectId}/invoices`);
@@ -126,6 +138,14 @@ export default function InvoiceDetailPage() {
           billing_note: billingNote || null,
           work_description: workDescription || null,
           work_remarks: workRemarks || null,
+          completion_date: completionDate || null,
+          items: extraRows.filter(r => r.text).map((r, i) => ({
+            row_no: i + 1,
+            item_name: r.text,
+            amount: r.amount ? parseFloat(r.amount) : null,
+            remarks: r.remarks || null,
+            description: r.date || null,
+          })),
         }),
       });
       showMsg("保存しました");
@@ -393,30 +413,97 @@ export default function InvoiceDetailPage() {
             </div>
           </div>
 
-          {/* PDF 明細欄テキスト */}
+          {/* 工事完了日 */}
           <div className="card" style={{ padding: "16px 20px" }}>
-            <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>PDF 明細欄テキスト</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
-              <LI label="工事名・備考欄（補足テキスト）">
-                <Input
-                  value={workDescription}
-                  onChange={e => setWorkDescription(e.target.value)}
-                  disabled={isPaid}
-                  placeholder="工事名の下に補足内容を追記（任意）"
-                />
-              </LI>
-              <LI label="摘要欄（工事名・備考欄に追記した場合の適用内容）">
-                <Input
-                  value={workRemarks}
-                  onChange={e => setWorkRemarks(e.target.value)}
-                  disabled={isPaid}
-                  placeholder="例: 塗装工事、鉄骨工事 等（任意）"
-                />
-              </LI>
+            <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>工事完了日（PDF 日付列）</h2>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <Input type="date" value={completionDate} onChange={e => setCompletionDate(e.target.value)}
+                disabled={isPaid} style={{ width: 180 }} />
+              <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
+                ※ PDF の日付欄に表示されます。未入力の場合は空欄になります。
+              </span>
             </div>
-            <div style={{ marginTop: 8, fontSize: 11, color: "var(--c-text-muted)" }}>
-              ※ 工事名・備考欄の補足テキストを入力した場合、摘要欄にその内容の説明を記入できます
+          </div>
+
+          {/* PDF 明細追記行 */}
+          <div className="card" style={{ padding: "16px 20px" }}>
+            <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>PDF 明細欄 追記行</h2>
+            <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginBottom: 12 }}>
+              工事名行の下に追加内容を記入できます。追加工事・補足明細など。
             </div>
+
+            {/* ヘッダー */}
+            <div style={{
+              display: "grid", gridTemplateColumns: "110px 1fr 120px 140px 28px",
+              gap: 8, marginBottom: 4, fontSize: 11, fontWeight: 600, color: "var(--c-text-muted)",
+              padding: "0 8px",
+            }}>
+              <div>日付</div><div>工事名・備考</div>
+              <div style={{ textAlign: "right" }}>金額（税抜・任意）</div>
+              <div>摘要（任意）</div><div />
+            </div>
+
+            {/* 固定行（工事名） */}
+            <div style={{
+              display: "grid", gridTemplateColumns: "110px 1fr 120px 140px 28px",
+              gap: 8, padding: "7px 8px", marginBottom: 6,
+              background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))",
+              borderRadius: "var(--r-md)", fontSize: 12,
+            }}>
+              <div style={{ color: "var(--c-text-muted)", fontSize: 11, display: "flex", alignItems: "center" }}>
+                {completionDate || "（工事完了日）"}
+              </div>
+              <div style={{ fontWeight: 600, display: "flex", alignItems: "center" }}>
+                プロジェクト工事名（自動）
+              </div>
+              <div style={{ textAlign: "right", fontFamily: "var(--ff-mono)", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+                {fmt(inv?.current_purchase)}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--c-text-muted)", display: "flex", alignItems: "center" }}>
+                {inv?.split_sequence && inv?.split_total ? `${inv.split_sequence}回/${inv.split_total}回` : "—"}
+              </div>
+              <div />
+            </div>
+
+            {/* 追記行リスト */}
+            {extraRows.map((row, i) => (
+              <div key={i} style={{
+                display: "grid", gridTemplateColumns: "110px 1fr 120px 140px 28px",
+                gap: 8, marginBottom: 6, alignItems: "center",
+              }}>
+                <Input type="date" value={row.date} disabled={isPaid}
+                  onChange={e => setExtraRows(prev => prev.map((r, j) => j === i ? { ...r, date: e.target.value } : r))}
+                />
+                <Input value={row.text} disabled={isPaid} placeholder="工事名・備考"
+                  onChange={e => setExtraRows(prev => prev.map((r, j) => j === i ? { ...r, text: e.target.value } : r))}
+                />
+                <Input type="number" value={row.amount} disabled={isPaid} placeholder="0"
+                  onChange={e => setExtraRows(prev => prev.map((r, j) => j === i ? { ...r, amount: e.target.value } : r))}
+                />
+                <Input value={row.remarks} disabled={isPaid} placeholder="摘要"
+                  onChange={e => setExtraRows(prev => prev.map((r, j) => j === i ? { ...r, remarks: e.target.value } : r))}
+                />
+                {!isPaid && (
+                  <button onClick={() => setExtraRows(prev => prev.filter((_, j) => j !== i))}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-danger)", padding: 4 }}>
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {!isPaid && (
+              <button
+                onClick={() => setExtraRows(prev => [...prev, { date: "", text: "", amount: "", remarks: "" }])}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6, padding: "6px 14px",
+                  border: "1px dashed var(--c-border)", borderRadius: "var(--r-md)",
+                  background: "none", cursor: "pointer", fontSize: 12, color: "var(--c-primary)", marginTop: 4,
+                }}
+              >
+                <Plus size={13} /> 行を追加
+              </button>
+            )}
           </div>
 
           {/* 分割請求設定 */}

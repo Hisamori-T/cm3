@@ -43,6 +43,7 @@ class InvoiceUpdate(BaseModel):
     status: InvoiceStatus | None = None
     work_description: str | None = None
     work_remarks: str | None = None
+    completion_date: date | None = None
 
 
 class InvoiceItemRead(BaseModel):
@@ -111,6 +112,7 @@ class InvoiceRead(BaseModel):
     parent_invoice_id: uuid.UUID | None
     work_description: str | None = None
     work_remarks: str | None = None
+    completion_date: date | None = None
     items: list[InvoiceItemRead]
     payments: list[PaymentRead]
     created_at: datetime
