@@ -101,9 +101,9 @@ export default function InvoiceDetailPage() {
       setWorkDescription(data.work_description || "");
       setWorkRemarks(data.work_remarks || "");
       setCompletionDate(data.completion_date || "");
-      setExtraRows(data.items.map((i, idx) => ({
+      setExtraRows(data.items.map((i) => ({
         id: i.id,
-        date: "",  // InvoiceItem に date がないため空
+        date: i.description || "",  // description フィールドに日付文字列を格納
         text: i.item_name || "",
         amount: i.amount?.toString() || "",
         remarks: i.remarks || "",
@@ -418,7 +418,8 @@ export default function InvoiceDetailPage() {
             <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>工事完了日（PDF 日付列）</h2>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <Input type="date" value={completionDate} onChange={e => setCompletionDate(e.target.value)}
-                disabled={isPaid} style={{ width: 180 }} />
+                disabled={isPaid} style={{ width: 180, cursor: isPaid ? "default" : "pointer" }}
+                onClick={e => { if (!isPaid) { const el = e.currentTarget as HTMLInputElement; if ("showPicker" in el) el.showPicker?.(); } }} />
               <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
                 ※ PDF の日付欄に表示されます。未入力の場合は空欄になります。
               </span>
@@ -473,6 +474,8 @@ export default function InvoiceDetailPage() {
               }}>
                 <Input type="date" value={row.date} disabled={isPaid}
                   onChange={e => setExtraRows(prev => prev.map((r, j) => j === i ? { ...r, date: e.target.value } : r))}
+                  onClick={e => { if (!isPaid) { const el = e.currentTarget as HTMLInputElement; if ("showPicker" in el) el.showPicker?.(); } }}
+                  style={{ cursor: isPaid ? "default" : "pointer" }}
                 />
                 <Input value={row.text} disabled={isPaid} placeholder="工事名・備考"
                   onChange={e => setExtraRows(prev => prev.map((r, j) => j === i ? { ...r, text: e.target.value } : r))}

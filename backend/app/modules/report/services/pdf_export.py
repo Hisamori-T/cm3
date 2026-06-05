@@ -923,6 +923,21 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
     tot = getattr(invoice, "split_total", None)
     split_label = f"{seq}回 / {tot}回" if seq and tot else ""
 
+    # 発行日を年・月・日に分割（右上表示用）
+    _id = issue_date or getattr(invoice, "created_at", None)
+    if _id and isinstance(_id, (date, datetime)):
+        yr, mo, dy = _id.year, _id.month, _id.day
+    elif _id:
+        try:
+            _y, _m, _d = str(_id)[:10].split("-")
+            yr, mo, dy = int(_y), int(_m), int(_d)
+        except Exception:
+            _today = date.today()
+            yr, mo, dy = _today.year, _today.month, _today.day
+    else:
+        _today = date.today()
+        yr, mo, dy = _today.year, _today.month, _today.day
+
     # 工事完了日（completion_date 優先、なければ空欄）
     completion_date = getattr(invoice, "completion_date", None)
     if completion_date and hasattr(completion_date, "year"):
