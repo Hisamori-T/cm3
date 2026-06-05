@@ -68,7 +68,7 @@ async def list_projects(
     client_id: uuid.UUID | None = Query(None, description="顧客IDでフィルタ"),
     q: str | None = Query(None, description="工事番号・工事名・発注者のあいまい検索"),
     page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
+    per_page: int = Query(20, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ProjectListResponse:

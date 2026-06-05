@@ -81,6 +81,39 @@ class UserWorkHours(BaseModel):
     this_month_minutes: int
 
 
+class PeriodAlertItem(BaseModel):
+    """統合期限アラート（支払期日近迫・超過・完工後未発行・工期超過・長期未回収）。"""
+    alert_type: str  # payment_due_soon | payment_overdue | invoice_not_issued | schedule_overrun | invoice_long_unpaid
+    project_id: str
+    project_number: str
+    project_name: str
+    client_name: str
+    invoice_id: str | None = None
+    invoice_number: str | None = None
+    days: int
+    detail: str
+
+
+class InvoiceListItem(BaseModel):
+    invoice_id: str
+    invoice_number: str | None
+    project_id: str
+    project_name: str
+    client_name: str
+    total_amount: float
+    total_paid: float
+    status: str
+    issue_date: str | None
+
+
+class MonthlyInvoiceGroup(BaseModel):
+    year_month: str
+    display: str
+    total_billed: float
+    total_paid: float
+    invoices: list[InvoiceListItem]
+
+
 class DashboardResponse(BaseModel):
     kpi: list[KpiCard]
     status_distribution: list[StatusCount]
@@ -90,6 +123,8 @@ class DashboardResponse(BaseModel):
     invoice_stats: InvoiceStats
     unpaid_alerts: list[UnpaidAlert]
     user_work_hours: list[UserWorkHours]
+    period_alerts: list[PeriodAlertItem]
+    monthly_invoices: list[MonthlyInvoiceGroup]
 
 
 _STATUS_LABEL = {
@@ -302,6 +337,141 @@ async def get_dashboard(
         for row in work_hours_rows
     ]
 
+    # ── 統合期限アラート ──────────────────────────────────────────────────────────
+    period_alerts: list[PeriodAlertItem] = []
+    from app.models.enums import InvoiceStatus as IS2, ProjectStatus as PS
+
+    # 全請求書（未払い）をロード
+    all_inv_stmt = (
+        select(Invoice)
+        .options(selectinload(Invoice.project), selectinload(Invoice.payments))
+        .join(Project, Project.id == Invoice.project_id)
+        .where(Project.deleted_at.is_(None))
+    )
+    all_invoices = (await db.execute(all_inv_stmt)).scalars().unique().all()
+
+    # ①支払期日3日前（まだ未払い）
+    soon_cutoff = today + timedelta(days=3)
+    for inv in all_invoices:
+        if inv.payment_due_date and today <= inv.payment_due_date <= soon_cutoff:
+            if inv.status not in (IS2.paid,):
+                days_left = (inv.payment_due_date - today).days
+                period_alerts.append(PeriodAlertItem(
+                    alert_type="payment_due_soon",
+                    project_id=str(inv.project_id),
+                    project_number=inv.project.project_number,
+                    project_name=inv.project.project_name,
+                    client_name=inv.project.client_name or "",
+                    invoice_id=str(inv.id),
+                    invoice_number=inv.invoice_number,
+                    days=days_left,
+                    detail=f"支払期日まであと{days_left}日",
+                ))
+
+    # ②支払期日超過（未払い）
+    for inv in all_invoices:
+        if inv.payment_due_date and inv.payment_due_date < today:
+            if inv.status not in (IS2.paid,):
+                days_over = (today - inv.payment_due_date).days
+                period_alerts.append(PeriodAlertItem(
+                    alert_type="payment_overdue",
+                    project_id=str(inv.project_id),
+                    project_number=inv.project.project_number,
+                    project_name=inv.project.project_name,
+                    client_name=inv.project.client_name or "",
+                    invoice_id=str(inv.id),
+                    invoice_number=inv.invoice_number,
+                    days=days_over,
+                    detail=f"支払期日を{days_over}日超過",
+                ))
+
+    # ③完工後請求書未発行（完工ステータスで請求書0件）
+    inv_project_ids = {str(inv.project_id) for inv in all_invoices}
+    for p in projects:
+        if p.status == PS.completed and str(p.id) not in inv_project_ids:
+            completed_date = getattr(p, "period_actual_end", None) or getattr(p, "updated_at", None)
+            days_since = (today - (completed_date.date() if hasattr(completed_date, "date") else completed_date)).days if completed_date else 0
+            period_alerts.append(PeriodAlertItem(
+                alert_type="invoice_not_issued",
+                project_id=str(p.id),
+                project_number=p.project_number,
+                project_name=p.project_name,
+                client_name=p.client_name or "",
+                days=days_since,
+                detail=f"完工後{days_since}日経過",
+            ))
+
+    # ④工期超過（契約終了日を過ぎているが完工していない）
+    not_done_statuses = {PS.started, PS.in_progress}
+    for p in projects:
+        if p.status in not_done_statuses:
+            contract_end = getattr(p, "period_contract_end", None)
+            if contract_end and contract_end < today:
+                days_over = (today - contract_end).days
+                period_alerts.append(PeriodAlertItem(
+                    alert_type="schedule_overrun",
+                    project_id=str(p.id),
+                    project_number=p.project_number,
+                    project_name=p.project_name,
+                    client_name=p.client_name or "",
+                    days=days_over,
+                    detail=f"{days_over}日遅延",
+                ))
+
+    # ⑤請求発行後60日以上未回収
+    sixty_days_ago = today - timedelta(days=60)
+    for inv in all_invoices:
+        if inv.issue_date and inv.issue_date <= sixty_days_ago:
+            if inv.status not in (IS2.paid,):
+                days_elapsed = (today - inv.issue_date).days
+                period_alerts.append(PeriodAlertItem(
+                    alert_type="invoice_long_unpaid",
+                    project_id=str(inv.project_id),
+                    project_number=inv.project.project_number,
+                    project_name=inv.project.project_name,
+                    client_name=inv.project.client_name or "",
+                    invoice_id=str(inv.id),
+                    invoice_number=inv.invoice_number,
+                    days=days_elapsed,
+                    detail=f"請求発行後{days_elapsed}日経過",
+                ))
+
+    period_alerts.sort(key=lambda x: (-x.days,))
+
+    # ── 請求書年月別一覧 ────────────────────────────────────────────────────────
+    monthly_inv_map: dict[str, list[InvoiceListItem]] = {}
+    for inv in all_invoices:
+        ym = inv.issue_date.strftime("%Y-%m") if inv.issue_date else "未発行"
+        paid_sum = sum(float(p.amount or 0) for p in inv.payments)
+        item = InvoiceListItem(
+            invoice_id=str(inv.id),
+            invoice_number=inv.invoice_number,
+            project_id=str(inv.project_id),
+            project_name=inv.project.project_name,
+            client_name=inv.project.client_name or "",
+            total_amount=float(inv.total_amount or 0),
+            total_paid=paid_sum,
+            status=inv.status.value,
+            issue_date=inv.issue_date.isoformat() if inv.issue_date else None,
+        )
+        monthly_inv_map.setdefault(ym, []).append(item)
+
+    monthly_invoices: list[MonthlyInvoiceGroup] = []
+    for ym in sorted(monthly_inv_map.keys(), reverse=True):
+        items_in_month = monthly_inv_map[ym]
+        if ym == "未発行":
+            display = "未発行"
+        else:
+            yr_s, mo_s = ym.split("-")
+            display = f"{yr_s}年{int(mo_s)}月"
+        monthly_invoices.append(MonthlyInvoiceGroup(
+            year_month=ym,
+            display=display,
+            total_billed=sum(i.total_amount for i in items_in_month),
+            total_paid=sum(i.total_paid for i in items_in_month),
+            invoices=items_in_month,
+        ))
+
     return DashboardResponse(
         kpi=kpi,
         status_distribution=status_distribution,
@@ -311,4 +481,6 @@ async def get_dashboard(
         invoice_stats=invoice_stats,
         unpaid_alerts=unpaid_alerts[:20],
         user_work_hours=user_work_hours,
+        period_alerts=period_alerts[:30],
+        monthly_invoices=monthly_invoices,
     )

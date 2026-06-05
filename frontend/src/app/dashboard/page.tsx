@@ -36,6 +36,22 @@ interface UserWorkHours {
   user_name: string;
   this_month_minutes: number;
 }
+interface PeriodAlertItem {
+  alert_type: string;
+  project_id: string; project_number: string; project_name: string; client_name: string;
+  invoice_id?: string; invoice_number?: string;
+  days: number; detail: string;
+}
+interface InvoiceListItem {
+  invoice_id: string; invoice_number: string | null;
+  project_id: string; project_name: string; client_name: string;
+  total_amount: number; total_paid: number; status: string; issue_date: string | null;
+}
+interface MonthlyInvoiceGroup {
+  year_month: string; display: string;
+  total_billed: number; total_paid: number;
+  invoices: InvoiceListItem[];
+}
 interface DashboardData {
   kpi: KpiCard[]; status_distribution: StatusCount[];
   monthly_stats: MonthlyStat[]; deadline_alerts: DeadlineAlert[];
@@ -43,7 +59,17 @@ interface DashboardData {
   invoice_stats: InvoiceStats;
   unpaid_alerts: UnpaidAlert[];
   user_work_hours: UserWorkHours[];
+  period_alerts: PeriodAlertItem[];
+  monthly_invoices: MonthlyInvoiceGroup[];
 }
+
+const ALERT_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
+  payment_due_soon: { label: "支払期日近迫", icon: "⏰", color: "#f59e0b" },
+  payment_overdue:  { label: "支払期日超過", icon: "⚠️", color: "#ef4444" },
+  invoice_not_issued: { label: "請求書未発行", icon: "📄", color: "#8b5cf6" },
+  schedule_overrun: { label: "工期超過", icon: "🏗️", color: "#f97316" },
+  invoice_long_unpaid: { label: "入金未確認", icon: "💴", color: "#6366f1" },
+};
 
 const STATUS_COLOR: Record<string, string> = {
   quote: "var(--c-status-quote)", ordered: "var(--c-status-order)",
@@ -71,6 +97,126 @@ function fmtRelTime(iso: string): string {
   if (h < 24) return `${h}時間前`;
   const d = new Date(iso);
   return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+/** 統合期限アラートカード */
+function PeriodAlertsCard({ alerts }: { alerts: PeriodAlertItem[] }) {
+  const byType: Record<string, PeriodAlertItem[]> = {};
+  for (const a of alerts) {
+    byType[a.alert_type] = [...(byType[a.alert_type] ?? []), a];
+  }
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            ⚠️ 期限アラート
+          </div>
+          <div className="card-sub">対応が必要な案件 · 計{alerts.length}件</div>
+        </div>
+      </div>
+      {Object.entries(ALERT_TYPE_CONFIG).map(([type, cfg]) => {
+        const items = byType[type] ?? [];
+        if (items.length === 0) return null;
+        return (
+          <div key={type}>
+            <div style={{
+              padding: "6px 14px", background: `${cfg.color}18`,
+              borderLeft: `3px solid ${cfg.color}`, fontSize: 12, fontWeight: 600,
+              display: "flex", alignItems: "center", gap: 8, color: cfg.color,
+            }}>
+              <span>{cfg.icon}</span>
+              <span>{cfg.label}</span>
+              <span style={{ marginLeft: "auto", background: cfg.color, color: "#fff", borderRadius: 10, padding: "1px 8px", fontSize: 11 }}>
+                {items.length}件
+              </span>
+            </div>
+            {items.slice(0, 3).map((a, i) => (
+              <Link
+                key={i}
+                href={a.invoice_id ? `/projects/${a.project_id}/invoice/${a.invoice_id}` : `/projects/${a.project_id}`}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px 8px 24px", borderBottom: "1px solid var(--c-border)", textDecoration: "none", fontSize: 12 }}
+              >
+                <div>
+                  <span style={{ fontWeight: 500, color: "var(--c-text)" }}>{a.project_name}</span>
+                  <span style={{ marginLeft: 6, fontSize: 11, color: "var(--c-text-muted)" }}>{a.client_name}</span>
+                </div>
+                <span style={{ fontFamily: "var(--ff-mono)", fontSize: 11, color: cfg.color, fontWeight: 700, whiteSpace: "nowrap", marginLeft: 12 }}>
+                  {a.detail}
+                </span>
+              </Link>
+            ))}
+            {items.length > 3 && (
+              <div style={{ padding: "4px 24px", fontSize: 11, color: "var(--c-text-muted)" }}>他{items.length - 3}件…</div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 請求書年月別一覧カード */
+function MonthlyInvoicesCard({ groups }: { groups: MonthlyInvoiceGroup[] }) {
+  const [open, setOpen] = useState<Set<string>>(new Set([groups[0]?.year_month ?? ""]));
+  const toggle = (ym: string) => setOpen(prev => {
+    const next = new Set(prev);
+    next.has(ym) ? next.delete(ym) : next.add(ym);
+    return next;
+  });
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">請求書一覧（月別）</div>
+          <div className="card-sub">入金待ち請求書 · クリックで折りたたみ</div>
+        </div>
+      </div>
+      {groups.map(g => (
+        <div key={g.year_month}>
+          <button
+            onClick={() => toggle(g.year_month)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", border: "none", background: "var(--c-surface-2)", borderTop: "1px solid var(--c-border)", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+          >
+            <span>{open.has(g.year_month) ? "▼" : "▶"} {g.display}</span>
+            <span style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: "var(--c-text-muted)", fontWeight: 400 }}>
+              請求{fmtMoney(g.total_billed)}円 / 入金{fmtMoney(g.total_paid)}円
+            </span>
+          </button>
+          {open.has(g.year_month) && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--c-border)", color: "var(--c-text-muted)", fontSize: 11 }}>
+                  <th style={{ padding: "4px 14px", textAlign: "left", fontWeight: 500 }}>工事名</th>
+                  <th style={{ padding: "4px 10px", textAlign: "left", fontWeight: 500 }}>発注者</th>
+                  <th style={{ padding: "4px 10px", textAlign: "right", fontWeight: 500 }}>総額</th>
+                  <th style={{ padding: "4px 14px", textAlign: "right", fontWeight: 500 }}>入金済</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.invoices.map(inv => (
+                  <tr key={inv.invoice_id} style={{ borderBottom: "1px solid var(--c-border)", cursor: "pointer" }}
+                    onClick={() => window.location.href = `/projects/${inv.project_id}/invoice/${inv.invoice_id}`}>
+                    <td style={{ padding: "6px 14px" }}>
+                      <div style={{ fontWeight: 500 }}>{inv.project_name}</div>
+                      <div style={{ fontSize: 10, color: "var(--c-text-muted)" }}>{inv.invoice_number}</div>
+                    </td>
+                    <td style={{ padding: "6px 10px", color: "var(--c-text-muted)" }}>{inv.client_name || "—"}</td>
+                    <td style={{ padding: "6px 10px", textAlign: "right", fontFamily: "var(--ff-mono)", fontWeight: 600 }}>
+                      ¥{Math.round(inv.total_amount).toLocaleString()}
+                    </td>
+                    <td style={{ padding: "6px 14px", textAlign: "right", fontFamily: "var(--ff-mono)", color: inv.total_paid >= inv.total_amount ? "var(--c-success)" : "var(--c-danger)" }}>
+                      ¥{Math.round(inv.total_paid).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 /** ステータス別ドーナツ SVG */
@@ -351,90 +497,18 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Bottom: alerts (1.4fr) + timeline (1fr) */}
+          {/* 統合期限アラート */}
+          {(data.period_alerts?.length ?? 0) > 0 && (
+            <PeriodAlertsCard alerts={data.period_alerts ?? []} />
+          )}
+
+          {/* 請求書年月別一覧 */}
+          {(data.monthly_invoices?.length ?? 0) > 0 && (
+            <MonthlyInvoicesCard groups={data.monthly_invoices ?? []} />
+          )}
+
+          {/* Bottom: work hours + timeline */}
           <div className="grid-2">
-
-            {/* Alert card */}
-            <div className="alert-card">
-              <div className="card-head">
-                <div>
-                  <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-warn)" strokeWidth="1.8">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                      <path d="M12 9v4M12 17h.01" />
-                    </svg>
-                    期限アラート
-                  </div>
-                  <div className="card-sub">対応が必要な案件 · 計{data.deadline_alerts.length}件</div>
-                </div>
-              </div>
-
-              {overdue > 0 && (
-                <div className="alert-row danger">
-                  <div className="icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
-                    </svg>
-                  </div>
-                  <div className="label">工期超過</div>
-                  <div className="count">{overdue}<small>件</small></div>
-                  <Link href="/projects" className="link">確認 →</Link>
-                </div>
-              )}
-
-              {soon7 > 0 && (
-                <div className="alert-row warn">
-                  <div className="icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                      <path d="M12 9v4M12 17h.01" />
-                    </svg>
-                  </div>
-                  <div className="label">7日以内に期限</div>
-                  <div className="count">{soon7}<small>件</small></div>
-                  <Link href="/projects" className="link">確認 →</Link>
-                </div>
-              )}
-
-              {soon30 > 0 && (
-                <div className="alert-row info">
-                  <div className="icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                      <path d="M16 2v4M8 2v4M3 10h18" />
-                    </svg>
-                  </div>
-                  <div className="label">30日以内に期限</div>
-                  <div className="count">{soon30}<small>件</small></div>
-                  <Link href="/projects" className="link">確認 →</Link>
-                </div>
-              )}
-
-              {data.deadline_alerts.length === 0 && (
-                <div style={{ padding: "24px 14px", fontSize: 13, color: "var(--c-text-muted)", textAlign: "center" }}>
-                  期限が近い案件はありません
-                </div>
-              )}
-
-              {/* Individual deadline items */}
-              {data.deadline_alerts.slice(0, 4).map(a => (
-                <Link
-                  key={`${a.project_id}-${a.alert_type}`}
-                  href={`/projects/${a.project_id}`}
-                  style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 14px", borderTop: "1px solid var(--c-border)", textDecoration: "none", fontSize: 12 }}
-                >
-                  <div>
-                    <div style={{ fontWeight: 500, color: "var(--c-text)" }}>{a.project_name}</div>
-                    <div style={{ color: "var(--c-text-muted)", marginTop: 1, fontSize: 11 }}>
-                      {a.alert_type === "contract_end" ? "契約工期" : "実施工期"} 終了: {a.deadline.slice(0, 10)}
-                    </div>
-                  </div>
-                  <span style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: a.days_left <= 0 ? "var(--c-danger)" : "var(--c-warn)", fontWeight: 700, whiteSpace: "nowrap", marginLeft: 12 }}>
-                    {a.days_left <= 0 ? `${Math.abs(a.days_left)}日超過` : `${a.days_left}日後`}
-                  </span>
-                </Link>
-              ))}
-            </div>
 
             {/* 担当者別稼働時間 */}
             {(data.user_work_hours?.length ?? 0) > 0 && (
