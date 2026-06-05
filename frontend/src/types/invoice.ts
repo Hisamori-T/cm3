@@ -58,6 +58,8 @@ export interface InvoiceRead {
   split_total: number | null;
   invoice_type: "standalone" | "total" | "split";
   parent_invoice_id: string | null;
+  work_description: string | null;
+  work_remarks: string | null;
   items: InvoiceItemRead[];
   payments: PaymentRead[];
   created_at: string;

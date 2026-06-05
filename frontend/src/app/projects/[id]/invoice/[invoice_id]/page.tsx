@@ -59,6 +59,8 @@ export default function InvoiceDetailPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [billingPercentage, setBillingPercentage] = useState("");
   const [billingNote, setBillingNote] = useState("");
+  const [workDescription, setWorkDescription] = useState("");
+  const [workRemarks, setWorkRemarks] = useState("");
 
   // 割合モーダル
   const [showPctModal, setShowPctModal] = useState(false);
@@ -92,6 +94,8 @@ export default function InvoiceDetailPage() {
       setBillingMethod(data.billing_method || "");
       setBillingPercentage(data.billing_percentage?.toString() || "");
       setBillingNote(data.billing_note || "");
+      setWorkDescription(data.work_description || "");
+      setWorkRemarks(data.work_remarks || "");
       // 総額請求書なら子（split）を取得
       if (data.invoice_type === "total") {
         const all = await apiFetch<InvoiceRead[]>(`/api/v1/projects/${projectId}/invoices`);
@@ -120,6 +124,8 @@ export default function InvoiceDetailPage() {
           billing_method: billingMethod || null,
           billing_percentage: billingPercentage ? parseFloat(billingPercentage) : null,
           billing_note: billingNote || null,
+          work_description: workDescription || null,
+          work_remarks: workRemarks || null,
         }),
       });
       showMsg("保存しました");
@@ -384,6 +390,32 @@ export default function InvoiceDetailPage() {
               <LI label="支払期日">
                 <Input type="date" value={paymentDueDate} onChange={e => setPaymentDueDate(e.target.value)} disabled={isPaid} />
               </LI>
+            </div>
+          </div>
+
+          {/* PDF 明細欄テキスト */}
+          <div className="card" style={{ padding: "16px 20px" }}>
+            <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>PDF 明細欄テキスト</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+              <LI label="工事名・備考欄（追記テキスト）">
+                <Input
+                  value={workDescription}
+                  onChange={e => setWorkDescription(e.target.value)}
+                  disabled={isReadOnly}
+                  placeholder="工事名の下に表示される補足テキスト（任意）"
+                />
+              </LI>
+              <LI label="摘要欄">
+                <Input
+                  value={workRemarks}
+                  onChange={e => setWorkRemarks(e.target.value)}
+                  disabled={isReadOnly}
+                  placeholder="例: 最終回、前払い等（任意）"
+                />
+              </LI>
+            </div>
+            <div style={{ marginTop: 8, fontSize: 11, color: "var(--c-text-muted)" }}>
+              ※ 摘要欄を入力すると「{inv?.split_sequence && inv?.split_total ? `${inv.split_sequence}回/${inv.split_total}回` : "n回/n回"}」の代わりに表示されます
             </div>
           </div>
 

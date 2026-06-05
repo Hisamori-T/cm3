@@ -953,12 +953,21 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
           {remarks_td}
         </tr>"""
     if not content_rows:
-        # 明細なし → 工事名行の摘要欄に n/n を表示
+        # 明細なし → 工事名行を生成（work_description / work_remarks を使用）
+        work_desc = getattr(invoice, "work_description", None) or ""
+        work_rmk = getattr(invoice, "work_remarks", None) or ""
+        proj_name = _h(getattr(project, "project_name", ""))
+        desc_cell = f"{proj_name}<br><span style='font-size:8.5pt;color:#444;'>{_h(work_desc)}</span>" if work_desc else proj_name
+        # 摘要欄: work_remarks が指定されていれば優先、なければ n/n
+        if work_rmk:
+            rmk_td = f'<td style="font-size:8.5pt;text-align:center;">{_h(work_rmk)}</td>'
+        else:
+            rmk_td = split_label_td
         content_rows = f"""<tr>
           <td class="center">{item_date_str}</td>
-          <td>{_h(getattr(project, 'project_name', ''))}</td>
+          <td>{desc_cell}</td>
           <td class="right">{_fmt_yen(subtotal)}</td>
-          {split_label_td}
+          {rmk_td}
         </tr>"""
 
     # 空行（合計10行分埋める）

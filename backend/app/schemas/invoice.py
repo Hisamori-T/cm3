@@ -41,6 +41,8 @@ class InvoiceUpdate(BaseModel):
     payment_due_date: date | None = None
     items: list[InvoiceItemCreate] | None = None
     status: InvoiceStatus | None = None
+    work_description: str | None = None
+    work_remarks: str | None = None
 
 
 class InvoiceItemRead(BaseModel):
@@ -107,6 +109,8 @@ class InvoiceRead(BaseModel):
     split_total: int | None
     invoice_type: str
     parent_invoice_id: uuid.UUID | None
+    work_description: str | None = None
+    work_remarks: str | None = None
     items: list[InvoiceItemRead]
     payments: list[PaymentRead]
     created_at: datetime
