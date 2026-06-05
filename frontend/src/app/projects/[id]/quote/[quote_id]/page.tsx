@@ -1189,16 +1189,25 @@ export default function QuoteDetailPage() {
               {conditionItems.map((item, idx) => (
                 <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: editingConditionId === item.id ? "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" : "var(--c-surface-2)" }}>
                   {editingConditionId === item.id ? (
-                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                      <textarea value={editingConditionText} onChange={e => setEditingConditionText(e.target.value)} rows={3}
-                        style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", border: "1px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical" }}
+                    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                      <textarea
+                        value={editingConditionText}
+                        onChange={e => setEditingConditionText(e.target.value)}
+                        rows={Math.max(12, editingConditionText.split("\n").length + 3)}
+                        style={{
+                          width: "100%", boxSizing: "border-box",
+                          fontSize: 12, lineHeight: 1.7, padding: "8px 10px",
+                          border: "2px solid var(--c-primary)", borderRadius: "var(--r-sm)",
+                          resize: "vertical", fontFamily: "inherit",
+                          background: "var(--c-surface)", color: "var(--c-text)",
+                        }}
                         autoFocus
                       />
-                      <div style={{ display: "flex", gap: 4 }}>
-                        <button onClick={() => handleUpdateConditionItem(item.id, editingConditionText)}
-                          style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer" }}>保存</button>
+                      <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
                         <button onClick={() => setEditingConditionId(null)}
-                          style={{ fontSize: 11, padding: "2px 10px", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>キャンセル</button>
+                          style={{ fontSize: 12, padding: "4px 14px", background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>キャンセル</button>
+                        <button onClick={() => handleUpdateConditionItem(item.id, editingConditionText)}
+                          style={{ fontSize: 12, padding: "4px 14px", background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-sm)", cursor: "pointer", fontWeight: 600 }}>保存</button>
                       </div>
                     </div>
                   ) : (
@@ -1220,10 +1229,11 @@ export default function QuoteDetailPage() {
               ))}
               {addingCondition && (
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" }}>
-                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-                    <textarea value={newConditionText} onChange={e => setNewConditionText(e.target.value)} rows={3} autoFocus
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <textarea value={newConditionText} onChange={e => setNewConditionText(e.target.value)}
+                      rows={Math.max(8, newConditionText.split("\n").length + 3)} autoFocus
                       placeholder="条件書の内容を入力..."
-                      style={{ width: "100%", boxSizing: "border-box", fontSize: 12, padding: "4px 8px", border: "1px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical" }}
+                      style={{ width: "100%", boxSizing: "border-box", fontSize: 12, lineHeight: 1.7, padding: "8px 10px", border: "2px solid var(--c-primary)", borderRadius: "var(--r-sm)", resize: "vertical", fontFamily: "inherit", background: "var(--c-surface)", color: "var(--c-text)" }}
                     />
                     <div style={{ display: "flex", gap: 4 }}>
                       <button onClick={() => handleAddConditionItem(newConditionText)}
