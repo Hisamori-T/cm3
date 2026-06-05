@@ -113,6 +113,7 @@ function UserModal({
     email: user?.email ?? "",
     full_name: user?.full_name ?? "",
     department: user?.department ?? "",
+    phone: (user as Record<string, unknown> | undefined)?.phone as string ?? "",
     employee_number: user?.employee_number ?? "",
     role: (user?.role ?? "staff") as UserRole,
     roles: (user?.roles?.length ? user.roles : [user?.role ?? "staff"]) as UserRole[],
@@ -141,6 +142,7 @@ function UserModal({
         email: form.email,
         full_name: form.full_name,
         department: form.department || null,
+        phone: form.phone || null,
         employee_number: form.employee_number ? Number(form.employee_number) : null,
         role: form.role,
         roles: form.roles.length ? form.roles : [form.role],
@@ -175,6 +177,7 @@ function UserModal({
             { label: "氏名", key: "full_name" },
             { label: "メールアドレス", key: "email" },
             { label: "部署", key: "department" },
+            { label: "担当者電話番号", key: "phone" },
             { label: "社員番号", key: "employee_number" },
           ].map(({ label, key }) => (
             <div key={key}>

@@ -65,6 +65,8 @@ export default function QCDSPage() {
   const [isDirty, setIsDirty] = useState(false);
   const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved">("idle");
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // isSaving を ref でも保持（stale closure 防止）
+  const isSavingRef = useRef(false);
   const [projectPrice, setProjectPrice] = useState<number | null>(null);
   const [showRates, setShowRates] = useState(false);
   const [viewRevision, setViewRevision] = useState<number>(0);
@@ -173,19 +175,19 @@ export default function QCDSPage() {
   useEffect(() => { stateRef.current = { expenseItems, header, works, qcds }; });
 
   const handleSave = useCallback(async () => {
-    if (isSaving) return;
+    // isSavingRef で排他制御（stale closure を防ぐため state ではなく ref を使用）
+    if (isSavingRef.current) return;
+    isSavingRef.current = true;
     setIsSaving(true);
     setAutoSaveStatus("saving");
     try {
       const { expenseItems: ei, header: hd, works: wk, qcds: q } = stateRef.current;
       // row_no を section 内で振り直す
-      const renumbered = (() => {
-        const counters: Record<string, number> = {};
-        return ei.map(item => {
-          counters[item.section] = (counters[item.section] ?? 0) + 1;
-          return { ...item, row_no: counters[item.section] };
-        });
-      })();
+      const counters: Record<string, number> = {};
+      const renumbered = ei.map(item => {
+        counters[item.section] = (counters[item.section] ?? 0) + 1;
+        return { ...item, row_no: counters[item.section] };
+      });
 
       const payload: QCDSInput = {
         ...hd,
@@ -200,24 +202,46 @@ export default function QCDSPage() {
         method: "PUT",
         body: JSON.stringify(payload),
       });
+      // calc 値のみサーバーから更新（expense_items は上書きしない ← 全置換バグを防ぐ）
       setQcds(updated);
-      setExpenseItems(updated.expense_items.map(e => ({ ...e, _key: e.id })));
+      // 新規追加行（id がない）にサーバーから採番された UUID を位置ベースで割り当てる
+      setExpenseItems(prev => {
+        const srvByPos = new Map<string, string>(); // "section-rowNo" → server id
+        updated.expense_items.forEach(e => {
+          srvByPos.set(`${e.section}-${e.row_no}`, String(e.id));
+        });
+        const cnt: Record<string, number> = {};
+        return prev.map(item => {
+          cnt[item.section] = (cnt[item.section] ?? 0) + 1;
+          const posKey = `${item.section}-${cnt[item.section]}`;
+          const serverId = srvByPos.get(posKey);
+          if (!item.id && serverId) {
+            return { ...item, id: serverId, _key: serverId };
+          }
+          return item;
+        });
+      });
       setIsDirty(false);
       setAutoSaveStatus("saved");
       setTimeout(() => setAutoSaveStatus("idle"), 2000);
     } catch {
       setAutoSaveStatus("idle");
-    } finally { setIsSaving(false); }
-  }, [id, isSaving]);
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
+    }
+  }, [id]); // isSaving を deps から除去（ref で管理するため）
 
-  // 変更後2秒で自動保存
+  // 変更後2秒で自動保存（debounce）
   useEffect(() => {
-    if (!isDirty || isSaving) return;
+    if (!isDirty) return;
     setAutoSaveStatus("pending");
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => { handleSave(); }, 2000);
+    autoSaveTimerRef.current = setTimeout(() => {
+      if (!isSavingRef.current) handleSave();
+    }, 2000);
     return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
-  }, [isDirty, expenseItems, header, works]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isDirty, expenseItems, header, works, handleSave]);
 
   const updateWork = (idx: number, patch: Partial<DirectWorkInput>) => {
     setWorks(prev => prev.map((w, i) => i === idx ? { ...w, ...patch } : w));
@@ -370,7 +394,7 @@ export default function QCDSPage() {
           {autoSaveStatus === "pending" && <span style={{ fontSize: 12, color: "var(--c-accent)" }}>変更あり（自動保存まで待機中）</span>}
           {autoSaveStatus === "saving" && <span style={{ fontSize: 12, color: "var(--c-text-muted)" }}>保存中...</span>}
           {autoSaveStatus === "saved"  && <span style={{ fontSize: 12, color: "var(--c-success)" }}>✓ 保存済み</span>}
-          <Button variant="primary" size="sm" onClick={handleSave} disabled={isSaving || !isDirty}>
+          <Button variant="primary" size="sm" onClick={handleSave} disabled={isSaving}>
             {isSaving ? "保存中..." : "今すぐ保存"}
           </Button>
         </div>

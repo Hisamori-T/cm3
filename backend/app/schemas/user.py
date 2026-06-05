@@ -16,6 +16,7 @@ class UserRead(BaseModel):
     role: UserRole
     roles: list[UserRole] = []
     department: str | None
+    phone: str | None = None
     is_active: bool
     stamp_text: str | None = None
     stamp_style: str | None = None
@@ -44,6 +45,7 @@ class UserUpdate(BaseModel):
     role: UserRole | None = None
     roles: list[UserRole] | None = None  # None = 変更しない
     department: str | None = None
+    phone: str | None = None
     is_active: bool | None = None
     password: str | None = None
     stamp_text: str | None = None

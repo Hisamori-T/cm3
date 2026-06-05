@@ -210,16 +210,19 @@ async def export_quote_pdf(
     if quote is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="見積書が見つかりません")
 
-    # 承認押印ユーザー名マップ
+    # 承認押印ユーザー名マップ（phone も含める: key = "{id}_phone"）
     user_ids = [uid for uid in [
         quote.person_in_charge_id, quote.reviewer_id, quote.approver_id
     ] if uid]
     stamp_users: dict[str, str] = {}
     if user_ids:
         rows = (await db.execute(
-            select(UserModel.id, UserModel.full_name).where(UserModel.id.in_(user_ids))
+            select(UserModel.id, UserModel.full_name, UserModel.phone).where(UserModel.id.in_(user_ids))
         )).all()
-        stamp_users = {str(r.id): r.full_name for r in rows}
+        for r in rows:
+            stamp_users[str(r.id)] = r.full_name
+            if r.phone:
+                stamp_users[f"{r.id}_phone"] = r.phone
 
     co = await _get_company(db)
     items = sorted(quote.items, key=lambda x: x.row_no)

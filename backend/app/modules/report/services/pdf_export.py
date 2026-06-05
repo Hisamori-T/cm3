@@ -615,8 +615,14 @@ def _render_quote_html(quote: Any, project: Any, items: list, sections: list,
         remarks_html = ""
 
     # ── 担当者連絡先ブロック ──────────────────────────────────────────────────
+    pic_phone = stamp_users.get(pic_id + "_phone", "") if pic_id else ""
     contact_block = ""
     if pic_name:
+        phone_row = (
+            f'<tr><td class="contact-info-label">連絡先：</td>'
+            f'<td class="contact-info-value">{_h(pic_phone)}</td></tr>'
+            if pic_phone else ""
+        )
         contact_block = f"""
         <div class="contact-box">
             <div class="title-msg">この見積書についてのご用命、お問い合わせは<br>下記担当者へ連絡をお願いします。</div>
@@ -625,6 +631,7 @@ def _render_quote_html(quote: Any, project: Any, items: list, sections: list,
                     <td class="contact-info-label">担当者：</td>
                     <td class="contact-info-value">{_h(pic_name)}</td>
                 </tr>
+                {phone_row}
             </table>
         </div>"""
 

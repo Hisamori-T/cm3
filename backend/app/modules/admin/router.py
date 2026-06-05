@@ -283,6 +283,7 @@ async def create_user(
         role=body.role,
         roles=effective_roles,
         department=body.department,
+        phone=getattr(body, "phone", None),
     )
     db.add(user)
     await db.commit()
@@ -316,7 +317,7 @@ async def update_user(
         if dup:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="このメールアドレスは既に使用されています")
         user.email = body.email
-    for field in ("full_name", "employee_number", "role", "department", "is_active", "stamp_text", "stamp_style"):
+    for field in ("full_name", "employee_number", "role", "department", "phone", "is_active", "stamp_text", "stamp_style"):
         val = getattr(body, field, None)
         if val is not None:
             setattr(user, field, val)

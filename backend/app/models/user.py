@@ -38,6 +38,7 @@ class User(Base, TimestampMixin):
         comment="保有ロール一覧（複数選択可）",
     )
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True, comment="担当者連絡先電話番号")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     # 印影設定
     stamp_text: Mapped[str | None] = mapped_column(
