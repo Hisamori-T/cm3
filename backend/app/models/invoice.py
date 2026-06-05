@@ -63,7 +63,8 @@ class Invoice(Base, TimestampMixin):
         "InvoiceItem", back_populates="invoice", order_by="InvoiceItem.row_no"
     )
     payments: Mapped[list["Payment"]] = relationship(
-        "Payment", back_populates="invoice", order_by="Payment.payment_date", cascade="all, delete-orphan"
+        "Payment", foreign_keys="Payment.invoice_id",
+        back_populates="invoice", order_by="Payment.payment_date", cascade="all, delete-orphan"
     )
     children: Mapped[list["Invoice"]] = relationship(
         "Invoice", foreign_keys="Invoice.parent_invoice_id",
