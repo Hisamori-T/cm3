@@ -454,33 +454,125 @@ Request: { "issue_date"?, "current_purchase"?, "billing_method"?, "items"?: [] }
 Response: InvoiceRead (201)
 ```
 
-**InvoiceRead** (主要フィールド):
+**InvoiceRead** (全フィールド):
 ```json
 {
   "id": "uuid",
+  "project_id": "uuid",
   "invoice_number": "26-1-001-請1",
   "status": "draft",
   "issue_date": "2026-06-30",
-  "current_purchase": 1000000,
-  "tax_amount": 100000,
-  "total_amount": 1100000,
-  "billing_method": "direct_amount",
   "payment_due_date": "2026-07-31",
+  "previous_balance": null,
+  "received_amount": null,
+  "outstanding_balance": null,
+  "current_purchase": 737430,
+  "tax_amount": 83743,
+  "total_amount": 921173,
+  "billing_method": "percentage",
+  "billing_percentage": 25.0,
+  "billing_note": null,
+  "work_description": null,
+  "work_remarks": null,
+  "completion_date": "2026-06-01",
+  "quote_id": "uuid",
+  "linked_to_quote": false,
+  "invoice_type": "split",
+  "parent_invoice_id": "uuid",
+  "split_sequence": 2,
+  "split_total": 4,
+  "items": [InvoiceItemRead],
   "payments": [PaymentRead],
-  "items": [InvoiceItemRead]
+  "created_at": "2026-06-01T00:00:00",
+  "updated_at": "2026-06-05T00:00:00"
+}
+```
+
+> **合計計算ルール（`_calc_totals`）**:
+> `total_amount = current_purchase + Σ(items[].amount) + 消費税10%`
+> 追記行（items）の金額も合計・消費税に加算される。
+
+**InvoiceItemRead**:
+```json
+{
+  "id": "uuid",
+  "row_no": 1,
+  "item_name": "追加工事",
+  "amount": 100000,
+  "remarks": "追加された工事分",
+  "description": "2026-06-05"
+}
+```
+※ `description` フィールドに日付文字列（YYYY-MM-DD）を格納する。PDFの日付列に表示。
+
+**PaymentRead**:
+```json
+{
+  "id": "uuid",
+  "invoice_id": "uuid",
+  "amount": 811173,
+  "payment_date": "2026-05-20",
+  "payment_method": "振込",
+  "note": null,
+  "target_split_id": "uuid",
+  "created_at": "2026-05-20T00:00:00"
 }
 ```
 
 ### PATCH /projects/{project_id}/invoices/{invoice_id}
 ```
-Request: { 更新フィールド, "status"? }
+Request: {
+  "issue_date"?,
+  "payment_due_date"?,
+  "previous_balance"?,
+  "received_amount"?,
+  "current_purchase"?,
+  "billing_method"?,       // "direct_amount" | "percentage" | "item_selection"
+  "billing_percentage"?,
+  "billing_note"?,
+  "work_description"?,     // PDF工事名欄
+  "work_remarks"?,         // PDF備考欄
+  "completion_date"?,      // PDF日付列（工事完了日）
+  "status"?,
+  "items"?: [              // 追記行（全置換）
+    { "row_no": 1, "item_name": "追加工事", "amount": 100000,
+      "remarks": "摘要", "description": "2026-06-05" }
+  ]
+}
+Response: InvoiceRead
+```
+保存時に `_calc_totals` で `tax_amount` と `total_amount` を自動再計算（`items` の金額を含む）。
+
+### DELETE /projects/{project_id}/invoices/{invoice_id}
+```
+// 入金済み（paid）は削除不可（400）
+Response: 204 No Content
+```
+
+### POST /projects/{project_id}/invoices/{invoice_id}/auto-split
+```
+// billing_percentage から自動的に n 枚の split 請求書を作成
+// 事前に billing_method/billing_percentage を PATCH で保存しておくこと
+// 実行済み（split_total 設定済み）は 400
+Response: InvoiceRead (total 型に変換済み)
+```
+
+### PATCH /projects/{project_id}/invoices/{invoice_id}/unlink
+```
+// 顧客見積との連動を解除（linked_to_quote = false）
 Response: InvoiceRead
 ```
 
 ### POST /projects/{project_id}/invoices/{invoice_id}/payments
 ```
 // 入金記録追加 → 全額入金で paid / 部分で partially_paid に自動遷移
-Request: { "amount": 500000, "payment_date": "2026-07-25", "payment_method": "振込", "note"?: "..." }
+Request: {
+  "amount": 811173,
+  "payment_date": "2026-07-25",
+  "payment_method": "振込",
+  "note"?: "...",
+  "target_split_id"?: "uuid"   // total 請求書の場合は対象 split を指定
+}
 Response: PaymentRead (201)
 ```
 
