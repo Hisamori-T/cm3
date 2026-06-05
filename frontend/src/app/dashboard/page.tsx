@@ -555,12 +555,11 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {showModal && (
-        <CreateProjectModal
-          onClose={() => setShowModal(false)}
-          onCreated={(_p: ProjectListItem) => { setShowModal(false); load(); }}
-        />
-      )}
+      <CreateProjectModal
+        open={showModal}
+        onClose={() => setShowModal(false)}
+        onCreated={(_p: ProjectListItem) => { setShowModal(false); load(); }}
+      />
     </AppShell>
   );
 }
