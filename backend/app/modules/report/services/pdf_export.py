@@ -918,12 +918,12 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
     received = float(getattr(invoice, "received_amount", None) or 0)
     balance_fwd = prev_balance - received
 
-    # n/n回目ラベル（明細行に挿入）
+    # n/n回目ラベル（摘要欄に表示）
     seq = getattr(invoice, "split_sequence", None)
     tot = getattr(invoice, "split_total", None)
-    split_row = (
-        f'<tr><td></td><td style="font-size:8.5pt;color:#555;">{seq}回 / {tot}回</td><td></td><td></td></tr>'
-        if seq and tot else ""
+    split_label_td = (
+        f'<td style="font-size:8.5pt;color:#555;text-align:center;">{seq}回 / {tot}回</td>'
+        if seq and tot else '<td></td>'
     )
 
     # 発行日の年月日分割（空欄表示用）
@@ -938,30 +938,36 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
     # 日付列に使う発行日（空なら空欄）
     item_date_str = f"{yr}/{mo:02d}/{dy:02d}" if yr else ""
 
-    # 明細行
+    # 明細行（items がある場合は1行目の摘要欄に n/n を入れる）
     content_rows = ""
-    for item in sorted(getattr(invoice, "items", []) or [], key=lambda x: getattr(x, "row_no", 0)):
+    items_sorted = sorted(getattr(invoice, "items", []) or [], key=lambda x: getattr(x, "row_no", 0))
+    for idx, item in enumerate(items_sorted):
+        remarks_td = (
+            split_label_td if idx == 0
+            else f'<td class="center">{_h(getattr(item, "remarks", "") or "")}</td>'
+        )
         content_rows += f"""<tr>
           <td class="center">{item_date_str}</td>
           <td>{_h(getattr(item, 'item_name', '') or getattr(item, 'description', '') or '')}</td>
           <td class="right">{_fmt_yen(getattr(item, 'amount', None))}</td>
-          <td class="center">{_h(getattr(item, 'remarks', '') or '')}</td>
+          {remarks_td}
         </tr>"""
     if not content_rows:
+        # 明細なし → 工事名行の摘要欄に n/n を表示
         content_rows = f"""<tr>
           <td class="center">{item_date_str}</td>
           <td>{_h(getattr(project, 'project_name', ''))}</td>
           <td class="right">{_fmt_yen(subtotal)}</td>
-          <td></td>
+          {split_label_td}
         </tr>"""
 
-    # n/n行 + 空行（合計10行分埋める）
+    # 空行（合計10行分埋める）
     used = content_rows.count("<tr>")
     empty_rows = "".join(
         '<tr style="height:18pt"><td></td><td></td><td></td><td></td></tr>'
         for _ in range(max(0, 10 - used))
     )
-    items_html = content_rows + split_row + empty_rows
+    items_html = content_rows + empty_rows
 
     # 振込先
     bank_rows = ""
