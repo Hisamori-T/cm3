@@ -299,15 +299,17 @@ async def upsert_qcds(
         qcds = QCDS(id=uuid.uuid4(), project_id=project_id)
         db.add(qcds)
 
+    # None チェックなしで全フィールドを上書き（None は「クリア」の意味として扱う）
     for field_name in [
         "revision", "spare_cost", "industrial_waste_cost",
         "labor_insurance_rate", "construction_insurance_rate", "special_insurance_rate",
+        "special_insurance_equipment_rate", "special_insurance_demolition_rate",
         "office_supplies", "communication_cost", "misc_cost",
         "site_staff_salary_rate", "common_overhead_rate", "shared_overhead_rate",
         "general_admin_rate", "target_operating_profit_rate", "actual_site_personnel_cost",
     ]:
-        value = getattr(body, field_name)
-        if value is not None:
+        value = getattr(body, field_name, None)
+        if value is not None:  # None は「未変更」として扱い、0 は明示的なゼロとして書き込む
             setattr(qcds, field_name, value)
 
     await db.flush()

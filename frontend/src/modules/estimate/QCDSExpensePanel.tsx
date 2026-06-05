@@ -41,7 +41,8 @@ export const EXPENSE_OPTIONS: { value: string; label: string; section: "B_site" 
   { value: "stamp_cost",                   label: "請負に関する契約印紙代",       section: "B_site" },
   { value: "receipt_cost",                 label: "売り上げの領収書",             section: "B_site" },
   { value: "fixed_overhead",               label: "事務用品・通信交通費・雑費",   section: "B_site" },
-  { value: "site_personnel_cost",          label: "現場担当者給与",               section: "B_dept" },
+  { value: "site_personnel_cost",          label: "現場担当者給与（率計算）",       section: "B_dept" },
+  { value: "site_personnel_cost_actual",  label: "実際の現場人件費（直接入力）",   section: "B_dept" },
   { value: "construction_dept_overhead",   label: "工事部経費（共通）",           section: "B_dept" },
   { value: "shared_overhead",              label: "共通経費",                    section: "B_dept" },
   { value: "general_admin_cost",           label: "一般管理費",                  section: "C" },
@@ -134,14 +135,24 @@ export function ExpenseRow({
   const isAutoCalc = isSystem && !hasOverride;
 
   // ドロップダウンの現在値: system_key が既知オプションにあればそれ、なければ "__custom__"
-  const knownKeys = new Set(EXPENSE_OPTIONS.map(o => o.value));
-  const dropdownValue = item.system_key && knownKeys.has(item.system_key)
-    ? item.system_key
-    : "__custom__";
+  const knownKeys = new Set(EXPENSE_OPTIONS.map(o => o.value).filter(v => v !== "site_personnel_cost_actual"));
+  const isActualPersonnel =
+    item.system_key === "site_personnel_cost" && item.item_name === "実際の現場人件費";
+  const dropdownValue = isActualPersonnel
+    ? "site_personnel_cost_actual"
+    : (item.system_key && knownKeys.has(item.system_key) ? item.system_key : "__custom__");
 
   function handleDropdownChange(val: string) {
     if (val === "__custom__") {
       onChange({ system_key: null, item_name: item.item_name || "" });
+    } else if (val === "site_personnel_cost_actual") {
+      // 実際の現場人件費: system_key は site_personnel_cost だが常に手動入力モード
+      // amount_override を 0 で初期化して手動入力欄を表示させる
+      onChange({
+        system_key: "site_personnel_cost",
+        item_name: "実際の現場人件費",
+        amount_override: item.amount_override ?? 0,
+      });
     } else {
       const opt = EXPENSE_OPTIONS.find(o => o.value === val);
       onChange({ system_key: val, item_name: opt?.label ?? val });

@@ -625,6 +625,25 @@ export default function QCDSPage() {
               <div className="tt">顧客提出価格試算表</div>
               <div className="sub">実行比率ごとの工事価格・営業利益</div>
             </div>
+            {/* 目標営業利益率 インライン入力 */}
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+              <label style={{ color: "var(--c-text-muted)", whiteSpace: "nowrap" }}>目標営業利益率</label>
+              <input
+                type="number" step="0.1" min="0" max="100"
+                value={header.target_operating_profit_rate != null
+                  ? (header.target_operating_profit_rate * 100).toFixed(1)
+                  : ""}
+                onChange={e => updateHeader({
+                  target_operating_profit_rate: e.target.value === "" ? 0.10 : Number(e.target.value) / 100,
+                })}
+                style={{
+                  width: 64, height: 26, fontSize: 12, textAlign: "right",
+                  border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)",
+                  paddingRight: 4, background: "var(--c-surface)",
+                }}
+              />
+              <span style={{ color: "var(--c-text-muted)" }}>%</span>
+            </div>
           </div>
           <table className="scenario">
             <thead>
@@ -670,6 +689,22 @@ export default function QCDSPage() {
                   <td>{calc ? pct(calc.operating_profit_rate) : "—"}</td>
                 </tr>
               )}
+              {/* 目標営業利益行 */}
+              {(() => {
+                const tRate = header.target_operating_profit_rate ?? 0.10;
+                const base = costII + generalAdmin;
+                const tPrice = base > 0 && tRate < 1 ? Math.round(base / (1 - tRate)) : 0;
+                const tProfit = tPrice > 0 ? Math.round(tPrice * tRate) : 0;
+                return tPrice > 0 ? (
+                  <tr style={{ background: "color-mix(in oklab, var(--c-status-done) 10%, var(--c-surface))", fontWeight: 600 }}>
+                    <td>目標 ({(tRate * 100).toFixed(1)}%)</td>
+                    <td>{base > 0 ? fmtNum(base) : "—"}</td>
+                    <td>{fmtNum(tPrice)}</td>
+                    <td>{fmtNum(tProfit)}</td>
+                    <td>{(tRate * 100).toFixed(1)}%</td>
+                  </tr>
+                ) : null;
+              })()}
             </tbody>
           </table>
         </div>
@@ -699,7 +734,6 @@ export default function QCDSPage() {
                 { label: "工事部経費率",     key: "common_overhead_rate",  isPct: true },
                 { label: "共通経費率",       key: "shared_overhead_rate",  isPct: true },
                 { label: "一般管理費率",     key: "general_admin_rate",    isPct: true },
-                { label: "目標営業利益率",   key: "target_operating_profit_rate", isPct: true },
                 { label: "労災保険料率",             key: "labor_insurance_rate",               isPct: true },
                 { label: "工事保険料率",             key: "construction_insurance_rate",        isPct: true },
                 { label: "特殊保険料率",             key: "special_insurance_rate",             isPct: true },
