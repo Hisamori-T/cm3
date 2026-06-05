@@ -62,6 +62,9 @@ export default function InvoiceListPage() {
       ]);
       setInvoices(data);
       setSummary(sum);
+      // 総額請求書（total）は初期状態で展開
+      const totalIds = data.filter(i => i.invoice_type === "total").map(i => i.id);
+      setExpanded(new Set(totalIds));
     } catch {
       setError("取得に失敗しました");
     } finally {
@@ -91,7 +94,10 @@ export default function InvoiceListPage() {
   }
 
   function toggleAll() {
-    const deletable = invoices.filter(i => i.status !== "paid").map(i => i.id);
+    // split（子行）は選択対象外: 表示されているトップレベル行のみ
+    const deletable = invoices
+      .filter(i => i.invoice_type !== "split" && i.status !== "paid")
+      .map(i => i.id);
     if (deletable.every(id => selected.has(id))) {
       setSelected(new Set());
     } else {
@@ -117,9 +123,10 @@ export default function InvoiceListPage() {
   }
 
   const overdueCount = invoices.filter(i => i.status === "overdue").length;
+  // split（子行）は削除対象外として件数表示から除外
   const deletableSelected = [...selected].filter(id => {
     const inv = invoices.find(i => i.id === id);
-    return inv && inv.status !== "paid";
+    return inv && inv.status !== "paid" && inv.invoice_type !== "split";
   });
 
   return (
@@ -259,8 +266,8 @@ export default function InvoiceListPage() {
                 <th style={{ width: 36 }}>
                   <input
                     type="checkbox"
-                    checked={invoices.filter(i => i.status !== "paid").length > 0 &&
-                      invoices.filter(i => i.status !== "paid").every(i => selected.has(i.id))}
+                    checked={invoices.filter(i => i.invoice_type !== "split" && i.status !== "paid").length > 0 &&
+                      invoices.filter(i => i.invoice_type !== "split" && i.status !== "paid").every(i => selected.has(i.id))}
                     onChange={toggleAll}
                     style={{ cursor: "pointer" }}
                   />
