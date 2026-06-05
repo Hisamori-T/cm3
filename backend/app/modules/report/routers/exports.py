@@ -387,3 +387,45 @@ async def export_photo_album(
     )
     filename = f"写真台帳_{project.project_number}.pdf"
     return _pdf_response(pdf_bytes, filename)
+
+
+# ── 見積条件書 PDF ──────────────────────────────────────────────────────────────
+
+@router.get("/projects/{project_id}/quotes/{quote_id}/condition-pdf")
+async def export_condition_pdf(
+    project_id: uuid.UUID,
+    quote_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """見積条件書を PDF で出力する。"""
+    from app.api.v1.conditions import ConditionItem
+
+    project = await _get_project(project_id, db)
+    quote = (await db.execute(
+        select(Quote).where(Quote.id == quote_id, Quote.project_id == project_id)
+    )).scalar_one_or_none()
+    if quote is None:
+        raise HTTPException(status_code=404, detail="見積書が見つかりません")
+
+    items = (await db.execute(
+        select(ConditionItem)
+        .where(ConditionItem.quote_id == quote_id)
+        .order_by(ConditionItem.display_order)
+    )).scalars().all()
+
+    condition_text = "\n\n".join(item.content for item in items)
+    period_start = str(quote.period_start or project.period_contract_start or "") or None
+    period_end   = str(quote.period_end   or project.period_contract_end   or "") or None
+
+    co = await _get_company(db)
+    data = pdf_export.generate_condition_pdf(
+        project_name=quote.project_name_snapshot or project.project_name or "",
+        period_start=period_start,
+        period_end=period_end,
+        payment_condition=quote.payment_condition or project.payment_condition,
+        condition_text=condition_text,
+        company=co,
+    )
+    filename = f"見積条件書_{project.project_number or project_id}.pdf"
+    return _pdf_response(data, filename)

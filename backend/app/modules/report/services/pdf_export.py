@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any
 
 _HERE = Path(__file__).parent
-_LOGO_PATH = _HERE.parent / "templates" / "images" / "clap_logo.png"
+# _HERE = modules/report/services → .parent×3 = app → templates/images/clap_logo.png
+_LOGO_PATH = _HERE.parent.parent.parent / "templates" / "images" / "clap_logo.png"
 
 
 def _logo_data_url() -> str:
@@ -427,6 +428,69 @@ def _render_breakdown_html(quote: Any, items: list, sections: list, co: CompanyI
 {summary_html}
 {detail_pages}
 </body></html>"""
+
+
+# ── 見積条件書 PDF ────────────────────────────────────────────────────────────
+
+def generate_condition_pdf(
+    project_name: str,
+    period_start: str | None,
+    period_end: str | None,
+    payment_condition: str | None,
+    condition_text: str,
+    company: CompanyInfo,
+) -> bytes:
+    """見積条件書 PDF（A4縦）を生成する。"""
+    import weasyprint
+
+    logo_url = _logo_data_url()
+    if logo_url:
+        logo_html = f'<img src="{logo_url}" style="height:32pt;display:block;margin-bottom:4pt;" alt="CLAP">'
+    else:
+        logo_html = """<div style="font-family:Arial Black,sans-serif;font-size:20pt;font-weight:900;color:#0a194f;">CLAP</div>
+        <div style="font-family:Arial,sans-serif;font-size:6pt;font-weight:bold;color:#0a194f;letter-spacing:2px;border-top:1.5px solid #0a194f;">CORPORATION</div>"""
+
+    period_str = ""
+    if period_start and period_end:
+        period_str = f"{period_start} ～ {period_end}"
+    elif period_start:
+        period_str = f"{period_start} ～"
+    elif period_end:
+        period_str = f"～ {period_end}"
+
+    payment_str = _h(payment_condition or "御協議の上")
+    condition_html = _h(condition_text).replace("\n", "<br>") if condition_text else ""
+
+    css = """
+@page { size: A4 portrait; margin: 18mm 18mm 18mm 18mm; }
+body { font-family: "Noto Serif JP","Hiragino Mincho ProN","Yu Mincho",serif; font-size: 10pt; color: #111; }
+.title { font-size: 18pt; font-weight: bold; text-align: center; letter-spacing: 0.15em; margin: 0 0 16pt; }
+.header-table { width: 100%; border-collapse: collapse; margin-bottom: 16pt; font-size: 10pt; }
+.header-table td { padding: 5pt 8pt; border: 0.5pt solid #888; }
+.header-table .lbl { background: #f0f0f0; font-weight: bold; width: 28%; }
+.condition-body { font-size: 9.5pt; line-height: 1.8; white-space: pre-wrap; }
+.footer { position: fixed; bottom: 0; right: 0; font-size: 7pt; color: #888; }
+.company-block { text-align: right; margin-bottom: 12pt; }
+"""
+
+    html = f"""<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8"><title>見積条件書</title>
+<style>{css}</style></head><body>
+<div class="company-block">
+  {logo_html}
+  <div style="font-size:9pt;color:#333;">{_h(company.name)}</div>
+</div>
+<div class="title">見 積 条 件 書</div>
+<table class="header-table">
+  <tr><td class="lbl">工 事 件 名</td><td>{_h(project_name)}</td></tr>
+  <tr><td class="lbl">工　　　期</td><td>{_h(period_str) if period_str else "　"}</td></tr>
+  <tr><td class="lbl">御支払条件</td><td>{payment_str}</td></tr>
+</table>
+<div class="condition-body">{condition_html}</div>
+<div class="footer">{_h(company.name)} &nbsp; 以上</div>
+</body></html>"""
+
+    return weasyprint.HTML(string=html).write_pdf()
 
 
 # ── 見積書 PDF ────────────────────────────────────────────────────────────────

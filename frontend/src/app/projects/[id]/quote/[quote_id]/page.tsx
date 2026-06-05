@@ -147,6 +147,9 @@ export default function QuoteDetailPage() {
   const [editingConditionId, setEditingConditionId] = useState<string | null>(null);
   const [editingConditionText, setEditingConditionText] = useState("");
   const [showTmplModal, setShowTmplModal] = useState(false);
+  // テンプレ編集モーダル用
+  const [tmplEditText, setTmplEditText] = useState("");
+  const [condPdfLoading, setCondPdfLoading] = useState(false);
 
   // 承認依頼モーダル
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
@@ -180,7 +183,10 @@ export default function QuoteDetailPage() {
         apiFetch<SectionTemplate[]>("/api/v1/section-templates"),
         apiFetch<ProjectHeader>(`/api/v1/projects/${projectId}`),
         apiFetch<{ id: string; display_order: number; content: string }[]>(`/api/v1/projects/${projectId}/quotes/${quoteId}/condition-items`),
-        apiFetch<{ id: string; section_name: string | null; content: string }[]>("/api/v1/condition-templates").catch(() => []),
+        // admin/quote-conditions: { id, name, content, is_active } の形式
+        apiFetch<{ id: string; name: string; content: string; is_active: boolean }[]>("/api/v1/admin/quote-conditions")
+          .then(ts => ts.filter(t => t.is_active).map(t => ({ id: t.id, section_name: t.name, content: t.content })))
+          .catch(() => []),
       ]);
       setQuote(detail);
       setTemplates(tmplList);
@@ -1141,14 +1147,37 @@ export default function QuoteDetailPage() {
           <div className="card" style={{ padding: "14px 18px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 700 }}>見積条件書</div>
-              <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>ナンバリングは自動</span>
               <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-                {conditionTemplates.length > 0 && (
-                  <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
-                    onClick={() => setShowTmplModal(true)}>テンプレから挿入</Button>
-                )}
+                <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
+                  onClick={() => {
+                    // テンプレートがあれば最初のものを表示、なければ空
+                    const first = conditionTemplates[0];
+                    setTmplEditText(first?.content ?? "");
+                    setShowTmplModal(true);
+                  }}>
+                  テンプレ呼び出し
+                </Button>
                 <Button variant="default" size="sm" style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}
                   onClick={() => { setAddingCondition(true); setNewConditionText(""); }}>＋ 追加</Button>
+                <Button variant="default" size="sm"
+                  disabled={conditionItems.length === 0 || condPdfLoading}
+                  style={{ background: "var(--c-danger)", color: "#fff", opacity: conditionItems.length === 0 ? 0.4 : 1 }}
+                  onClick={async () => {
+                    setCondPdfLoading(true);
+                    try {
+                      const res = await fetch(`${API_URL}/api/v1/projects/${projectId}/quotes/${quoteId}/condition-pdf`, {
+                        headers: { Authorization: `Bearer ${getToken()}` },
+                      });
+                      const blob = await res.blob();
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(blob);
+                      a.download = `見積条件書.pdf`;
+                      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    } catch { alert("PDF出力に失敗しました"); }
+                    finally { setCondPdfLoading(false); }
+                  }}>
+                  {condPdfLoading ? "生成中..." : "PDF出力"}
+                </Button>
               </div>
             </div>
             {conditionItems.length === 0 && !addingCondition && (
@@ -1159,7 +1188,6 @@ export default function QuoteDetailPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {conditionItems.map((item, idx) => (
                 <div key={item.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: editingConditionId === item.id ? "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" : "var(--c-surface-2)" }}>
-                  <span style={{ minWidth: 24, fontSize: 12, fontWeight: 700, color: "var(--c-text-muted)", paddingTop: 4 }}>{idx + 1}.</span>
                   {editingConditionId === item.id ? (
                     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                       <textarea value={editingConditionText} onChange={e => setEditingConditionText(e.target.value)} rows={3}
@@ -1192,7 +1220,6 @@ export default function QuoteDetailPage() {
               ))}
               {addingCondition && (
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 8px", borderRadius: "var(--r-md)", background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" }}>
-                  <span style={{ minWidth: 24, fontSize: 12, fontWeight: 700, color: "var(--c-text-muted)", paddingTop: 4 }}>{conditionItems.length + 1}.</span>
                   <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
                     <textarea value={newConditionText} onChange={e => setNewConditionText(e.target.value)} rows={3} autoFocus
                       placeholder="条件書の内容を入力..."
@@ -1336,24 +1363,46 @@ export default function QuoteDetailPage() {
         </div>{/* 右カラム end */}
       </div>{/* 2カラムグリッド end */}
 
-      {/* テンプレート選択モーダル */}
+      {/* テンプレート呼び出し・編集モーダル */}
       {showTmplModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center" }}
           onClick={() => setShowTmplModal(false)}>
-          <div style={{ background: "var(--c-surface)", borderRadius: "var(--r-lg)", boxShadow: "0 20px 60px rgba(0,0,0,.3)", width: 520, maxHeight: "80vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
+          <div style={{ background: "var(--c-surface)", borderRadius: "var(--r-lg)", boxShadow: "0 20px 60px rgba(0,0,0,.3)", width: 700, maxHeight: "90vh", overflow: "hidden", display: "flex", flexDirection: "column" }}
             onClick={e => e.stopPropagation()}>
-            <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--c-border)", fontWeight: 700, fontSize: 14 }}>テンプレートから挿入</div>
-            <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-              {conditionTemplates.map(t => (
-                <button key={t.id} onClick={() => { handleAddConditionItem(t.content); setShowTmplModal(false); }}
-                  style={{ textAlign: "left", padding: "8px 12px", borderRadius: "var(--r-md)", border: "1px solid var(--c-border)", background: "var(--c-surface-2)", cursor: "pointer", fontSize: 12, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
-                  {t.section_name && <span style={{ fontSize: 10, fontWeight: 700, color: "var(--c-text-muted)", display: "block", marginBottom: 2 }}>{t.section_name}</span>}
-                  {t.content}
-                </button>
-              ))}
+            <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--c-border)", fontWeight: 700, fontSize: 14, display: "flex", alignItems: "center", gap: 12 }}>
+              <span>見積条件書 テンプレート呼び出し</span>
+              {conditionTemplates.length > 1 && (
+                <select onChange={e => { const t = conditionTemplates.find(t => t.id === e.target.value); if (t) setTmplEditText(t.content); }}
+                  style={{ fontSize: 12, padding: "3px 8px", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", background: "var(--c-surface)" }}>
+                  {conditionTemplates.map(t => <option key={t.id} value={t.id}>{t.section_name}</option>)}
+                </select>
+              )}
             </div>
-            <div style={{ padding: "10px 16px", borderTop: "1px solid var(--c-border)", textAlign: "right" }}>
-              <button onClick={() => setShowTmplModal(false)} style={{ fontSize: 12, padding: "4px 14px", border: "1px solid var(--c-border)", borderRadius: "var(--r-sm)", cursor: "pointer" }}>閉じる</button>
+            <div style={{ padding: "10px 16px", background: "var(--c-surface-2)", borderBottom: "1px solid var(--c-border)", fontSize: 12, color: "var(--c-text-muted)" }}>
+              工事件名・工期・支払い条件は案件から自動取得されます。内容を確認・編集してから「この内容で適用」を押してください。
+            </div>
+            <div style={{ padding: "6px 12px", borderBottom: "1px solid var(--c-border)", display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 8px", fontSize: 12 }}>
+              <span style={{ color: "var(--c-text-muted)", fontWeight: 600 }}>工事件名:</span>
+              <span>{quote?.project_name_snapshot || project?.project_name || "—"}</span>
+              <span style={{ color: "var(--c-text-muted)", fontWeight: 600 }}>工　　期:</span>
+              <span>{hdrPeriodStart && hdrPeriodEnd ? `${hdrPeriodStart} ～ ${hdrPeriodEnd}` : hdrPeriodStart || hdrPeriodEnd || "（未設定）"}</span>
+              <span style={{ color: "var(--c-text-muted)", fontWeight: 600 }}>支払条件:</span>
+              <span>{hdrPayment || "御協議の上"}</span>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px" }}>
+              <textarea value={tmplEditText} onChange={e => setTmplEditText(e.target.value)} rows={20}
+                style={{ width: "100%", boxSizing: "border-box", fontSize: 12, lineHeight: 1.7, padding: "8px 12px",
+                  border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", resize: "vertical",
+                  background: "var(--c-surface)", color: "var(--c-text)", fontFamily: "inherit" }}
+              />
+            </div>
+            <div style={{ padding: "12px 16px", borderTop: "1px solid var(--c-border)", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setShowTmplModal(false)}
+                style={{ padding: "6px 16px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", background: "var(--c-surface)", cursor: "pointer", fontSize: 13 }}>キャンセル</button>
+              <button onClick={() => { handleAddConditionItem(tmplEditText); setShowTmplModal(false); }}
+                style={{ padding: "6px 18px", border: "none", borderRadius: "var(--r-md)", background: "var(--c-primary)", color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                この内容で適用
+              </button>
             </div>
           </div>
         </div>
