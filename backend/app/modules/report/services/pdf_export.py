@@ -865,14 +865,14 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
     logo_img = f'<img src="{logo_url}" style="height:28pt; display:block; margin-bottom:3pt;" alt="CLAP">' if logo_url else ""
     client_name = getattr(project, "client_name", "") or ""
     inv_number = getattr(invoice, "invoice_number", "") or ""
-    issued_at = _fmt_date(getattr(invoice, "issued_at", None) or getattr(invoice, "created_at", None))
-    due_date = _fmt_date(getattr(invoice, "due_date", None))
-    subtotal = invoice.subtotal or 0
-    tax_amount = invoice.tax_amount or 0
-    total = invoice.total_amount or 0
+    issued_at = _fmt_date(getattr(invoice, "issue_date", None) or getattr(invoice, "created_at", None))
+    due_date = _fmt_date(getattr(invoice, "payment_due_date", None))
+    subtotal = float(getattr(invoice, "current_purchase", None) or 0)
+    tax_amount = float(getattr(invoice, "tax_amount", None) or 0)
+    total = float(getattr(invoice, "total_amount", None) or 0)
     project_number = getattr(project, "project_number", "") or ""
 
-    paid_total = sum(p.amount or 0 for p in payments if getattr(p, "paid_at", None))
+    paid_total = sum(float(p.amount or 0) for p in payments)
     balance_forward = 0
     current_amount = total
 
