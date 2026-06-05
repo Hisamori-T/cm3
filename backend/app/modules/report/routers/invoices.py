@@ -284,6 +284,35 @@ async def unlink_invoice_from_quote(
     return _to_read(inv)
 
 
+@router.delete(
+    "/projects/{project_id}/invoices/{invoice_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_invoice(
+    project_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """請求書を削除する（入金済みは削除不可）。"""
+    inv = (await db.execute(
+        select(Invoice)
+        .options(*_load_options())
+        .where(Invoice.id == invoice_id, Invoice.project_id == project_id)
+    )).scalar_one_or_none()
+    if inv is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="請求書が見つかりません")
+    if inv.status == InvoiceStatus.paid:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="入金済みの請求書は削除できません")
+
+    for p in list(inv.payments):
+        await db.delete(p)
+    for item in list(inv.items):
+        await db.delete(item)
+    await db.delete(inv)
+    await db.commit()
+
+
 # ---------------------------------------------------------------------------
 # 入金記録エンドポイント
 # ---------------------------------------------------------------------------

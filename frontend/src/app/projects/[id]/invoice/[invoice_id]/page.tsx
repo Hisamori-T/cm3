@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { CheckCircle2, Download, Plus, Trash2, Unlink } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { useParams } from "next/navigation";
+import { Calculator, CheckCircle2, Download, Plus, Trash2, Unlink } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -43,7 +43,6 @@ const fmt = fmtYen;
 /** 請求書詳細ページ（Phase F: 分割請求・入金記録対応）。 */
 export default function InvoiceDetailPage() {
   const { id: projectId, invoice_id: invoiceId } = useParams<{ id: string; invoice_id: string }>();
-  const router = useRouter();
 
   const [inv, setInv] = useState<InvoiceRead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +59,12 @@ export default function InvoiceDetailPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [billingPercentage, setBillingPercentage] = useState("");
   const [billingNote, setBillingNote] = useState("");
+
+  // 割合モーダル
+  const [showPctModal, setShowPctModal] = useState(false);
+  const [quoteSubtotal, setQuoteSubtotal] = useState<number | null>(null);
+  const [modalPct, setModalPct] = useState("");
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // payment add form
   const [payAmt, setPayAmt] = useState("");
@@ -158,6 +163,33 @@ export default function InvoiceDetailPage() {
       showMsg("入金記録を削除しました");
       await load();
     } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+  }
+
+  async function openPctModal() {
+    setModalPct(billingPercentage);
+    setShowPctModal(true);
+    // 顧客見積の合計を取得
+    try {
+      const quotes = await apiFetch<{ id: string; subtotal: number | null; total_amount: number | null }[]>(
+        `/api/v1/projects/${projectId}/quotes`
+      );
+      if (quotes.length > 0) {
+        const q = quotes[0];
+        setQuoteSubtotal(q.subtotal ?? q.total_amount ?? null);
+      }
+    } catch {
+      setQuoteSubtotal(null);
+    }
+  }
+
+  function applyPctModal() {
+    const pct = parseFloat(modalPct);
+    if (!isNaN(pct) && quoteSubtotal !== null) {
+      const calc = Math.floor(quoteSubtotal * pct / 100);
+      setCurrentPurchase(calc.toString());
+    }
+    setBillingPercentage(modalPct);
+    setShowPctModal(false);
   }
 
   const purchase = currentPurchase ? parseFloat(currentPurchase) : null;
@@ -322,12 +354,29 @@ export default function InvoiceDetailPage() {
               </LI>
               {billingMethod === "percentage" && (
                 <LI label="割合 (%)">
-                  <Input
-                    type="number" min="0" max="100" step="0.01"
-                    value={billingPercentage}
-                    onChange={e => setBillingPercentage(e.target.value)}
-                    disabled={isPaid}
-                  />
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <Input
+                      type="number" min="0" max="100" step="0.01"
+                      value={billingPercentage}
+                      onChange={e => setBillingPercentage(e.target.value)}
+                      disabled={isPaid}
+                      style={{ flex: 1 }}
+                    />
+                    {!isPaid && (
+                      <button
+                        onClick={openPctModal}
+                        title="割合から請求額を計算"
+                        style={{
+                          display: "flex", alignItems: "center", gap: 4, padding: "5px 10px",
+                          fontSize: 12, border: "1px solid var(--c-border)", borderRadius: "var(--r-md)",
+                          background: "var(--c-surface-2)", color: "var(--c-primary)", cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <Calculator size={13} /> 計算
+                      </button>
+                    )}
+                  </div>
                 </LI>
               )}
               <LI label="備考">
@@ -335,6 +384,80 @@ export default function InvoiceDetailPage() {
               </LI>
             </div>
           </div>
+
+          {/* 割合計算モーダル */}
+          {showPctModal && (
+            <div style={{
+              position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}
+              onClick={e => { if (e.target === e.currentTarget) setShowPctModal(false); }}
+            >
+              <div ref={modalRef} style={{
+                background: "var(--c-surface)", borderRadius: "var(--r-lg)",
+                padding: "24px 28px", width: 380, boxShadow: "var(--shadow-xl)",
+                display: "flex", flexDirection: "column", gap: 16,
+              }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>割合から請求額を計算</h3>
+                <div style={{ fontSize: 12, color: "var(--c-text-muted)", lineHeight: 1.6 }}>
+                  顧客見積の合計金額に対する割合（%）を指定すると、
+                  今月御請求額（税抜）を自動計算します。
+                </div>
+                {quoteSubtotal !== null && (
+                  <div style={{
+                    padding: "10px 14px", borderRadius: "var(--r-md)",
+                    background: "var(--c-surface-2)", fontSize: 13,
+                  }}>
+                    <span style={{ color: "var(--c-text-muted)" }}>顧客見積合計（税抜）：</span>
+                    <span style={{ fontWeight: 700, fontFamily: "var(--ff-mono)", marginLeft: 8 }}>
+                      {fmt(quoteSubtotal)}
+                    </span>
+                  </div>
+                )}
+                {quoteSubtotal === null && (
+                  <div style={{ fontSize: 12, color: "var(--c-text-muted)", padding: "8px 0" }}>
+                    顧客見積が登録されていません。割合を入力すると「今月御請求額」欄に自動入力されます。
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontSize: 11, color: "var(--c-text-muted)", display: "block", marginBottom: 4 }}>
+                    請求割合 (%)
+                  </label>
+                  <Input
+                    type="number" min="0" max="100" step="0.01"
+                    value={modalPct}
+                    onChange={e => setModalPct(e.target.value)}
+                    placeholder="例: 50"
+                    autoFocus
+                  />
+                </div>
+                {quoteSubtotal !== null && modalPct && !isNaN(parseFloat(modalPct)) && (
+                  <div style={{
+                    padding: "10px 14px", borderRadius: "var(--r-md)",
+                    background: "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface))",
+                    border: "1px solid color-mix(in oklab, var(--c-primary) 25%, transparent)",
+                    fontSize: 13,
+                  }}>
+                    <span style={{ color: "var(--c-text-muted)" }}>計算結果（税抜）：</span>
+                    <span style={{ fontWeight: 700, fontFamily: "var(--ff-mono)", color: "var(--c-primary)", marginLeft: 8 }}>
+                      {fmt(Math.floor(quoteSubtotal * parseFloat(modalPct) / 100))}
+                    </span>
+                  </div>
+                )}
+                <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                  <Button variant="default" size="sm" onClick={() => setShowPctModal(false)}
+                    style={{ background: "var(--c-surface-2)", color: "var(--c-text)" }}>
+                    キャンセル
+                  </Button>
+                  <Button variant="default" size="sm" onClick={applyPctModal}
+                    style={{ background: "var(--c-primary)", color: "#fff" }}
+                    disabled={!modalPct || isNaN(parseFloat(modalPct))}>
+                    適用
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 金額 */}
           <div className="card" style={{ padding: "16px 20px" }}>

@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { fmtYen } from "@/lib/format";
 import {
+  BILLING_METHOD_LABEL,
   INVOICE_STATUS_LABEL,
+  BillingMethod,
   InvoiceRead,
   InvoiceSummary,
 } from "@/types/invoice";
@@ -28,7 +30,13 @@ const fmt = fmtYen;
 const fmtDate = (s: string | null) =>
   s ? new Date(s).toLocaleDateString("ja-JP") : "—";
 
-/** 請求書一覧ページ。案件請求サマリ＋請求書リスト。 */
+function billingMethodLabel(inv: InvoiceRead): string {
+  if (!inv.billing_method) return "—";
+  if (inv.billing_method === "percentage") return `割合 ${inv.billing_percentage ?? ""}%`;
+  return BILLING_METHOD_LABEL[inv.billing_method as BillingMethod] ?? inv.billing_method;
+}
+
+/** 請求書一覧ページ。案件請求サマリ＋請求書リスト＋選択削除。 */
 export default function InvoiceListPage() {
   const { id: projectId } = useParams<{ id: string }>();
   const router = useRouter();
@@ -38,11 +46,14 @@ export default function InvoiceListPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { loadAll(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadAll() {
     setLoading(true);
+    setSelected(new Set());
     try {
       const [data, sum] = await Promise.all([
         apiFetch<InvoiceRead[]>(`/api/v1/projects/${projectId}/invoices`),
@@ -70,8 +81,45 @@ export default function InvoiceListPage() {
     }
   }
 
-  const paidCount = invoices.filter(i => i.status === "paid").length;
+  function toggleSelect(id: string) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    const deletable = invoices.filter(i => i.status !== "paid").map(i => i.id);
+    if (deletable.every(id => selected.has(id))) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(deletable));
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!confirm(`選択した ${selected.size} 件の請求書を削除しますか？\n（入金済みは削除されません）`)) return;
+    setDeleting(true);
+    let failCount = 0;
+    for (const id of selected) {
+      try {
+        await apiFetch(`/api/v1/projects/${projectId}/invoices/${id}`, { method: "DELETE" });
+      } catch {
+        failCount++;
+      }
+    }
+    if (failCount > 0) setError(`${failCount} 件の削除に失敗しました`);
+    await loadAll();
+    setDeleting(false);
+  }
+
   const overdueCount = invoices.filter(i => i.status === "overdue").length;
+  const deletableSelected = [...selected].filter(id => {
+    const inv = invoices.find(i => i.id === id);
+    return inv && inv.status !== "paid";
+  });
 
   return (
     <AppShell
@@ -81,15 +129,28 @@ export default function InvoiceListPage() {
         { label: "請求書" },
       ]}
       action={
-        <Button
-          variant="default" size="sm"
-          onClick={handleCreate}
-          disabled={creating}
-          style={{ background: "var(--c-primary)", color: "#fff" }}
-        >
-          <Plus className="w-3.5 h-3.5" />
-          {creating ? "作成中…" : "新規請求書を作成"}
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {selected.size > 0 && (
+            <Button
+              variant="default" size="sm"
+              onClick={handleBulkDelete}
+              disabled={deleting}
+              style={{ background: "var(--c-danger)", color: "#fff" }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              {deleting ? "削除中…" : `${deletableSelected.length}件を削除`}
+            </Button>
+          )}
+          <Button
+            variant="default" size="sm"
+            onClick={handleCreate}
+            disabled={creating}
+            style={{ background: "var(--c-primary)", color: "#fff" }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {creating ? "作成中…" : "新規請求書を作成"}
+          </Button>
+        </div>
       }
     >
       <div className="toolbar">
@@ -176,9 +237,33 @@ export default function InvoiceListPage() {
         </div>
       ) : (
         <div className="card" style={{ overflow: "hidden" }}>
+          {selected.size > 0 && (
+            <div style={{
+              padding: "8px 16px", background: "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface))",
+              borderBottom: "1px solid var(--c-border)", fontSize: 13, color: "var(--c-primary)",
+              display: "flex", alignItems: "center", gap: 12,
+            }}>
+              <span>{selected.size} 件選択中</span>
+              <button
+                onClick={() => setSelected(new Set())}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--c-text-muted)" }}
+              >
+                解除
+              </button>
+            </div>
+          )}
           <table className="tbl">
             <thead>
               <tr>
+                <th style={{ width: 36 }}>
+                  <input
+                    type="checkbox"
+                    checked={invoices.filter(i => i.status !== "paid").length > 0 &&
+                      invoices.filter(i => i.status !== "paid").every(i => selected.has(i.id))}
+                    onChange={toggleAll}
+                    style={{ cursor: "pointer" }}
+                  />
+                </th>
                 <th>請求番号</th>
                 <th>発行日</th>
                 <th>支払期日</th>
@@ -187,15 +272,28 @@ export default function InvoiceListPage() {
                 <th className="num">未回収</th>
                 <th>請求方法</th>
                 <th>ステータス</th>
-                <th style={{ width: 80 }} />
+                <th style={{ width: 60 }} />
               </tr>
             </thead>
             <tbody>
               {invoices.map(inv => {
                 const paid = inv.payments.reduce((s, p) => s + p.amount, 0);
                 const remaining = (inv.total_amount ?? 0) - paid;
+                const isPaid = inv.status === "paid";
                 return (
-                  <tr key={inv.id}>
+                  <tr
+                    key={inv.id}
+                    style={selected.has(inv.id) ? { background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" } : undefined}
+                  >
+                    <td style={{ textAlign: "center" }}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(inv.id)}
+                        onChange={() => toggleSelect(inv.id)}
+                        disabled={isPaid}
+                        style={{ cursor: isPaid ? "not-allowed" : "pointer", opacity: isPaid ? 0.3 : 1 }}
+                      />
+                    </td>
                     <td style={{ fontWeight: 600 }}>
                       <Link
                         href={`/projects/${projectId}/invoice/${inv.id}`}
@@ -224,13 +322,7 @@ export default function InvoiceListPage() {
                       {inv.total_amount ? fmt(remaining) : "—"}
                     </td>
                     <td style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
-                      {inv.billing_method
-                        ? inv.billing_method === "percentage"
-                          ? `${inv.billing_percentage ?? ""}%`
-                          : inv.billing_method === "item_selection"
-                          ? "明細選択"
-                          : "直接"
-                        : "—"}
+                      {billingMethodLabel(inv)}
                     </td>
                     <td>
                       <span style={{
