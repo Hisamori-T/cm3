@@ -146,16 +146,20 @@ export function ExpenseRow({
     if (val === "__custom__") {
       onChange({ system_key: null, item_name: item.item_name || "" });
     } else if (val === "site_personnel_cost_actual") {
-      // 実際の現場人件費: system_key は site_personnel_cost だが常に手動入力モード
-      // amount_override を 0 で初期化して手動入力欄を表示させる
       onChange({
         system_key: "site_personnel_cost",
         item_name: "実際の現場人件費",
         amount_override: item.amount_override ?? 0,
+        section: "B_dept",
       });
     } else {
       const opt = EXPENSE_OPTIONS.find(o => o.value === val);
-      onChange({ system_key: val, item_name: opt?.label ?? val });
+      // section も合わせて更新（B_site↔B_dept をまたぐ変更に対応）
+      onChange({
+        system_key: val,
+        item_name: opt?.label ?? val,
+        section: opt?.section ?? item.section,
+      });
     }
   }
 

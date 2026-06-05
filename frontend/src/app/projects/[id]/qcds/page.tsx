@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
@@ -63,6 +63,8 @@ export default function QCDSPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "pending" | "saving" | "saved">("idle");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [projectPrice, setProjectPrice] = useState<number | null>(null);
   const [showRates, setShowRates] = useState(false);
   const [viewRevision, setViewRevision] = useState<number>(0);
@@ -166,22 +168,29 @@ export default function QCDSPage() {
     if (!authLoading && user) loadQcds();
   }, [authLoading, user, loadQcds]);
 
-  const handleSave = async () => {
+  // 最新の状態を ref で保持（handleSave から常に最新を参照するため）
+  const stateRef = useRef({ expenseItems, header, works, qcds });
+  useEffect(() => { stateRef.current = { expenseItems, header, works, qcds }; });
+
+  const handleSave = useCallback(async () => {
+    if (isSaving) return;
     setIsSaving(true);
+    setAutoSaveStatus("saving");
     try {
+      const { expenseItems: ei, header: hd, works: wk, qcds: q } = stateRef.current;
       // row_no を section 内で振り直す
       const renumbered = (() => {
         const counters: Record<string, number> = {};
-        return expenseItems.map(item => {
+        return ei.map(item => {
           counters[item.section] = (counters[item.section] ?? 0) + 1;
           return { ...item, row_no: counters[item.section] };
         });
       })();
 
       const payload: QCDSInput = {
-        ...header,
-        revision: qcds?.revision ?? 0,
-        direct_works: works.filter(
+        ...hd,
+        revision: q?.revision ?? 0,
+        direct_works: wk.filter(
           w => w.work_type || w.vendor_name_snapshot || w.budget_amount != null
                || w.agreed_amount != null || w.settlement_amount != null,
         ),
@@ -192,10 +201,23 @@ export default function QCDSPage() {
         body: JSON.stringify(payload),
       });
       setQcds(updated);
-      setExpenseItems(updated.expense_items.map(ei => ({ ...ei, _key: ei.id })));
+      setExpenseItems(updated.expense_items.map(e => ({ ...e, _key: e.id })));
       setIsDirty(false);
+      setAutoSaveStatus("saved");
+      setTimeout(() => setAutoSaveStatus("idle"), 2000);
+    } catch {
+      setAutoSaveStatus("idle");
     } finally { setIsSaving(false); }
-  };
+  }, [id, isSaving]);
+
+  // 変更後2秒で自動保存
+  useEffect(() => {
+    if (!isDirty || isSaving) return;
+    setAutoSaveStatus("pending");
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => { handleSave(); }, 2000);
+    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+  }, [isDirty, expenseItems, header, works]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateWork = (idx: number, patch: Partial<DirectWorkInput>) => {
     setWorks(prev => prev.map((w, i) => i === idx ? { ...w, ...patch } : w));
@@ -345,9 +367,11 @@ export default function QCDSPage() {
       ]}
       action={
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {isDirty && <span style={{ fontSize: 12, color: "var(--c-accent)" }}>未保存の変更あり</span>}
+          {autoSaveStatus === "pending" && <span style={{ fontSize: 12, color: "var(--c-accent)" }}>変更あり（自動保存まで待機中）</span>}
+          {autoSaveStatus === "saving" && <span style={{ fontSize: 12, color: "var(--c-text-muted)" }}>保存中...</span>}
+          {autoSaveStatus === "saved"  && <span style={{ fontSize: 12, color: "var(--c-success)" }}>✓ 保存済み</span>}
           <Button variant="primary" size="sm" onClick={handleSave} disabled={isSaving || !isDirty}>
-            {isSaving ? "保存中..." : "保存"}
+            {isSaving ? "保存中..." : "今すぐ保存"}
           </Button>
         </div>
       }
