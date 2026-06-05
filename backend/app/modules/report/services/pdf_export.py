@@ -120,7 +120,12 @@ body {
 .condition-table tr.no-border { border-bottom: none; }
 .remarks-content { line-height: 1.5; }
 .company-container { padding-left: 20px; }
-.company-logo-area { margin-bottom: 8mm; height: 40pt; }
+.company-header-row {
+    display: flex; flex-direction: row; align-items: flex-start;
+    gap: 14pt; margin-bottom: 12pt;
+}
+.company-logo-area { flex-shrink: 0; }
+.company-info { flex: 1; }
 .company-name-big { font-size: 16pt; font-weight: bold; margin-bottom: 4pt; }
 .company-details { font-size: 9pt; line-height: 1.4; margin-bottom: 15mm; }
 .stamp-table-wrapper { width: 100%; text-align: right; margin-bottom: 15mm; }
@@ -137,7 +142,9 @@ body {
     border: 1.5px solid #C00000; border-radius: 50%;
     width: 38pt; height: 38pt; margin: auto;
     color: #C00000; font-size: 11pt; font-weight: bold;
-    line-height: 1.1; padding-top: 7pt; text-align: center;
+    writing-mode: vertical-rl; text-orientation: upright;
+    display: flex; align-items: center; justify-content: center;
+    letter-spacing: 0;
 }
 .contact-box { font-size: 9.5pt; line-height: 1.5; padding-left: 5px; }
 .contact-box .title-msg { margin-bottom: 10pt; }
@@ -681,14 +688,17 @@ def _render_quote_html(quote: Any, project: Any, items: list, sections: list,
 
         <div class="column-right">
             <div class="company-container">
-                <div class="company-logo-area">
-                    {logo_html}
-                </div>
-
-                <div class="company-name-big">{_h(co.name)}</div>
-                <div class="company-details">
-                    〒{_h(co.postal_code)} {_h(co.address)}<br>
-                    TEL.{_h(co.tel)} FAX.{_h(co.fax)}
+                <div class="company-header-row">
+                    <div class="company-logo-area">
+                        {logo_html}
+                    </div>
+                    <div class="company-info">
+                        <div class="company-name-big">{_h(co.name)}</div>
+                        <div class="company-details">
+                            〒{_h(co.postal_code)} {_h(co.address)}<br>
+                            TEL.{_h(co.tel)} FAX.{_h(co.fax)}
+                        </div>
+                    </div>
                 </div>
 
                 <div class="stamp-table-wrapper">

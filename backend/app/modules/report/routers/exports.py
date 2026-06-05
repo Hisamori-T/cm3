@@ -399,7 +399,7 @@ async def export_condition_pdf(
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
     """見積条件書を PDF で出力する。"""
-    from app.api.v1.conditions import ConditionItem
+    from app.models.condition import QuoteConditionItem
 
     project = await _get_project(project_id, db)
     quote = (await db.execute(
@@ -409,21 +409,21 @@ async def export_condition_pdf(
         raise HTTPException(status_code=404, detail="見積書が見つかりません")
 
     items = (await db.execute(
-        select(ConditionItem)
-        .where(ConditionItem.quote_id == quote_id)
-        .order_by(ConditionItem.display_order)
+        select(QuoteConditionItem)
+        .where(QuoteConditionItem.quote_id == quote_id)
+        .order_by(QuoteConditionItem.display_order)
     )).scalars().all()
 
     condition_text = "\n\n".join(item.content for item in items)
-    period_start = str(quote.period_start or project.period_contract_start or "") or None
-    period_end   = str(quote.period_end   or project.period_contract_end   or "") or None
+    period_start = str(getattr(quote, "period_start", None) or project.period_contract_start or "") or None
+    period_end   = str(getattr(quote, "period_end",   None) or project.period_contract_end   or "") or None
 
     co = await _get_company(db)
     data = pdf_export.generate_condition_pdf(
-        project_name=quote.project_name_snapshot or project.project_name or "",
+        project_name=getattr(quote, "project_name_snapshot", None) or project.project_name or "",
         period_start=period_start,
         period_end=period_end,
-        payment_condition=quote.payment_condition or project.payment_condition,
+        payment_condition=getattr(quote, "payment_condition", None) or project.payment_condition,
         condition_text=condition_text,
         company=co,
     )
