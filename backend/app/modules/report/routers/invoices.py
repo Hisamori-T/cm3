@@ -311,10 +311,10 @@ async def auto_split_invoice(
     )).scalar_one_or_none()
     if inv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="請求書が見つかりません")
-    if inv.billing_method != "percentage" or not inv.billing_percentage:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="割合請求のみ自動分割できます")
+    if not inv.billing_percentage or float(inv.billing_percentage) <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="割合(%)を設定・保存してから自動分割してください")
     if inv.invoice_type == "total":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="すでに自動分割済みです")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="すでに自動分割済みです（総額請求書に変換済み）")
 
     project = (await db.execute(
         select(Project).where(Project.id == project_id)

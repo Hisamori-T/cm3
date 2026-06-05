@@ -203,6 +203,15 @@ export default function InvoiceDetailPage() {
     if (!confirm(`${n}枚の請求書を自動作成します。\n${preview}\n\nよろしいですか？`)) return;
     setSplitting(true);
     try {
+      // 自動分割前に billing_method / billing_percentage を保存する
+      await apiFetch(`/api/v1/projects/${projectId}/invoices/${invoiceId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          billing_method: billingMethod || null,
+          billing_percentage: billingPercentage ? parseFloat(billingPercentage) : null,
+          billing_note: billingNote || null,
+        }),
+      });
       await apiFetch(`/api/v1/projects/${projectId}/invoices/${invoiceId}/auto-split`, { method: "POST" });
       showMsg(`${n}枚の請求書を作成しました`);
       await load();

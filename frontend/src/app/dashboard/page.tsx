@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { CreateProjectModal } from "@/components/projects/create-project-modal";
+import { fmtMoney, fmtRelTime, fmtYen } from "@/lib/format";
 import type { ProjectListItem } from "@/types/project";
 
 interface KpiCard { label: string; value: number; unit: string; }
@@ -63,14 +65,6 @@ interface DashboardData {
   monthly_invoices: MonthlyInvoiceGroup[];
 }
 
-const ALERT_TYPE_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
-  payment_due_soon: { label: "支払期日近迫", icon: "⏰", color: "#f59e0b" },
-  payment_overdue:  { label: "支払期日超過", icon: "⚠️", color: "#ef4444" },
-  invoice_not_issued: { label: "請求書未発行", icon: "📄", color: "#8b5cf6" },
-  schedule_overrun: { label: "工期超過", icon: "🏗️", color: "#f97316" },
-  invoice_long_unpaid: { label: "入金未確認", icon: "💴", color: "#6366f1" },
-};
-
 const STATUS_COLOR: Record<string, string> = {
   quote: "var(--c-status-quote)", ordered: "var(--c-status-order)",
   started: "var(--c-status-start)", in_progress: "var(--c-status-progress)",
@@ -82,175 +76,6 @@ const ENTITY_LABEL: Record<string, string> = {
 const CHANGE_LABEL: Record<string, string> = {
   created: "作成", updated: "更新", deleted: "削除", status_changed: "ステータス変更",
 };
-
-function fmtMoney(v: number): string {
-  if (v >= 100_000_000) return `${(v / 100_000_000).toFixed(1)}億`;
-  if (v >= 10_000) return `${Math.round(v / 10_000).toLocaleString()}万`;
-  return v.toLocaleString();
-}
-
-function fmtRelTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 60) return `${m}分前`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}時間前`;
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
-// DS準拠: 実際の CSS 変数マッピング（--c-warn=F59E0B, --c-danger=C00000, --c-success=10B981）
-const ALERT_CSS_VARS: Record<string, { fg: string; bg: string; border: string }> = {
-  payment_due_soon:    { fg: "var(--c-warn)",    bg: "var(--c-warn-bg, #FEF3C7)",    border: "var(--c-warn)" },
-  payment_overdue:     { fg: "var(--c-danger)",  bg: "var(--c-danger-bg, #FEF2F2)",  border: "var(--c-danger)" },
-  invoice_not_issued:  { fg: "#8B5CF6",          bg: "#F5F3FF",                       border: "#8B5CF6" },
-  schedule_overrun:    { fg: "#EA580C",          bg: "#FFF7ED",                       border: "#EA580C" },
-  invoice_long_unpaid: { fg: "#4F46E5",          bg: "#EEF2FF",                       border: "#4F46E5" },
-};
-
-/** 統合期限アラートカード（デザインシステム準拠） */
-function PeriodAlertsCard({ alerts }: { alerts: PeriodAlertItem[] }) {
-  const byType: Record<string, PeriodAlertItem[]> = {};
-  for (const a of alerts) {
-    byType[a.alert_type] = [...(byType[a.alert_type] ?? []), a];
-  }
-  return (
-    <div className="card">
-      <div className="card-head">
-        <div>
-          <div className="card-title">期限アラート</div>
-          <div className="card-sub">対応が必要な案件 · 計{alerts.length}件</div>
-        </div>
-      </div>
-      {Object.entries(ALERT_TYPE_CONFIG).map(([type, cfg]) => {
-        const items = byType[type] ?? [];
-        if (items.length === 0) return null;
-        const cv = ALERT_CSS_VARS[type] ?? { fg: "var(--c-text-muted)", bg: "var(--c-surface-2)", border: "var(--c-border)" };
-        return (
-          <div key={type}>
-            {/* 種別ヘッダー: borderLeft 3px + bg */}
-            <div style={{
-              padding: "6px 16px", background: cv.bg,
-              borderLeft: `3px solid ${cv.border}`, borderTop: "1px solid var(--c-border)",
-              fontSize: 12, fontWeight: 600,
-              display: "flex", alignItems: "center", gap: 8, color: cv.fg,
-            }}>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/>
-              </svg>
-              <span>{cfg.label}</span>
-              <span style={{ marginLeft: "auto", background: cv.fg, color: "#fff", borderRadius: "var(--r-pill)", padding: "1px 8px", fontSize: 11 }}>
-                {items.length}件
-              </span>
-            </div>
-            {items.slice(0, 3).map((a, i) => (
-              <Link
-                key={i}
-                href={a.invoice_id ? `/projects/${a.project_id}/invoice/${a.invoice_id}` : `/projects/${a.project_id}`}
-                style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 16px 8px 28px", borderBottom: "1px solid var(--c-border)", textDecoration: "none" }}
-              >
-                <div>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--c-text)" }}>{a.project_name}</span>
-                  <span style={{ marginLeft: 6, fontSize: 11, color: "var(--c-text-muted)" }}>{a.client_name}</span>
-                </div>
-                <span style={{ fontFamily: "var(--ff-mono)", fontSize: 11, color: cv.fg, fontWeight: 700, whiteSpace: "nowrap", marginLeft: 16 }}>
-                  {a.detail}
-                </span>
-              </Link>
-            ))}
-            {items.length > 3 && (
-              <div style={{ padding: "4px 28px", fontSize: 11, color: "var(--c-text-muted)" }}>他 {items.length - 3} 件…</div>
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-/** 請求書年月別一覧カード（デザインシステム準拠） */
-function MonthlyInvoicesCard({ groups }: { groups: MonthlyInvoiceGroup[] }) {
-  const [open, setOpen] = useState<Set<string>>(new Set([groups[0]?.year_month ?? ""]));
-  const toggle = (ym: string) => setOpen(prev => {
-    const next = new Set(prev);
-    next.has(ym) ? next.delete(ym) : next.add(ym);
-    return next;
-  });
-  return (
-    <div className="card">
-      <div className="card-head">
-        <div>
-          <div className="card-title">請求書一覧（月別）</div>
-          <div className="card-sub">クリックで展開 · 行クリックで請求書詳細へ</div>
-        </div>
-      </div>
-      {groups.map(g => (
-        <div key={g.year_month}>
-          {/* 月ヘッダー行: DS tbl スタイル準拠 */}
-          <button
-            onClick={() => toggle(g.year_month)}
-            style={{
-              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "8px 16px", border: "none", borderTop: "1px solid var(--c-border)",
-              background: "var(--c-surface-2)", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--c-text)",
-            }}
-          >
-            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                {open.has(g.year_month)
-                  ? <path d="M6 9l6 6 6-6"/>
-                  : <path d="M9 18l6-6-6-6"/>}
-              </svg>
-              {g.display}
-              <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 400, color: "var(--c-text-muted)" }}>
-                {g.invoices.length}件
-              </span>
-            </span>
-            <span style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: "var(--c-text-muted)", fontWeight: 400 }}>
-              ¥{Math.round(g.total_billed).toLocaleString()} / 入金 ¥{Math.round(g.total_paid).toLocaleString()}
-            </span>
-          </button>
-          {open.has(g.year_month) && (
-            <table className="tbl">
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left" }}>工事名</th>
-                  <th style={{ textAlign: "left" }}>発注者</th>
-                  <th className="num">総額（税込）</th>
-                  <th className="num">入金済</th>
-                </tr>
-              </thead>
-              <tbody>
-                {g.invoices.map(inv => {
-                  const fullyPaid = inv.total_paid >= inv.total_amount && inv.total_amount > 0;
-                  return (
-                    <tr
-                      key={inv.invoice_id}
-                      style={{ cursor: "pointer" }}
-                      onClick={() => { window.location.href = `/projects/${inv.project_id}/invoice/${inv.invoice_id}`; }}
-                    >
-                      <td>
-                        <div style={{ fontWeight: 500, fontSize: 13 }}>{inv.project_name}</div>
-                        <div style={{ fontSize: 11, color: "var(--c-text-muted)" }}>{inv.invoice_number}</div>
-                      </td>
-                      <td style={{ fontSize: 12, color: "var(--c-text-muted)" }}>{inv.client_name || "—"}</td>
-                      <td className="num" style={{ fontFamily: "var(--ff-mono)", fontWeight: 600 }}>
-                        ¥{Math.round(inv.total_amount).toLocaleString()}
-                      </td>
-                      <td className="num" style={{ fontFamily: "var(--ff-mono)", color: fullyPaid ? "var(--c-success)" : "var(--c-danger)" }}>
-                        {inv.total_paid > 0 ? `¥${Math.round(inv.total_paid).toLocaleString()}` : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /** ステータス別ドーナツ SVG */
 function DonutChart({ data, total }: { data: StatusCount[]; total: number }) {
@@ -293,9 +118,8 @@ function DonutChart({ data, total }: { data: StatusCount[]; total: number }) {
 function BarChart({ data }: { data: MonthlyStat[] }) {
   const maxVal = Math.max(...data.map(d => d.invoice_total), 1);
   const maxAxis = Math.ceil(maxVal / 100000) * 100000 || 1;
-  const CH = 160; // chart height (y=20..180)
+  const CH = 160;
   const BW = 30, BS = 55, SX = 50;
-
   const yTick = (i: number) => 180 - (i / 4) * CH;
   const bH = (v: number) => (v / maxAxis) * CH;
   const bY = (v: number) => 180 - bH(v);
@@ -303,7 +127,6 @@ function BarChart({ data }: { data: MonthlyStat[] }) {
     const v = (maxAxis / 4) * i;
     return v >= 10000 ? `${v / 10000}万` : String(Math.round(v));
   };
-
   return (
     <div className="bar-chart">
       <svg className="bar-svg" viewBox="0 0 720 200" preserveAspectRatio="none">
@@ -327,9 +150,7 @@ function BarChart({ data }: { data: MonthlyStat[] }) {
         </g>
         <g fontSize="9" fill="var(--c-text-subtle)" fontFamily="var(--ff-mono)" textAnchor="middle">
           {data.map((d, i) => (
-            <text key={i} x={SX + i * BS + BW / 2} y="194">
-              {parseInt(d.month.slice(5))}月
-            </text>
+            <text key={i} x={SX + i * BS + BW / 2} y={196}>{d.month.slice(5)}月</text>
           ))}
         </g>
       </svg>
@@ -337,7 +158,193 @@ function BarChart({ data }: { data: MonthlyStat[] }) {
   );
 }
 
-/** ダッシュボード (S02) */
+/** 期限アラートカード（dashboard.html の .alert-card / .alert-row 準拠） */
+function AlertCard({ periodAlerts, unpaidAlerts }: { periodAlerts: PeriodAlertItem[]; unpaidAlerts: UnpaidAlert[] }) {
+  const byType = (type: string) => periodAlerts.filter(a => a.alert_type === type);
+  const overdue = byType("payment_overdue");
+  const scheduleOver = byType("schedule_overrun");
+  const notIssued = byType("invoice_not_issued");
+  const longUnpaid = unpaidAlerts;
+  const dueSoon = byType("payment_due_soon");
+
+  const total = overdue.length + scheduleOver.length + notIssued.length + Math.min(longUnpaid.length, 20) + dueSoon.length;
+
+  const rows: { type: "danger" | "warn" | "info"; icon: React.ReactNode; label: string; detail: string; count: number; href: string }[] = [];
+
+  if (scheduleOver.length > 0) {
+    const names = scheduleOver.slice(0, 2).map(a => a.project_name).join(" / ");
+    const avgDays = Math.round(scheduleOver.reduce((s, a) => s + a.days, 0) / scheduleOver.length);
+    rows.push({
+      type: "danger",
+      icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>,
+      label: "工期超過",
+      detail: `${names}${scheduleOver.length > 2 ? " 他" : ""} · 平均${avgDays}日遅延`,
+      count: scheduleOver.length,
+      href: "/projects",
+    });
+  }
+  if (notIssued.length > 0) {
+    rows.push({
+      type: "warn",
+      icon: <><path d="M5 4h11l3 3v13a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1z" /><path d="M9 13h6M9 17h6" /></>,
+      label: "請求書未発行",
+      detail: "完工後 30日以上経過",
+      count: notIssued.length,
+      href: "/projects",
+    });
+  }
+  if (longUnpaid.length > 0) {
+    rows.push({
+      type: "info",
+      icon: <><path d="M12 1l3 6 6 1-4.5 4.5L18 19l-6-3-6 3 1.5-6.5L3 8l6-1 3-6z" /></>,
+      label: "入金未確認",
+      detail: "請求書発行 60日経過",
+      count: longUnpaid.length,
+      href: "/purchases",
+    });
+  }
+  if (overdue.length > 0) {
+    rows.push({
+      type: "danger",
+      icon: <><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><path d="M12 9v4M12 17h.01" /></>,
+      label: "支払期日超過",
+      detail: `${overdue.length}件の請求書が期限超過`,
+      count: overdue.length,
+      href: "/purchases",
+    });
+  }
+  if (dueSoon.length > 0) {
+    rows.push({
+      type: "warn",
+      icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></>,
+      label: "支払期日近迫",
+      detail: "3日以内に期限",
+      count: dueSoon.length,
+      href: "/purchases",
+    });
+  }
+
+  return (
+    <div className="alert-card">
+      <div className="card-head">
+        <div>
+          <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-warn)" strokeWidth="1.8">
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <path d="M12 9v4M12 17h.01" />
+            </svg>
+            期限アラート
+          </div>
+          <div className="card-sub">対応が必要な案件 · 計{total}件</div>
+        </div>
+      </div>
+      {rows.length === 0 && (
+        <div style={{ padding: "24px 14px", fontSize: 13, color: "var(--c-text-muted)", textAlign: "center" }}>
+          対応が必要なアラートはありません
+        </div>
+      )}
+      {rows.map((row, i) => (
+        <div key={i} className={`alert-row ${row.type}`}>
+          <div className="icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">{row.icon}</svg>
+          </div>
+          <div style={{ flex: 1 }}>
+            <div className="label">{row.label}</div>
+            <div className="muted" style={{ fontSize: 11 }}>{row.detail}</div>
+          </div>
+          <div className="count">{row.count}<small>件</small></div>
+          <Link href={row.href} className="link">確認 →</Link>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** 請求書年月別一覧カード（左列 1.4fr、dashboard.html ランキング部分の置換） */
+function MonthlyInvoicesCard({ groups }: { groups: MonthlyInvoiceGroup[] }) {
+  const router = useRouter();
+  const [open, setOpen] = useState<Set<string>>(new Set([groups[0]?.year_month ?? ""]));
+  const toggle = (ym: string) => setOpen(prev => {
+    const next = new Set(prev);
+    next.has(ym) ? next.delete(ym) : next.add(ym);
+    return next;
+  });
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div>
+          <div className="card-title">請求書一覧（月別）</div>
+          <div className="card-sub">クリックで展開 · 行クリックで詳細へ</div>
+        </div>
+      </div>
+      {groups.length === 0 && (
+        <div style={{ padding: "24px 14px", fontSize: 13, color: "var(--c-text-muted)", textAlign: "center" }}>
+          請求書がありません
+        </div>
+      )}
+      {groups.map(g => (
+        <div key={g.year_month}>
+          <button
+            onClick={() => toggle(g.year_month)}
+            style={{
+              width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+              padding: "8px 16px", border: "none", borderTop: "1px solid var(--c-border)",
+              background: "var(--c-surface-2)", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--c-text)",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                {open.has(g.year_month) ? <path d="M6 9l6 6 6-6" /> : <path d="M9 18l6-6-6-6" />}
+              </svg>
+              {g.display}
+              <span style={{ marginLeft: 4, fontSize: 11, fontWeight: 400, color: "var(--c-text-muted)" }}>
+                {g.invoices.length}件
+              </span>
+            </span>
+            <span style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: "var(--c-text-muted)", fontWeight: 400 }}>
+              ¥{Math.round(g.total_billed).toLocaleString()} / 入金 ¥{Math.round(g.total_paid).toLocaleString()}
+            </span>
+          </button>
+          {open.has(g.year_month) && (
+            <table className="tbl">
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left" }}>工事名</th>
+                  <th style={{ textAlign: "left" }}>発注者</th>
+                  <th className="num">総額（税込）</th>
+                  <th className="num">入金済</th>
+                </tr>
+              </thead>
+              <tbody>
+                {g.invoices.map(inv => {
+                  const fullyPaid = inv.total_paid >= inv.total_amount && inv.total_amount > 0;
+                  return (
+                    <tr key={inv.invoice_id} style={{ cursor: "pointer" }}
+                      onClick={() => router.push(`/projects/${inv.project_id}/invoice/${inv.invoice_id}`)}>
+                      <td>
+                        <div style={{ fontWeight: 500, fontSize: 13 }}>{inv.project_name}</div>
+                        <div style={{ fontSize: 11, color: "var(--c-text-muted)" }}>{inv.invoice_number}</div>
+                      </td>
+                      <td style={{ fontSize: 12, color: "var(--c-text-muted)" }}>{inv.client_name || "—"}</td>
+                      <td className="num" style={{ fontFamily: "var(--ff-mono)", fontWeight: 600 }}>
+                        ¥{Math.round(inv.total_amount).toLocaleString()}
+                      </td>
+                      <td className="num" style={{ fontFamily: "var(--ff-mono)", color: fullyPaid ? "var(--c-success)" : "var(--c-danger)" }}>
+                        {inv.total_paid > 0 ? `¥${Math.round(inv.total_paid).toLocaleString()}` : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** ダッシュボード (S02 dashboard.html 準拠) */
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -356,9 +363,6 @@ export default function DashboardPage() {
   useEffect(() => { load(); }, [load]);
 
   const total = data?.kpi[0]?.value ?? 0;
-  const overdue = data?.deadline_alerts.filter(a => a.days_left <= 0).length ?? 0;
-  const soon7   = data?.deadline_alerts.filter(a => a.days_left > 0 && a.days_left <= 7).length ?? 0;
-  const soon30  = data?.deadline_alerts.filter(a => a.days_left > 7).length ?? 0;
 
   return (
     <AppShell
@@ -384,13 +388,13 @@ export default function DashboardPage() {
       </div>
 
       {isLoading || !data ? (
-        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--c-text-muted)", fontSize: "var(--fs-sm)" }}>
+        <div style={{ textAlign: "center", padding: "60px 0", color: "var(--c-text-muted)", fontSize: 13 }}>
           読み込み中...
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-          {/* KPI grid */}
+          {/* ── KPI グリッド（4枚）*/}
           <div className="kpi-grid">
             {data.kpi.map(card => (
               <div key={card.label} className="kpi">
@@ -410,39 +414,32 @@ export default function DashboardPage() {
             ))}
           </div>
 
-          {/* 売掛金サマリー */}
+          {/* ── 売掛金サマリー（3枚）*/}
           <div className="kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
             <div className="kpi" style={{ borderLeft: "3px solid var(--c-primary)" }}>
               <div className="label">今月請求額</div>
-              <div className="value">
-                <span className="yen">¥</span>{fmtMoney(data.invoice_stats?.this_month_billed ?? 0)}
-                <span className="yen" style={{ fontSize: 13, marginLeft: 2 }}>円</span>
-              </div>
+              <div className="value"><span className="yen">¥</span>{fmtMoney(data.invoice_stats?.this_month_billed ?? 0)}<span className="yen" style={{ fontSize: 13, marginLeft: 2 }}>円</span></div>
             </div>
-            <div className="kpi" style={{ borderLeft: `3px solid var(--c-warn)` }}>
+            <div className="kpi" style={{ borderLeft: "3px solid var(--c-warn)" }}>
               <div className="label">入金待ち合計</div>
-              <div className="value">
-                <span className="yen">¥</span>{fmtMoney(data.invoice_stats?.total_pending ?? 0)}
-                <span className="yen" style={{ fontSize: 13, marginLeft: 2 }}>円</span>
-              </div>
+              <div className="value"><span className="yen">¥</span>{fmtMoney(data.invoice_stats?.total_pending ?? 0)}<span className="yen" style={{ fontSize: 13, marginLeft: 2 }}>円</span></div>
             </div>
-            <div className="kpi" style={{ borderLeft: "3px solid var(--c-danger)", background: (data.invoice_stats?.overdue_count ?? 0) > 0 ? "color-mix(in oklab, var(--c-danger) 5%, var(--c-surface))" : undefined }}>
-              <div className="label" style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div className="kpi" style={{ borderLeft: "3px solid var(--c-danger)" }}>
+              <div className="label">
                 期限超過（入金）
                 {(data.invoice_stats?.overdue_count ?? 0) > 0 && (
-                  <span style={{ background: "var(--c-danger)", color: "#fff", borderRadius: 10, fontSize: 10, fontWeight: 700, padding: "1px 7px" }}>
+                  <span style={{ background: "var(--c-danger)", color: "#fff", borderRadius: "var(--r-pill)", fontSize: 10, fontWeight: 700, padding: "1px 7px", marginLeft: 6 }}>
                     {data.invoice_stats.overdue_count}件
                   </span>
                 )}
               </div>
               <div className="value" style={{ color: (data.invoice_stats?.overdue_count ?? 0) > 0 ? "var(--c-danger)" : undefined }}>
-                <span className="yen">¥</span>{fmtMoney(data.invoice_stats?.total_overdue ?? 0)}
-                <span className="yen" style={{ fontSize: 13, marginLeft: 2 }}>円</span>
+                <span className="yen">¥</span>{fmtMoney(data.invoice_stats?.total_overdue ?? 0)}<span className="yen" style={{ fontSize: 13, marginLeft: 2 }}>円</span>
               </div>
             </div>
           </div>
 
-          {/* Chart row: donut (360px) + bar chart */}
+          {/* ── チャート行：ドーナツ(360px) + バーチャート */}
           <div className="chart-row">
             <div className="card">
               <div className="card-head">
@@ -454,11 +451,9 @@ export default function DashboardPage() {
               <div className="card-pad">
                 {data.status_distribution.length === 0
                   ? <p style={{ fontSize: 13, color: "var(--c-text-muted)", textAlign: "center", padding: "20px 0" }}>データなし</p>
-                  : <DonutChart data={data.status_distribution} total={total} />
-                }
+                  : <DonutChart data={data.status_distribution} total={total} />}
               </div>
             </div>
-
             <div className="card">
               <div className="card-head">
                 <div>
@@ -476,145 +471,96 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 未入金アラーム */}
-          {(data.unpaid_alerts?.length ?? 0) > 0 && (
-            <div className="card">
-              <div className="card-head">
-                <div>
-                  <div className="card-title" style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--c-danger)" strokeWidth="1.8">
-                      <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
-                    </svg>
-                    未入金アラーム
-                  </div>
-                  <div className="card-sub">支払期日を過ぎた請求書 · {data.unpaid_alerts.length}件</div>
-                </div>
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--c-border)", color: "var(--c-text-muted)", fontSize: 11 }}>
-                      <th style={{ padding: "6px 14px", textAlign: "left", fontWeight: 600 }}>案件</th>
-                      <th style={{ padding: "6px 10px", textAlign: "left", fontWeight: 600 }}>請求番号</th>
-                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 600 }}>請求額</th>
-                      <th style={{ padding: "6px 10px", textAlign: "center", fontWeight: 600 }}>支払期日</th>
-                      <th style={{ padding: "6px 14px", textAlign: "center", fontWeight: 600 }}>超過日数</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.unpaid_alerts.map((a) => (
-                      <tr key={a.invoice_id} style={{ borderBottom: "1px solid var(--c-border)" }}>
-                        <td style={{ padding: "8px 14px" }}>
-                          <Link href={`/projects/${a.project_id}`} style={{ color: "var(--c-primary)", textDecoration: "none", fontWeight: 500 }}>
-                            {a.project_number}
-                          </Link>
-                          <div style={{ color: "var(--c-text-muted)", fontSize: 11, marginTop: 1 }}>{a.project_name}</div>
-                        </td>
-                        <td style={{ padding: "8px 10px", color: "var(--c-text-muted)" }}>{a.invoice_number ?? "—"}</td>
-                        <td style={{ padding: "8px 10px", textAlign: "right", fontFamily: "var(--ff-mono)", fontWeight: 600 }}>
-                          ¥{Math.round(a.total_amount).toLocaleString()}
-                        </td>
-                        <td style={{ padding: "8px 10px", textAlign: "center", fontFamily: "var(--ff-mono)", color: "var(--c-text-muted)" }}>
-                          {a.payment_due_date ?? "—"}
-                        </td>
-                        <td style={{ padding: "8px 14px", textAlign: "center" }}>
-                          <span style={{ background: "var(--c-danger)", color: "#fff", borderRadius: 10, padding: "2px 10px", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
-                            {a.days_overdue}日超過
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* 統合期限アラート */}
-          {(data.period_alerts?.length ?? 0) > 0 && (
-            <PeriodAlertsCard alerts={data.period_alerts ?? []} />
-          )}
-
-          {/* 請求書年月別一覧 */}
-          {(data.monthly_invoices?.length ?? 0) > 0 && (
-            <MonthlyInvoicesCard groups={data.monthly_invoices ?? []} />
-          )}
-
-          {/* Bottom: work hours + timeline */}
+          {/* ── grid-2: 請求書一覧（左1.4fr） + アラート・タイムライン（右1fr）*/}
           <div className="grid-2">
 
-            {/* 担当者別稼働時間 */}
-            {(data.user_work_hours?.length ?? 0) > 0 && (
-              <div className="card">
+            {/* 左: 請求書年月別一覧（ランキング置き換え） */}
+            <MonthlyInvoicesCard groups={data.monthly_invoices ?? []} />
+
+            {/* 右: アラート + タイムライン（縦積み） */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+
+              {/* 期限アラート（dashboard.html .alert-card 準拠） */}
+              <AlertCard
+                periodAlerts={data.period_alerts ?? []}
+                unpaidAlerts={data.unpaid_alerts ?? []}
+              />
+
+              {/* 担当者別稼働時間（日報データがある場合のみ） */}
+              {(data.user_work_hours?.length ?? 0) > 0 && (
+                <div className="card">
+                  <div className="card-head">
+                    <div>
+                      <div className="card-title">担当者別稼働時間</div>
+                      <div className="card-sub">今月の日報集計</div>
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                    {(() => {
+                      const maxMin = Math.max(...(data.user_work_hours ?? []).map(u => u.this_month_minutes), 1);
+                      return (data.user_work_hours ?? []).map(u => {
+                        const h = Math.floor(u.this_month_minutes / 60);
+                        const m = u.this_month_minutes % 60;
+                        return (
+                          <div key={u.user_id}>
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
+                              <span style={{ fontWeight: 500 }}>{u.user_name}</span>
+                              <span style={{ fontFamily: "var(--ff-mono)", color: "var(--c-text-muted)" }}>{h}h{m ? `${m}m` : ""}</span>
+                            </div>
+                            <div style={{ height: 6, borderRadius: "var(--r-pill)", background: "var(--c-surface-2)", overflow: "hidden" }}>
+                              <div style={{ height: "100%", width: `${(u.this_month_minutes / maxMin) * 100}%`, borderRadius: "var(--r-pill)", background: "var(--c-primary)" }} />
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* 最近の活動タイムライン */}
+              <div className="card" style={{ minWidth: 0 }}>
                 <div className="card-head">
                   <div>
-                    <div className="card-title">担当者別稼働時間</div>
-                    <div className="card-sub">今月の日報集計</div>
+                    <div className="card-title">最近の活動</div>
+                    <div className="card-sub">直近 20件</div>
                   </div>
                 </div>
-                <div style={{ padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
-                  {(() => {
-                    const maxMin = Math.max(...(data.user_work_hours ?? []).map((u) => u.this_month_minutes), 1);
-                    return (data.user_work_hours ?? []).map((u) => {
-                      const h = Math.floor(u.this_month_minutes / 60);
-                      const m = u.this_month_minutes % 60;
-                      const pct = (u.this_month_minutes / maxMin) * 100;
-                      return (
-                        <div key={u.user_id}>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 3 }}>
-                            <span style={{ fontWeight: 500 }}>{u.user_name}</span>
-                            <span style={{ fontFamily: "var(--ff-mono)", color: "var(--c-text-muted)" }}>
-                              {h}h{m ? `${m}m` : ""}
-                            </span>
-                          </div>
-                          <div style={{ height: 8, borderRadius: 4, background: "var(--c-surface-2)", overflow: "hidden" }}>
-                            <div style={{ height: "100%", width: `${pct}%`, borderRadius: 4, background: "var(--c-primary)", transition: "width 0.4s ease" }} />
-                          </div>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </div>
-            )}
-
-            {/* Timeline */}
-            <div className="card">
-              <div className="card-head">
-                <div>
-                  <div className="card-title">最近の活動</div>
-                  <div className="card-sub">直近 20件</div>
-                </div>
-              </div>
-              <div className="timeline">
-                {data.recent_activities.length === 0 ? (
-                  <div style={{ padding: "20px 14px", fontSize: 13, color: "var(--c-text-muted)", textAlign: "center" }}>活動履歴がありません</div>
-                ) : data.recent_activities.slice(0, 8).map((act, i) => (
-                  <div key={i} className="tl-row">
-                    <div className="avatar">{act.changed_by_name.slice(0, 1)}</div>
-                    <div className="what">
-                      <strong>{act.changed_by_name}</strong> が{" "}
-                      {ENTITY_LABEL[act.entity_type] ?? act.entity_type} を{" "}
-                      {CHANGE_LABEL[act.change_type] ?? act.change_type}
-                      {act.project_id && (
-                        <Link href={`/projects/${act.project_id}`} style={{ color: "var(--c-primary)", marginLeft: 4, textDecoration: "none" }}>→</Link>
-                      )}
+                <div className="timeline">
+                  {data.recent_activities.length === 0 ? (
+                    <div style={{ padding: "20px 14px", fontSize: 13, color: "var(--c-text-muted)", textAlign: "center" }}>活動履歴がありません</div>
+                  ) : data.recent_activities.slice(0, 8).map((act, i) => (
+                    <div key={i} className="tl-row">
+                      <div className="avatar">{act.changed_by_name.slice(0, 1)}</div>
+                      <div className="what">
+                        <strong>{act.changed_by_name}</strong>{" "}が{" "}
+                        {ENTITY_LABEL[act.entity_type] ?? act.entity_type} を{" "}
+                        {CHANGE_LABEL[act.change_type] ?? act.change_type}
+                        {act.project_id && (
+                          <> · <Link href={`/projects/${act.project_id}`}
+                            style={{ color: "var(--c-primary)", textDecoration: "none", fontFamily: "var(--ff-mono)", fontSize: 11 }}>
+                            →
+                          </Link></>
+                        )}
+                      </div>
+                      <div className="when">{fmtRelTime(act.changed_at)}</div>
                     </div>
-                    <div className="when">{fmtRelTime(act.changed_at)}</div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
 
+            </div>
           </div>
+
         </div>
       )}
 
-      <CreateProjectModal
-        open={showModal}
-        onClose={() => setShowModal(false)}
-        onCreated={(_p: ProjectListItem) => setShowModal(false)}
-      />
+      {showModal && (
+        <CreateProjectModal
+          onClose={() => setShowModal(false)}
+          onCreated={(_p: ProjectListItem) => { setShowModal(false); load(); }}
+        />
+      )}
     </AppShell>
   );
 }

@@ -57,7 +57,6 @@ async def sync_agreed_amount_from_orders(
     # vendor_id または vendor_name_snapshot でマッチングして更新
     conditions = [
         QCDSDirectWork.qcds_id == qcds_id,
-        QCDSDirectWork.deleted_at == None,  # noqa: E711
     ]
     if vendor_name:
         conditions.append(
