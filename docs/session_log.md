@@ -3602,5 +3602,40 @@ TypeScript の `onClick` 型エラーが未修正のままだった。
 - `frontend/src/app/approvals/page.tsx` — 工事台帳押印依頼セクション
 - `frontend/src/app/projects/[id]/page.tsx` — 月別支払インライン編集
 - `frontend/src/app/admin/page.tsx` — 印紙税・見積条件文・QCDS CRUD
+- `backend/app/modules/purchase/routers/orders.py` — _sync_after_status_change（issue/delivered/paid 全ステータス変更後に取決連動）
+
+### デプロイ
+- commit: d77ebee（Phase1拡張・Admin強化・取決連動修正・バグ修正）+ GitHub push
+- SCP → `/root/cmv3` 展開 → cmv3-api restart + cmv3-web rebuild
+- `✅ API /health 200 / Web 200`
+
+### 次のアクション
+- https://cmv3.fact-ally.com で動作確認:
+  - 発注書を「発注済」にして QCDS 取決金額が自動更新されるか
+  - 承認待ちページに「工事台帳 押印依頼」セクションが表示されるか
+  - 案件詳細で月別支払セルをクリックして編集できるか
+  - `/admin` で印紙税・見積条件文・QCDSテンプレートの CRUD が動くか
+- Phase G-4: 工事台帳 PDF/Excel 出力
+- 残確認事項 Q2〜Q5 をひさんに確認
+
+---
+
+## Session 2026-06-05
+
+### 作業内容
+- 前セッション（API制限によるストップ）の状態を session_log・メモリから把握
+- スクショで確認: `orders.py` への `_sync_after_status_change` 追加が完了済みであることを確認
+- `qcds_sync.py` の vendor_name_snapshot フォールバックも実装済みを確認
+- 未コミット変更（sessions 1-4分）を1コミットにまとめてコミット・GitHub push（d77ebee）
+- VPS デプロイ: `/root/cmv3` に tar.gz 展開 → cmv3-api restart → cmv3-web rebuild
+- API 200 / Web 200 動作確認
+
+### 変更ファイル
+- commit d77ebee（全セッション変更のまとめコミット）
+
+### 次のアクション
+- 発注書ステータス変更 → QCDS 取決金額自動連動の実機確認
+- Phase G-4: 工事台帳 PDF/Excel 出力
+- 残確認事項 Q2〜Q5
 
 ---
