@@ -607,9 +607,9 @@ function toForm(t: QCDSTemplate): QCDSTemplateForm {
     name: t.name, description: t.description ?? "",
     labor_insurance_rate: (t.labor_insurance_rate * 100).toFixed(4),
     construction_insurance_rate: (t.construction_insurance_rate * 100).toFixed(4),
-    office_supplies: String(t.office_supplies),
-    communication_cost: String(t.communication_cost),
-    misc_cost: String(t.misc_cost),
+    office_supplies: String(Math.round(t.office_supplies)),
+    communication_cost: String(Math.round(t.communication_cost)),
+    misc_cost: String(Math.round(t.misc_cost)),
     site_staff_salary_rate: (t.site_staff_salary_rate * 100).toFixed(2),
     shared_overhead_rate: (t.shared_overhead_rate * 100).toFixed(2),
     general_admin_rate: (t.general_admin_rate * 100).toFixed(2),
@@ -666,10 +666,13 @@ function QCDSTemplatesSection() {
               <label style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text-muted)", display: "block", marginBottom: 4 }}>テンプレート名 *</label>
               <input className="input" value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={{ width: "100%" }} />
             </div>
-            {RATE_FIELDS.map(({ key, label }) => (
+            {RATE_FIELDS.map(({ key, label, unit }) => (
               <div key={key}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text-muted)", display: "block", marginBottom: 4 }}>{label}</label>
-                <input className="input" type="number" step="0.0001" value={editForm[key]}
+                <input className="input" type="number"
+                  step={unit === "円" ? "1" : "0.0001"}
+                  min={unit === "円" ? "0" : undefined}
+                  value={editForm[key]}
                   onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} style={{ width: "100%" }} />
               </div>
             ))}
