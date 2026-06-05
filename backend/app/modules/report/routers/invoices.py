@@ -51,6 +51,8 @@ def _to_read(inv: Invoice) -> InvoiceRead:
         payment_due_date=inv.payment_due_date,
         split_sequence=inv.split_sequence,
         split_total=inv.split_total,
+        invoice_type=inv.invoice_type,
+        parent_invoice_id=inv.parent_invoice_id,
         items=[
             InvoiceItemRead(
                 id=i.id, row_no=i.row_no, item_name=i.item_name,
@@ -66,6 +68,7 @@ def _to_read(inv: Invoice) -> InvoiceRead:
                 payment_date=p.payment_date,
                 payment_method=p.payment_method,
                 note=p.note,
+                target_split_id=p.target_split_id,
                 created_at=p.created_at,
             )
             for p in inv.payments
@@ -297,21 +300,20 @@ async def auto_split_invoice(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[InvoiceRead]:
-    """割合(%)から残りの請求書を自動作成する。
+    """総額請求書＋分割連動型に変換する。
 
-    例: 25% → 4枚 (25/25/25/25)、30% → 3枚 (30/30/40)
-    最後の1枚は端数込みの金額になる。
+    例: 25% → 総額1枚 + 分割4枚 (25/25/25/25)
+        30% → 総額1枚 + 分割3枚 (30/30/40)
     """
     inv = (await db.execute(
-        select(Invoice)
-        .options(*_load_options())
+        select(Invoice).options(*_load_options())
         .where(Invoice.id == invoice_id, Invoice.project_id == project_id)
     )).scalar_one_or_none()
     if inv is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="請求書が見つかりません")
     if inv.billing_method != "percentage" or not inv.billing_percentage:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="割合請求のみ自動分割できます")
-    if inv.split_total:
+    if inv.invoice_type == "total":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="すでに自動分割済みです")
 
     project = (await db.execute(
@@ -321,7 +323,7 @@ async def auto_split_invoice(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
 
     pct = float(inv.billing_percentage)
-    n_total = int(100 / pct)  # 総枚数 (floor)
+    n_total = int(100 / pct)
     last_pct = 100.0 - (n_total - 1) * pct
 
     # 顧客見積の税抜合計を取得（分割金額の基準）
@@ -334,55 +336,57 @@ async def auto_split_invoice(
     if quote_row is not None:
         quote_subtotal = float(quote_row)
 
-    # 現在の請求書を split 1/n に更新
-    inv.split_sequence = 1
+    # 現在の請求書 → 総額請求書 (total) に変換
+    inv.invoice_type = "total"
     inv.split_total = n_total
+    inv.split_sequence = None  # total には sequence 不要
     if quote_subtotal:
-        inv.current_purchase = int(quote_subtotal * pct / 100)
+        inv.current_purchase = quote_subtotal  # 総額は税抜合計をそのまま
         _calc_totals(inv)
 
-    # 現在の請求書件数（採番用）
+    # 採番用カウント
     count_now = (await db.execute(
         select(func.count(Invoice.id)).where(Invoice.project_id == project_id)
     )).scalar_one()
 
-    created = []
-    for i in range(2, n_total + 1):
+    # 分割請求書 1〜n 枚を作成
+    split_children = []
+    each_purchase = int(quote_subtotal * pct / 100) if quote_subtotal else None
+    for i in range(1, n_total + 1):
         this_pct = last_pct if i == n_total else pct
-        # 最後は端数を含む残額
-        if i == n_total and quote_subtotal:
-            already = sum(
-                int(quote_subtotal * pct / 100) for _ in range(1, n_total)
-            )
-            purchase_amount = int(quote_subtotal - already)
-        elif quote_subtotal:
-            purchase_amount = int(quote_subtotal * pct / 100)
+        if quote_subtotal:
+            if i == n_total:
+                already = int(quote_subtotal * pct / 100) * (n_total - 1)
+                purchase_amount = int(quote_subtotal - already)
+            else:
+                purchase_amount = int(quote_subtotal * pct / 100)
         else:
             purchase_amount = None
 
-        seq_no = count_now + (i - 1)
-        new_inv = Invoice(
+        seq_no = count_now + i
+        child = Invoice(
             project_id=project_id,
             invoice_number=f"{project.project_number}-請{seq_no}",
             billing_method=inv.billing_method,
             billing_percentage=this_pct,
             billing_note=inv.billing_note,
             current_purchase=purchase_amount,
+            invoice_type="split",
+            parent_invoice_id=inv.id,
             split_sequence=i,
             split_total=n_total,
         )
-        _calc_totals(new_inv)
-        db.add(new_inv)
-        created.append(new_inv)
+        _calc_totals(child)
+        db.add(child)
+        split_children.append(child)
 
     await db.commit()
 
-    # 元の請求書を再取得
-    result_inv = (await db.execute(
+    total_inv = (await db.execute(
         select(Invoice).options(*_load_options()).where(Invoice.id == invoice_id)
     )).scalar_one()
-    all_results = [result_inv]
-    for c in created:
+    all_results = [total_inv]
+    for c in split_children:
         refreshed = (await db.execute(
             select(Invoice).options(*_load_options()).where(Invoice.id == c.id)
         )).scalar_one()
@@ -451,6 +455,7 @@ async def add_payment(
         payment_date=body.payment_date,
         payment_method=body.payment_method,
         note=body.note,
+        target_split_id=body.target_split_id,
     )
     db.add(payment)
     await db.flush()
@@ -464,6 +469,42 @@ async def add_payment(
         else:
             inv.status = InvoiceStatus.partially_paid
 
+    # 総額請求書からの分割連動: target_split_id がある場合に次の分割請求書を更新
+    if body.target_split_id and inv.invoice_type == "total":
+        target_split = (await db.execute(
+            select(Invoice)
+            .options(*_load_options())
+            .where(Invoice.id == body.target_split_id)
+        )).scalar_one_or_none()
+
+        if target_split:
+            # 対象回のステータス更新
+            split_amount = float(target_split.total_amount or 0)
+            if float(body.amount) >= split_amount:
+                target_split.status = InvoiceStatus.paid
+            else:
+                target_split.status = InvoiceStatus.partially_paid
+
+            # 次の回の分割請求書を取得して前月繰越を自動更新
+            next_seq = (target_split.split_sequence or 0) + 1
+            next_split = (await db.execute(
+                select(Invoice)
+                .where(
+                    Invoice.parent_invoice_id == invoice_id,
+                    Invoice.split_sequence == next_seq,
+                )
+            )).scalar_one_or_none()
+
+            if next_split:
+                unpaid = max(0.0, split_amount - float(body.amount))
+                next_split.previous_balance = split_amount
+                next_split.received_amount = float(body.amount)
+                # 今回分の税抜額（next_split の元の金額）+ 未払い分
+                base_purchase = float(next_split.current_purchase or 0)
+                if unpaid > 0:
+                    next_split.current_purchase = base_purchase + unpaid
+                _calc_totals(next_split)
+
     await db.commit()
     await db.refresh(payment)
 
@@ -474,6 +515,7 @@ async def add_payment(
         payment_date=payment.payment_date,
         payment_method=payment.payment_method,
         note=payment.note,
+        target_split_id=payment.target_split_id,
         created_at=payment.created_at,
     )
 

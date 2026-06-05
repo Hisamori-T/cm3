@@ -72,6 +72,10 @@ export default function InvoiceDetailPage() {
   const [payMethod, setPayMethod] = useState("");
   const [payNote, setPayNote] = useState("");
   const [addingPayment, setAddingPayment] = useState(false);
+  const [payTargetSplitId, setPayTargetSplitId] = useState<string>("");
+
+  // 総額請求書の子（分割）一覧
+  const [splitChildren, setSplitChildren] = useState<InvoiceRead[]>([]);
 
   useEffect(() => { load(); }, [invoiceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -88,6 +92,11 @@ export default function InvoiceDetailPage() {
       setBillingMethod(data.billing_method || "");
       setBillingPercentage(data.billing_percentage?.toString() || "");
       setBillingNote(data.billing_note || "");
+      // 総額請求書なら子（split）を取得
+      if (data.invoice_type === "total") {
+        const all = await apiFetch<InvoiceRead[]>(`/api/v1/projects/${projectId}/invoices`);
+        setSplitChildren(all.filter(i => i.parent_invoice_id === data.id).sort((a, b) => (a.split_sequence ?? 0) - (b.split_sequence ?? 0)));
+      }
     } catch {
       setMsg("読み込みに失敗しました");
     } finally {
@@ -147,10 +156,11 @@ export default function InvoiceDetailPage() {
           payment_date: payDate,
           payment_method: payMethod || null,
           note: payNote || null,
+          target_split_id: payTargetSplitId || null,
         }),
       });
       showMsg("入金を記録しました");
-      setPayAmt(""); setPayDate(""); setPayMethod(""); setPayNote("");
+      setPayAmt(""); setPayDate(""); setPayMethod(""); setPayNote(""); setPayTargetSplitId("");
       await load();
     } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
     finally { setAddingPayment(false); }
@@ -219,6 +229,9 @@ export default function InvoiceDetailPage() {
   const totalPaid = inv?.payments.reduce((s, p) => s + p.amount, 0) ?? 0;
   const isPaid = inv?.status === "paid";
   const isLinked = inv?.linked_to_quote && inv?.quote_id;
+  const isTotal = inv?.invoice_type === "total";
+  const isSplit = inv?.invoice_type === "split";
+  const isReadOnly = isSplit || isPaid;
 
   return (
     <AppShell
@@ -291,6 +304,22 @@ export default function InvoiceDetailPage() {
         <div style={{ textAlign: "center", padding: "60px 0", color: "var(--c-danger)" }}>請求書が見つかりません</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+          {/* 分割請求書バナー（split のみ） */}
+          {isSplit && inv?.parent_invoice_id && (
+            <div style={{
+              display: "flex", alignItems: "center", gap: 10, padding: "10px 14px",
+              borderRadius: "var(--r-md)", background: "color-mix(in oklab, var(--c-text-muted) 8%, var(--c-surface))",
+              border: "1px solid var(--c-border)", fontSize: 13, color: "var(--c-text-muted)",
+            }}>
+              <span>📋 第{inv.split_sequence}回 / 全{inv.split_total}回 の分割請求書です。入金記録は</span>
+              <a href={`/projects/${projectId}/invoice/${inv.parent_invoice_id}`}
+                style={{ color: "var(--c-primary)", fontWeight: 600, textDecoration: "underline" }}>
+                総額請求書
+              </a>
+              <span>で管理します。</span>
+            </div>
+          )}
 
           {/* 見積連動バナー */}
           {isLinked && (
@@ -580,17 +609,33 @@ export default function InvoiceDetailPage() {
               </table>
             )}
 
-            {/* 入金追加フォーム */}
-            {!isPaid && (
+            {/* 入金追加フォーム（split は非表示） */}
+            {!isPaid && !isSplit && (
               <div style={{ background: "var(--c-surface-2)", borderRadius: "var(--r-md)", padding: "12px 16px" }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>入金を追加</div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
+                <div style={{ display: "grid", gridTemplateColumns: isTotal ? "1fr 1fr 1fr 1fr 1fr auto" : "1fr 1fr 1fr 1fr auto", gap: 8, alignItems: "end" }}>
                   <LI label="入金日 *">
                     <Input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} />
                   </LI>
                   <LI label="金額（円）*">
                     <Input type="number" value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="0" />
                   </LI>
+                  {isTotal && splitChildren.length > 0 && (
+                    <LI label="対象回 *">
+                      <select
+                        value={payTargetSplitId}
+                        onChange={e => setPayTargetSplitId(e.target.value)}
+                        style={{ width: "100%", padding: "6px 8px", fontSize: 12, border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", background: "var(--c-surface)" }}
+                      >
+                        <option value="">— 選択 —</option>
+                        {splitChildren.map(c => (
+                          <option key={c.id} value={c.id}>
+                            第{c.split_sequence}回（{fmt(c.total_amount)}）
+                          </option>
+                        ))}
+                      </select>
+                    </LI>
+                  )}
                   <LI label="方法">
                     <Input value={payMethod} onChange={e => setPayMethod(e.target.value)} placeholder="振込・現金 等" />
                   </LI>
@@ -600,7 +645,7 @@ export default function InvoiceDetailPage() {
                   <Button
                     variant="default" size="sm"
                     onClick={handleAddPayment}
-                    disabled={addingPayment || !payAmt || !payDate}
+                    disabled={addingPayment || !payAmt || !payDate || (isTotal && splitChildren.length > 0 && !payTargetSplitId)}
                     style={{ background: "var(--c-primary)", color: "#fff", whiteSpace: "nowrap" }}
                   >
                     <Plus size={13} /> {addingPayment ? "登録中…" : "登録"}
@@ -608,8 +653,13 @@ export default function InvoiceDetailPage() {
                 </div>
               </div>
             )}
+            {isSplit && (
+              <p style={{ fontSize: 12, color: "var(--c-text-muted)", padding: "8px 0" }}>
+                入金記録は総額請求書で管理します。
+              </p>
+            )}
 
-            {isPaid && (
+            {isPaid && !isSplit && (
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 padding: "10px 14px", borderRadius: "var(--r-md)",
@@ -622,6 +672,54 @@ export default function InvoiceDetailPage() {
               </div>
             )}
           </div>
+
+          {/* 総額請求書: 分割一覧サマリ */}
+          {isTotal && splitChildren.length > 0 && (
+            <div className="card" style={{ padding: "16px 20px" }}>
+              <h2 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>分割請求書一覧</h2>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>回</th>
+                    <th>請求番号</th>
+                    <th className="num">請求額（税込）</th>
+                    <th className="num">割合</th>
+                    <th>ステータス</th>
+                    <th style={{ width: 60 }} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {splitChildren.map(c => {
+                    const paidAmt = c.payments.reduce((s, p) => s + p.amount, 0);
+                    return (
+                      <tr key={c.id}>
+                        <td style={{ fontSize: 12, fontWeight: 600 }}>第{c.split_sequence}回</td>
+                        <td style={{ fontSize: 12 }}>{c.invoice_number}</td>
+                        <td className="num" style={{ fontFamily: "var(--ff-mono)", fontSize: 13, fontWeight: 600 }}>{fmt(c.total_amount)}</td>
+                        <td className="num" style={{ fontSize: 12, color: "var(--c-text-muted)" }}>{c.billing_percentage}%</td>
+                        <td>
+                          <span style={{
+                            display: "inline-flex", padding: "1px 8px", borderRadius: "var(--r-pill)",
+                            fontSize: 11, fontWeight: 600,
+                            background: c.status === "paid" ? "color-mix(in oklab, var(--c-success) 14%, var(--c-surface))" : "var(--c-surface-2)",
+                            color: c.status === "paid" ? "var(--c-success)" : "var(--c-text-muted)",
+                          }}>
+                            {INVOICE_STATUS_LABEL[c.status as keyof typeof INVOICE_STATUS_LABEL] ?? c.status}
+                          </span>
+                        </td>
+                        <td>
+                          <a href={`/projects/${projectId}/invoice/${c.id}`}
+                            style={{ fontSize: 11, color: "var(--c-primary)", textDecoration: "none" }}>
+                            開く
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </AppShell>

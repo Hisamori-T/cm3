@@ -32,6 +32,7 @@ export interface PaymentRead {
   payment_date: string;
   payment_method: string | null;
   note: string | null;
+  target_split_id: string | null;
   created_at: string;
 }
 
@@ -55,6 +56,8 @@ export interface InvoiceRead {
   payment_due_date: string | null;
   split_sequence: number | null;
   split_total: number | null;
+  invoice_type: "standalone" | "total" | "split";
+  parent_invoice_id: string | null;
   items: InvoiceItemRead[];
   payments: PaymentRead[];
   created_at: string;

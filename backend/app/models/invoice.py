@@ -51,6 +51,11 @@ class Invoice(Base, TimestampMixin):
     payment_due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     split_sequence: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
     split_total: Mapped[int | None] = mapped_column(sa.Integer, nullable=True)
+    # v2: 総額+分割連動
+    invoice_type: Mapped[str] = mapped_column(String(20), nullable=False, default="standalone")
+    parent_invoice_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="SET NULL"), nullable=True
+    )
 
     # relationships
     project: Mapped["Project"] = relationship("Project", back_populates="invoices")
@@ -59,6 +64,13 @@ class Invoice(Base, TimestampMixin):
     )
     payments: Mapped[list["Payment"]] = relationship(
         "Payment", back_populates="invoice", order_by="Payment.payment_date", cascade="all, delete-orphan"
+    )
+    children: Mapped[list["Invoice"]] = relationship(
+        "Invoice", foreign_keys="Invoice.parent_invoice_id",
+        back_populates="parent", order_by="Invoice.split_sequence",
+    )
+    parent: Mapped["Invoice | None"] = relationship(
+        "Invoice", foreign_keys=[parent_invoice_id], back_populates="children", remote_side="Invoice.id"
     )
 
 
@@ -94,6 +106,9 @@ class Payment(Base, TimestampMixin):
     payment_date: Mapped[date] = mapped_column(Date, nullable=False)
     payment_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_split_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="SET NULL"), nullable=True
+    )
 
     # relationships
-    invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="payments")
+    invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="payments", foreign_keys=[invoice_id])

@@ -63,6 +63,7 @@ class PaymentCreate(BaseModel):
     payment_date: date
     payment_method: str | None = None
     note: str | None = None
+    target_split_id: uuid.UUID | None = None
 
 
 class PaymentRead(BaseModel):
@@ -74,6 +75,7 @@ class PaymentRead(BaseModel):
     payment_date: date
     payment_method: str | None
     note: str | None
+    target_split_id: uuid.UUID | None = None
     created_at: datetime
 
 
@@ -103,6 +105,8 @@ class InvoiceRead(BaseModel):
     payment_due_date: date | None
     split_sequence: int | None
     split_total: int | None
+    invoice_type: str
+    parent_invoice_id: uuid.UUID | None
     items: list[InvoiceItemRead]
     payments: list[PaymentRead]
     created_at: datetime

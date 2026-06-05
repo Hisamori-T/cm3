@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -48,6 +48,7 @@ export default function InvoiceListPage() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   useEffect(() => { loadAll(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -276,76 +277,95 @@ export default function InvoiceListPage() {
               </tr>
             </thead>
             <tbody>
-              {invoices.map(inv => {
-                const paid = inv.payments.reduce((s, p) => s + p.amount, 0);
-                const remaining = (inv.total_amount ?? 0) - paid;
-                const isPaid = inv.status === "paid";
-                return (
-                  <tr
-                    key={inv.id}
-                    style={selected.has(inv.id) ? { background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" } : undefined}
-                  >
-                    <td style={{ textAlign: "center" }}>
-                      <input
-                        type="checkbox"
-                        checked={selected.has(inv.id)}
-                        onChange={() => toggleSelect(inv.id)}
-                        disabled={isPaid}
-                        style={{ cursor: isPaid ? "not-allowed" : "pointer", opacity: isPaid ? 0.3 : 1 }}
-                      />
-                    </td>
-                    <td style={{ fontWeight: 600 }}>
-                      <Link
-                        href={`/projects/${projectId}/invoice/${inv.id}`}
-                        style={{ color: "var(--c-primary)", textDecoration: "none" }}
-                      >
-                        {inv.invoice_number || "（番号なし）"}
-                        {inv.split_sequence && inv.split_total && (
-                          <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 400, color: "var(--c-text-muted)" }}>
-                            {inv.split_sequence}/{inv.split_total}回
-                          </span>
+              {(() => {
+                // total 請求書と子（split）を整理して表示
+                const topLevel = invoices.filter(i => i.invoice_type !== "split");
+                const splitByParent: Record<string, InvoiceRead[]> = {};
+                invoices.filter(i => i.invoice_type === "split" && i.parent_invoice_id).forEach(c => {
+                  const pid = c.parent_invoice_id!;
+                  splitByParent[pid] = [...(splitByParent[pid] ?? []), c];
+                });
+
+                const renderRow = (inv: InvoiceRead, isChild = false) => {
+                  const paid = inv.payments.reduce((s, p) => s + p.amount, 0);
+                  const remaining = (inv.total_amount ?? 0) - paid;
+                  const isPaid = inv.status === "paid";
+                  const isTotal = inv.invoice_type === "total";
+                  const hasChildren = isTotal && (splitByParent[inv.id]?.length ?? 0) > 0;
+                  const isOpen = expanded.has(inv.id);
+
+                  return (
+                    <tr
+                      key={inv.id}
+                      style={{
+                        background: isChild
+                          ? "color-mix(in oklab, var(--c-primary) 3%, var(--c-surface))"
+                          : selected.has(inv.id) ? "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" : undefined,
+                      }}
+                    >
+                      <td style={{ textAlign: "center" }}>
+                        {!isChild && (
+                          <input type="checkbox" checked={selected.has(inv.id)}
+                            onChange={() => toggleSelect(inv.id)} disabled={isPaid}
+                            style={{ cursor: isPaid ? "not-allowed" : "pointer", opacity: isPaid ? 0.3 : 1 }}
+                          />
                         )}
-                      </Link>
-                    </td>
-                    <td style={{ fontSize: 12 }}>{fmtDate(inv.issue_date)}</td>
-                    <td style={{
-                      fontSize: 12,
-                      color: inv.status === "overdue" ? "var(--c-danger)" : undefined,
-                    }}>
-                      {fmtDate(inv.payment_due_date)}
-                    </td>
-                    <td className="num" style={{ fontFamily: "var(--ff-mono)", fontSize: 13, fontWeight: 600 }}>
-                      {fmt(inv.total_amount)}
-                    </td>
-                    <td className="num" style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: "var(--c-success)" }}>
-                      {paid > 0 ? fmt(paid) : "—"}
-                    </td>
-                    <td className="num" style={{
-                      fontFamily: "var(--ff-mono)", fontSize: 12,
-                      color: remaining > 0 ? "var(--c-danger)" : "var(--c-text-muted)",
-                    }}>
-                      {inv.total_amount ? fmt(remaining) : "—"}
-                    </td>
-                    <td style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
-                      {billingMethodLabel(inv)}
-                    </td>
-                    <td>
-                      <span style={{
-                        display: "inline-flex", padding: "1px 8px",
-                        borderRadius: "var(--r-pill)", fontSize: 11, fontWeight: 600,
-                        ...(STATUS_STYLE[inv.status] || STATUS_STYLE.draft),
-                      }}>
-                        {INVOICE_STATUS_LABEL[inv.status] ?? inv.status}
-                      </span>
-                    </td>
-                    <td>
-                      <Link href={`/projects/${projectId}/invoice/${inv.id}`}>
-                        <Button variant="default" size="sm">開く</Button>
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
+                      </td>
+                      <td style={{ fontWeight: 600, paddingLeft: isChild ? 28 : undefined }}>
+                        {hasChildren && (
+                          <button onClick={() => setExpanded(prev => { const n = new Set(prev); n.has(inv.id) ? n.delete(inv.id) : n.add(inv.id); return n; })}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: "0 4px 0 0", color: "var(--c-text-muted)" }}>
+                            {isOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                          </button>
+                        )}
+                        <Link href={`/projects/${projectId}/invoice/${inv.id}`}
+                          style={{ color: isTotal ? "var(--c-primary)" : "var(--c-text)", textDecoration: "none", fontSize: isChild ? 12 : undefined }}>
+                          {inv.invoice_number || "（番号なし）"}
+                          {isTotal && <span style={{ marginLeft: 4, fontSize: 10, background: "var(--c-primary)", color: "#fff", borderRadius: 4, padding: "1px 5px" }}>総額</span>}
+                          {isChild && inv.split_sequence && inv.split_total && (
+                            <span style={{ marginLeft: 4, fontSize: 10, color: "var(--c-text-muted)" }}>
+                              第{inv.split_sequence}回/全{inv.split_total}回
+                            </span>
+                          )}
+                        </Link>
+                      </td>
+                      <td style={{ fontSize: 12 }}>{fmtDate(inv.issue_date)}</td>
+                      <td style={{ fontSize: 12, color: inv.status === "overdue" ? "var(--c-danger)" : undefined }}>
+                        {fmtDate(inv.payment_due_date)}
+                      </td>
+                      <td className="num" style={{ fontFamily: "var(--ff-mono)", fontSize: isChild ? 12 : 13, fontWeight: 600 }}>
+                        {isTotal ? <span style={{ color: "var(--c-text-muted)" }}>{fmt(inv.total_amount)}</span> : fmt(inv.total_amount)}
+                      </td>
+                      <td className="num" style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: "var(--c-success)" }}>
+                        {isChild ? "—" : paid > 0 ? fmt(paid) : "—"}
+                      </td>
+                      <td className="num" style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: remaining > 0 ? "var(--c-danger)" : "var(--c-text-muted)" }}>
+                        {isChild ? "—" : inv.total_amount ? fmt(remaining) : "—"}
+                      </td>
+                      <td style={{ fontSize: 11, color: "var(--c-text-muted)" }}>{billingMethodLabel(inv)}</td>
+                      <td>
+                        <span style={{ display: "inline-flex", padding: "1px 8px", borderRadius: "var(--r-pill)", fontSize: 11, fontWeight: 600, ...(STATUS_STYLE[inv.status] || STATUS_STYLE.draft) }}>
+                          {INVOICE_STATUS_LABEL[inv.status] ?? inv.status}
+                        </span>
+                      </td>
+                      <td>
+                        <Link href={`/projects/${projectId}/invoice/${inv.id}`}>
+                          <Button variant="default" size="sm">開く</Button>
+                        </Link>
+                      </td>
+                    </tr>
+                  );
+                };
+
+                return topLevel.flatMap(inv => {
+                  const rows = [renderRow(inv)];
+                  if (inv.invoice_type === "total" && expanded.has(inv.id)) {
+                    (splitByParent[inv.id] ?? []).sort((a, b) => (a.split_sequence ?? 0) - (b.split_sequence ?? 0))
+                      .forEach(child => rows.push(renderRow(child, true)));
+                  }
+                  return rows;
+                });
+              })()}
             </tbody>
           </table>
         </div>
