@@ -113,7 +113,7 @@ function UserModal({
     email: user?.email ?? "",
     full_name: user?.full_name ?? "",
     department: user?.department ?? "",
-    phone: (user as Record<string, unknown> | undefined)?.phone as string ?? "",
+    phone: user?.phone ?? "",
     employee_number: user?.employee_number ?? "",
     role: (user?.role ?? "staff") as UserRole,
     roles: (user?.roles?.length ? user.roles : [user?.role ?? "staff"]) as UserRole[],

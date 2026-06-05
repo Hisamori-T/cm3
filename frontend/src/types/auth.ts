@@ -37,6 +37,7 @@ export interface User {
   role: UserRole;
   roles: UserRole[];
   department: string | null;
+  phone: string | null;
   is_active: boolean;
   stamp_text: string | null;
   stamp_style: string | null;
