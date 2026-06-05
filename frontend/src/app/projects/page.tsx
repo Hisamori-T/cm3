@@ -10,6 +10,97 @@ import { Button } from "@/components/ui/button";
 import { CreateProjectModal } from "@/components/projects/create-project-modal";
 import { fmtYen } from "@/lib/format";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+function getToken() { return typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") || "" : ""; }
+
+function ExcelImportContent({ onImported }: { onImported?: () => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault(); setIsDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f?.name.endsWith(".xlsx")) setFile(f);
+  };
+
+  const handleImport = async () => {
+    if (!file) return;
+    setLoading(true); setMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const previewRes = await fetch(`${API_URL}/api/v1/excel/preview`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}` },
+        body: fd,
+      });
+      if (!previewRes.ok) throw new Error("プレビュー取得失敗");
+      const sid = previewRes.headers.get("X-Import-Session");
+      const previews = await previewRes.json();
+      const rows = previews.map((p: { row_index: number }) => ({ row_index: p.row_index, overwrite: false, deleted_action: "new" }));
+      const importRes = await fetch(`${API_URL}/api/v1/excel/import?session_id=${sid}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${getToken()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      if (!importRes.ok) throw new Error("インポート失敗");
+      const result = await importRes.json();
+      setMsg({ type: "success", text: `完了: 新規 ${result.created}件 / 更新 ${result.updated}件 / スキップ ${result.skipped}件` });
+      setFile(null);
+      onImported?.();
+    } catch (e) {
+      setMsg({ type: "error", text: e instanceof Error ? e.message : "エラーが発生しました" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <div
+        onDragOver={e => { e.preventDefault(); setIsDragging(true); }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false); }}
+        onDrop={handleDrop}
+        style={{
+          border: `2px dashed ${isDragging ? "var(--c-primary)" : "var(--c-border)"}`,
+          borderRadius: "var(--r-lg)",
+          padding: "40px 20px",
+          textAlign: "center",
+          background: isDragging ? "var(--c-primary-50)" : "var(--c-surface-2)",
+          cursor: "pointer",
+        }}
+        onClick={() => {
+          const input = document.createElement("input");
+          input.type = "file"; input.accept = ".xlsx";
+          input.onchange = (e) => { const f = (e.target as HTMLInputElement).files?.[0]; if (f) setFile(f); };
+          input.click();
+        }}
+      >
+        <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{file ? file.name : "Excelファイルをドロップ"}</div>
+        <div style={{ fontSize: 12, color: "var(--c-text-muted)" }}>.xlsx ファイルのみ対応 / クリックでファイル選択</div>
+      </div>
+      {msg && (
+        <div style={{ marginTop: 12, padding: "10px 14px", borderRadius: "var(--r-md)", fontSize: 13,
+          background: msg.type === "success" ? "color-mix(in oklab, var(--c-success) 12%, var(--c-surface))" : "color-mix(in oklab, var(--c-danger) 12%, var(--c-surface))",
+          color: msg.type === "success" ? "var(--c-success)" : "var(--c-danger)", fontWeight: 600 }}>
+          {msg.text}
+        </div>
+      )}
+      <div style={{ marginTop: 16, display: "flex", justifyContent: "flex-end" }}>
+        <button className="btn btn-primary" onClick={handleImport} disabled={!file || loading}>
+          {loading ? "インポート中..." : "インポート実行"}
+        </button>
+      </div>
+      <p style={{ fontSize: 12, color: "var(--c-text-subtle)", marginTop: 12 }}>
+        ※ 詳細なコンフリクト処理は「管理者設定」の旧インポートページをご使用ください。
+      </p>
+    </div>
+  );
+}
+
 const STATUS_CLASS: Record<ProjectStatus, string> = {
   quote: "s-quote", ordered: "s-order", started: "s-start",
   in_progress: "s-progress", completed: "s-done", billed: "s-billed", paid: "s-paid",
@@ -48,6 +139,7 @@ export default function ProjectsPage() {
   const [searchInput, setSearchInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
@@ -150,12 +242,22 @@ export default function ProjectsPage() {
     <AppShell
       breadcrumbs={[{ label: "案件一覧" }]}
       action={
-        <Button variant="primary" onClick={() => setShowModal(true)}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          新規案件
-        </Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn" onClick={() => setShowImportModal(true)} style={{ fontSize: 12 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Excelインポート
+          </button>
+          <Button variant="primary" onClick={() => setShowModal(true)}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            新規案件
+          </Button>
+        </div>
       }
     >
       {/* Toolbar */}
@@ -400,6 +502,21 @@ export default function ProjectsPage() {
       </div>
 
       <CreateProjectModal open={showModal} onClose={() => setShowModal(false)} onCreated={handleCreated} />
+
+      {/* Excel インポートモーダル */}
+      {showImportModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "var(--c-surface)", borderRadius: "var(--r-lg)", padding: 0, width: 640, maxHeight: "85vh", overflowY: "auto", boxShadow: "var(--sh-3)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", borderBottom: "1px solid var(--c-border)" }}>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>案件 Excelインポート</h2>
+              <button onClick={() => setShowImportModal(false)} style={{ border: "none", background: "none", fontSize: 20, cursor: "pointer", color: "var(--c-text-muted)" }}>×</button>
+            </div>
+            <div style={{ padding: "24px" }}>
+              <ExcelImportContent onImported={() => { setShowImportModal(false); fetchProjects(1, filterStatus, searchQ); }} />
+            </div>
+          </div>
+        </div>
+      )}
     </AppShell>
   );
 }

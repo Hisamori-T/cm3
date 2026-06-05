@@ -26,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(tags=["ledger"])
 logger = structlog.get_logger(__name__)
 
-LEDGER_ROLE_LABELS = ["社長", "建築部長", "経理", "担当"]
+LEDGER_ROLE_LABELS = ["社長", "建築部長", "経理", "現場担当", "営業担当"]
 
 # 現場経費 standard items
 EXPENSE_ITEMS = [
@@ -576,9 +576,11 @@ async def approve_ledger(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="承認枠が見つかりません")
 
     # 押印権限チェック: 依頼先ユーザー or admin/super_admin
-    is_admin = current_user.role in ("admin", "super_admin")
+    from app.shared.services.permissions import is_admin as _is_admin
+    from app.models.enums import UserRole
+    _admin_ok = _is_admin(current_user)
     is_designated = approval.approver_user_id == current_user.id
-    if not is_admin and not is_designated and approval.approver_user_id is not None:
+    if not _admin_ok and not is_designated and approval.approver_user_id is not None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="押印権限がありません")
 
     approval.approver_id = current_user.id
@@ -624,7 +626,8 @@ async def revoke_ledger_approval(
     if approval is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="承認枠が見つかりません")
 
-    if approval.approver_id != current_user.id and current_user.role not in ("admin", "super_admin"):
+    from app.shared.services.permissions import is_admin as _is_admin
+    if approval.approver_id != current_user.id and not _is_admin(current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="取消権限がありません")
 
     approval.approver_id = None
@@ -694,3 +697,49 @@ async def patch_direct_work(
         monthly_payments=_monthly_payments(work),
         note=work.note,
     )
+
+# ─── 自分宛の押印依頼一覧（承認待ちページ用）─────────────────────────────────
+
+class LedgerApprovalPendingRead(BaseModel):
+    approval_id: uuid.UUID
+    project_id: uuid.UUID
+    project_number: str
+    project_name: str
+    role_label: str
+    requested_by_name: str | None
+    requested_at: datetime | None
+
+
+@router.get("/ledger-approvals/pending-for-me", response_model=list[LedgerApprovalPendingRead])
+async def get_pending_ledger_approvals_for_me(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[LedgerApprovalPendingRead]:
+    """自分宛の未押印（承認待ち）工事台帳押印依頼一覧。"""
+    rows = (await db.execute(
+        select(LedgerApproval)
+        .options(
+            selectinload(LedgerApproval.requested_by),
+            selectinload(LedgerApproval.project),
+        )
+        .where(
+            LedgerApproval.approver_user_id == current_user.id,
+            LedgerApproval.approved_at == None,  # noqa: E711
+        )
+        .order_by(LedgerApproval.requested_at.desc())
+    )).scalars().all()
+
+    result = []
+    for r in rows:
+        if not r.project:
+            continue
+        result.append(LedgerApprovalPendingRead(
+            approval_id=r.id,
+            project_id=r.project_id,
+            project_number=r.project.project_number,
+            project_name=r.project.project_name,
+            role_label=r.role_label,
+            requested_by_name=r.requested_by.full_name if r.requested_by else None,
+            requested_at=r.requested_at,
+        ))
+    return result

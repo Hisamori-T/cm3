@@ -421,8 +421,22 @@ async def my_approvals(
         .order_by(ApprovalRequest.created_at.desc())
     )).scalars().all()
 
+    # 自分が承認者として参加し、かつ全体が approved になったもの（依頼者以外も含む）
+    from sqlalchemy import or_
+    approved_as_approver = (await db.execute(
+        select(ApprovalRequest)
+        .join(ApprovalStep, ApprovalStep.request_id == ApprovalRequest.id)
+        .where(
+            ApprovalRequest.status == "approved",
+            ApprovalStep.approver_id == current_user.id,
+            ApprovalRequest.requester_id != current_user.id,  # 依頼者側は my_requests で含む
+        )
+        .options(*opts)
+        .order_by(ApprovalRequest.created_at.desc())
+    )).unique().scalars().all()
+
     # 全 quote_id を収集して一括ロード
-    all_reqs = [s.request for s in pending_steps] + my_requests
+    all_reqs = [s.request for s in pending_steps] + my_requests + list(approved_as_approver)
     quote_ids = list({r.quote_id for r in all_reqs})
     quotes_rows = (await db.execute(select(Quote).where(Quote.id.in_(quote_ids)))).scalars().all()
     quote_map = {q.id: q for q in quotes_rows}
@@ -432,7 +446,11 @@ async def my_approvals(
 
     pending_requests = [r for r in my_requests if r.status == "pending"]
     rejected_requests = [r for r in my_requests if r.status == "rejected"]
-    completed_requests = [r for r in my_requests if r.status == "approved"]
+    # 完了済み: 自分が依頼した承認済み + 自分が承認者として参加した承認済み
+    completed_requests = (
+        [r for r in my_requests if r.status == "approved"]
+        + list(approved_as_approver)
+    )
 
     # awaiting からは withdrawn 済み依頼を除外
     awaiting_req_ids = {s.request.id for s in pending_steps}

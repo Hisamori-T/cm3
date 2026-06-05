@@ -14,8 +14,11 @@ class UserRead(BaseModel):
     full_name: str
     employee_number: int | None
     role: UserRole
+    roles: list[UserRole] = []
     department: str | None
     is_active: bool
+    stamp_text: str | None = None
+    stamp_style: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -28,6 +31,7 @@ class UserCreate(BaseModel):
     password: str
     employee_number: int | None = None
     role: UserRole = UserRole.staff
+    roles: list[UserRole] = []       # 空の場合は role から自動セット
     department: str | None = None
 
 
@@ -38,9 +42,12 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     employee_number: int | None = None
     role: UserRole | None = None
+    roles: list[UserRole] | None = None  # None = 変更しない
     department: str | None = None
     is_active: bool | None = None
     password: str | None = None
+    stamp_text: str | None = None
+    stamp_style: str | None = None
 
 
 class UserSelfUpdate(BaseModel):

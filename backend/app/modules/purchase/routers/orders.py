@@ -274,6 +274,11 @@ async def create_order(
     order.tax_amount = tax
     order.total_amount = total
     await db.commit()
+    # 取決金額自動連動
+    if order.vendor_id:
+        from app.shared.services.qcds_sync import sync_agreed_amount_from_orders
+        await sync_agreed_amount_from_orders(db, project_id, order.vendor_id)
+        await db.commit()
     return await get_order(order.id, db, current_user)
 
 
@@ -288,10 +293,26 @@ async def update_order(
     order = await db.get(PurchaseOrder, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="発注書が見つかりません")
+    vendor_id_before = order.vendor_id
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(order, field, value)
     await db.commit()
+    # 取決金額自動連動（vendor が変わった場合は旧 vendor も更新）
+    if order.vendor_id and order.project_id:
+        from app.shared.services.qcds_sync import sync_agreed_amount_from_orders
+        await sync_agreed_amount_from_orders(db, order.project_id, order.vendor_id)
+        if vendor_id_before and vendor_id_before != order.vendor_id:
+            await sync_agreed_amount_from_orders(db, order.project_id, vendor_id_before)
+        await db.commit()
     return await get_order(order_id, db, current_user)
+
+
+async def _sync_after_status_change(db, order: PurchaseOrder) -> None:
+    """ステータス変更後に取決金額を同期する共通ヘルパー。"""
+    if order.vendor_id and order.project_id:
+        from app.shared.services.qcds_sync import sync_agreed_amount_from_orders
+        await sync_agreed_amount_from_orders(db, order.project_id, order.vendor_id)
+        await db.commit()
 
 
 @router.post("/purchase-orders/{order_id}/issue", response_model=PurchaseOrderRead)
@@ -307,6 +328,7 @@ async def issue_order(
     order.status = PurchaseOrderStatus.issued
     order.issued_at = datetime.now(timezone.utc)
     await db.commit()
+    await _sync_after_status_change(db, order)
     return await get_order(order_id, db, current_user)
 
 
@@ -359,6 +381,7 @@ async def mark_delivered(
         raise HTTPException(status_code=404, detail="発注書が見つかりません")
     order.status = PurchaseOrderStatus.delivered
     await db.commit()
+    await _sync_after_status_change(db, order)
     return await get_order(order_id, db, current_user)
 
 
@@ -372,9 +395,10 @@ async def mark_paid(
     order = await db.get(PurchaseOrder, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="発注書が見つかりません")
-    order.status = PurchaseOrderStatus.completed
+    order.status = PurchaseOrderStatus.delivered  # delivered が最終ステータス
     order.paid_at = datetime.now(timezone.utc)
     await db.commit()
+    await _sync_after_status_change(db, order)
     return await get_order(order_id, db, current_user)
 
 
@@ -388,8 +412,15 @@ async def delete_order(
     order = await db.get(PurchaseOrder, order_id)
     if order is None:
         raise HTTPException(status_code=404, detail="発注書が見つかりません")
+    vendor_id = order.vendor_id
+    project_id = order.project_id
     await db.delete(order)
     await db.commit()
+    # 削除後に取決金額を再計算
+    if vendor_id and project_id:
+        from app.shared.services.qcds_sync import sync_agreed_amount_from_orders
+        await sync_agreed_amount_from_orders(db, project_id, vendor_id)
+        await db.commit()
 
 
 @router.post("/purchase-orders/{order_id}/items/{item_id}/deliveries", response_model=DeliveryRead, status_code=status.HTTP_201_CREATED)

@@ -17,6 +17,56 @@ import { fmtYen } from "@/lib/format";
 import { EditField } from "@/modules/project/EditField";
 import { EditSelect } from "@/modules/project/EditSelect";
 
+// ─── 工事台帳 承認型 ─────────────────────────────────────────────────────────
+
+interface LedgerApproval {
+  id: string;
+  role_label: string;
+  approver_id: string | null;
+  approver_name: string | null;
+  approved_at: string | null;
+  approver_user_id: string | null;
+  approver_user_name: string | null;
+  requested_by_name: string | null;
+  requested_at: string | null;
+  display_order: number;
+}
+
+interface LedgerDirectWork {
+  id: string;
+  row_no: number;
+  vendor_name: string | null;
+  work_type: string | null;
+  budget_amount: number | null;
+  agreed_amount: number | null;
+  settlement_amount: number | null;
+  payment_completed: boolean;
+  monthly_payments: Record<string, number | null>;
+  note: string | null;
+}
+
+interface LedgerSummary {
+  approvals: LedgerApproval[];
+  project_price: number | null;
+  direct_works: LedgerDirectWork[];
+}
+
+// 見積書承認ステータス
+interface ApprovalStep {
+  id: string;
+  step_no: number;
+  approver_id: string;
+  approver_name?: string;
+  status: "pending" | "approved" | "rejected" | "skipped";
+  decided_at: string | null;
+}
+interface ApprovalRequest {
+  id: string;
+  status: "pending" | "approved" | "rejected" | "withdrawn";
+  steps: ApprovalStep[];
+  quote_number?: string;
+}
+
 const STATUS_CLASS: Record<ProjectStatus, string> = {
   quote: "s-quote", ordered: "s-order", started: "s-start",
   in_progress: "s-progress", completed: "s-done", billed: "s-billed", paid: "s-paid",
@@ -63,6 +113,19 @@ export default function ProjectDetailPage() {
   const [form, setForm] = useState<ProjectUpdate>({});
   const [siteSearch, setSiteSearch] = useState<SiteSearchValue>({ clientId: null, clientName: "", siteId: null, siteName: null });
   const [users, setUsers] = useState<{ id: string; full_name: string }[]>([]);
+  // 工事台帳承認 state
+  const [ledgerApprovals, setLedgerApprovals] = useState<LedgerApproval[]>([]);
+  const [ledgerWorks, setLedgerWorks] = useState<LedgerDirectWork[]>([]);
+  const [requestModal, setRequestModal] = useState<{ role_label: string } | null>(null);
+  const [requestUserId, setRequestUserId] = useState("");
+  const [requestSaving, setRequestSaving] = useState(false);
+  // 精算見通表の支払開始月（デフォルト: 4月）
+  const [payStartMonth, setPayStartMonth] = useState<number>(4);
+  // 月別支払インライン編集
+  const [editingPayCell, setEditingPayCell] = useState<{ workId: string; month: number } | null>(null);
+  const [editingPayValue, setEditingPayValue] = useState("");
+  // 見積書承認ステータス state
+  const [approvalRequests, setApprovalRequests] = useState<ApprovalRequest[]>([]);
 
   const fetchProject = useCallback(async () => {
     setIsLoading(true);
@@ -77,6 +140,23 @@ export default function ProjectDetailPage() {
       setIsLoading(false);
     }
   }, [id, router]);
+
+  const fetchLedger = useCallback(async () => {
+    try {
+      const data = await apiFetch<LedgerSummary>(`/api/v1/projects/${id}/ledger`);
+      setLedgerApprovals(data.approvals.sort((a, b) => a.display_order - b.display_order));
+      setLedgerWorks(data.direct_works ?? []);
+    } catch { /* ignore */ }
+  }, [id]);
+
+  const fetchApprovals = useCallback(async () => {
+    try {
+      const data = await apiFetch<{ pending: ApprovalRequest[]; requested_by_me: ApprovalRequest[] }>("/api/v1/approvals/my");
+      const all = [...(data.pending ?? []), ...(data.requested_by_me ?? [])];
+      const forThis = all.filter(a => a.quote_number?.startsWith((id ?? "").slice(0, 8)));
+      setApprovalRequests(forThis);
+    } catch { /* ignore */ }
+  }, [id]);
 
   const fetchQcds = useCallback(async () => {
     try {
@@ -99,11 +179,62 @@ export default function ProjectDetailPage() {
       fetchProject();
       fetchQcds();
       fetchQuoteSubtotal();
+      fetchLedger();
+      fetchApprovals();
       apiFetch<{ id: string; full_name: string }[]>("/api/v1/auth/users")
         .then(setUsers)
         .catch(() => {});
     }
-  }, [authLoading, user, fetchProject, fetchQcds, fetchQuoteSubtotal]);
+  }, [authLoading, user, fetchProject, fetchQcds, fetchQuoteSubtotal, fetchLedger, fetchApprovals]);
+
+  // 工事台帳 押印依頼ハンドラ
+  const handleRequestApproval = async () => {
+    if (!requestModal || !requestUserId) return;
+    setRequestSaving(true);
+    try {
+      await apiFetch(`/api/v1/projects/${id}/ledger/request-approve`, {
+        method: "POST",
+        body: JSON.stringify({ role_label: requestModal.role_label, approver_user_id: requestUserId }),
+      });
+      setRequestModal(null);
+      setRequestUserId("");
+      fetchLedger();
+    } catch { /* ignore */ } finally {
+      setRequestSaving(false);
+    }
+  };
+
+  const handleRevokeApproval = async (role_label: string) => {
+    try {
+      await apiFetch(`/api/v1/projects/${id}/ledger/approve/${encodeURIComponent(role_label)}`, { method: "DELETE" });
+      fetchLedger();
+    } catch { /* ignore */ }
+  };
+
+  // 工事台帳 押印（承認依頼を受けた当人が押印）
+  const handleApproveStamp = async (role_label: string) => {
+    try {
+      await apiFetch(`/api/v1/projects/${id}/ledger/approve`, {
+        method: "POST",
+        body: JSON.stringify({ role_label }),
+      });
+      fetchLedger();
+    } catch { /* ignore */ }
+  };
+
+  // 月別支払セル保存
+  const savePayCell = async (workId: string, month: number, value: string) => {
+    const numVal = value === "" ? null : Number(value.replace(/,/g, ""));
+    const key = `payment_month_${month}`;
+    try {
+      await apiFetch(`/api/v1/projects/${id}/ledger/direct-works/${workId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ [key]: numVal }),
+      });
+      fetchLedger();
+    } catch { /* ignore */ }
+    setEditingPayCell(null);
+  };
 
   const startEdit = () => {
     if (!project) return;
@@ -192,7 +323,8 @@ export default function ProjectDetailPage() {
 
   const f = (k: keyof ProjectUpdate) => String(form[k] ?? "");
   const set = (k: keyof ProjectUpdate) => (v: string) => setForm((p) => ({ ...p, [k]: v }));
-  const canEdit = ["admin", "super_admin", "manager"].includes(user?.role ?? "") || (user && project && user.id === project.created_by);
+  const userRoles = (user as { roles?: string[] })?.roles ?? [user?.role ?? ""];
+  const canEdit = ["admin", "super_admin", "manager"].some(r => userRoles.includes(r)) || (user && project && user.id === project.created_by);
 
   /* QCDS summary calc */
   const directCost = qcds
@@ -211,6 +343,26 @@ export default function ProjectDetailPage() {
   const operatingProfit = projectPrice > 0 ? projectPrice - totalCost : 0;
 
   return (
+    <>
+    {/* 押印依頼モーダル */}
+    {requestModal && (
+      <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ background: "var(--c-surface)", borderRadius: "var(--r-lg)", padding: 24, width: 440, boxShadow: "var(--sh-3)" }}>
+          <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700 }}>押印依頼 — {requestModal.role_label}</h3>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "var(--c-text-muted)", display: "block", marginBottom: 6 }}>依頼先ユーザー</label>
+          <select className="input" style={{ width: "100%" }} value={requestUserId} onChange={e => setRequestUserId(e.target.value)}>
+            <option value="">選択してください</option>
+            {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+          </select>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 20 }}>
+            <button className="btn" onClick={() => { setRequestModal(null); setRequestUserId(""); }}>キャンセル</button>
+            <button className="btn btn-primary" onClick={handleRequestApproval} disabled={!requestUserId || requestSaving}>
+              {requestSaving ? "送信中..." : "依頼を送る"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     <AppShell
       breadcrumbs={[
         { label: "案件一覧", href: "/projects" },
@@ -530,6 +682,72 @@ export default function ProjectDetailPage() {
             {/* ===== RIGHT ===== */}
             <div style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
 
+              {/* 工事台帳 承認スタンプ（印影プレビュースタイル） */}
+              {ledgerApprovals.length > 0 && (
+                <div style={{ padding: 14, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-lg)" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "var(--c-text-muted)", letterSpacing: "0.06em", textTransform: "uppercase" as const, marginBottom: 10 }}>
+                    工事台帳 承認 — {ledgerApprovals.filter(a => a.approved_at).length}/{ledgerApprovals.length} 完了
+                  </div>
+                  {/* スタンプグリッド */}
+                  <div style={{ display: "grid", gridTemplateColumns: `repeat(${ledgerApprovals.length}, 1fr)`, border: "1px solid #999" }}>
+                    {ledgerApprovals.map((a, i) => {
+                      const isStamped = !!a.approved_at;
+                      const isPending = !isStamped && !!a.approver_user_id;
+                      const lastName = a.approver_name?.split(" ")[0] ?? "";
+                      return (
+                        <div key={a.id} style={{ borderRight: i < ledgerApprovals.length - 1 ? "1px solid #999" : "none", display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          {/* ロール行 */}
+                          <div style={{ width: "100%", borderBottom: "1px solid #999", textAlign: "center", padding: "4px 2px", fontSize: 10, fontWeight: 600, color: "var(--c-text-muted)", background: "var(--c-surface-2)" }}>
+                            {a.role_label}
+                          </div>
+                          {/* スタンプ本体 */}
+                          <div style={{ padding: "10px 6px", display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minHeight: 80, justifyContent: "center" }}>
+                            {isStamped ? (
+                              <>
+                                <div style={{ width: 44, height: 44, borderRadius: "50%", border: "2.5px solid #C00000", color: "#C00000", display: "grid", placeItems: "center", fontFamily: '"Hiragino Mincho ProN", "Yu Mincho", serif', fontWeight: 700, fontSize: 13, writingMode: "vertical-rl", letterSpacing: 1 }}>
+                                  {lastName || "✓"}
+                                </div>
+                                <div style={{ fontSize: 9, color: "var(--c-text-muted)", textAlign: "center" }}>{new Date(a.approved_at!).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" })}</div>
+                                {canEdit && <button className="btn btn-ghost" style={{ fontSize: 9, padding: "1px 6px", marginTop: 2 }} onClick={() => handleRevokeApproval(a.role_label)}>取消</button>}
+                              </>
+                            ) : isPending ? (
+                              <>
+                                <div style={{ width: 44, height: 44, borderRadius: "50%", border: "2px dashed var(--c-warn)", display: "grid", placeItems: "center" }}>
+                                  <div style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--c-warn)" }} />
+                                </div>
+                                <div style={{ fontSize: 9, color: "var(--c-warn)", textAlign: "center", fontWeight: 600 }}>{a.approver_user_name}</div>
+                                {/* 自分が押印対象なら押印ボタンを表示 */}
+                                {user?.id === a.approver_user_id ? (
+                                  <button
+                                    className="btn btn-primary"
+                                    style={{ fontSize: 9, padding: "3px 8px", marginTop: 2, background: "#C00000", border: "none" }}
+                                    onClick={() => handleApproveStamp(a.role_label)}
+                                  >
+                                    押印する
+                                  </button>
+                                ) : (
+                                  <div style={{ fontSize: 9, color: "var(--c-warn)" }}>承認待ち</div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <div style={{ width: 44, height: 44, borderRadius: "50%", border: "1.5px dashed var(--c-border)", display: "grid", placeItems: "center", color: "var(--c-text-subtle)", fontSize: 10 }}>未</div>
+                                {canEdit && (
+                                  <button className="btn btn-primary" style={{ fontSize: 9, padding: "2px 8px", marginTop: 2 }}
+                                    onClick={() => { setRequestModal({ role_label: a.role_label }); setRequestUserId(""); }}>
+                                    押印依頼
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* 工事割出サマリー */}
               <div className="summary">
                 <div className="summary-head">
@@ -630,49 +848,196 @@ export default function ProjectDetailPage() {
                     </div>
                   </div>
                 )}
-              </div>
-
-              {/* クイックリンク */}
-              <div className="card">
-                <div className="card-head">
-                  <div>
-                    <div className="card-title">クイックリンク</div>
-                    <div className="card-sub">この案件に紐づく台帳・記録</div>
-                  </div>
-                </div>
-                <div className="qlinks">
-                  <Link href={`/projects/${id}/qcds`} className="qlink">
-                    <div className="ico">
-                      <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4z" /><path d="M4 9h16M9 4v16" /></svg>
+                {/* 見積書 承認ステータス ミニパネル */}
+                {approvalRequests.length > 0 && (() => {
+                  const req = approvalRequests[0];
+                  const done = req.steps.filter(s => s.status === "approved").length;
+                  const total = req.steps.length;
+                  return (
+                    <div style={{ padding: "12px 14px", borderTop: "1px solid var(--c-border)", background: "color-mix(in oklab, var(--c-warn) 6%, var(--c-surface))" }}>
+                      <div style={{ fontWeight: 700, display: "flex", alignItems: "center", gap: 6, marginBottom: 6, fontSize: 12 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--c-warn)" strokeWidth="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                        見積書 承認ステータス · {done}/{total} 完了
+                      </div>
+                      {req.steps.map((step, i) => (
+                        <div key={step.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "3px 0", fontSize: 12 }}>
+                          <div style={{
+                            width: 14, height: 14, borderRadius: "50%",
+                            border: step.status === "approved" ? "none" : `1.5px solid ${step.status === "pending" ? "var(--c-warn)" : "var(--c-border)"}`,
+                            background: step.status === "approved" ? "var(--c-success)" : "var(--c-surface)",
+                            display: "grid", placeItems: "center", flexShrink: 0,
+                          }}>
+                            {step.status === "approved" && <div style={{ width: 4, height: 7, borderRight: "1.5px solid #fff", borderBottom: "1.5px solid #fff", transform: "rotate(45deg)" }} />}
+                            {step.status === "pending" && <div style={{ width: 5, height: 5, borderRadius: "50%", background: "var(--c-warn)" }} />}
+                          </div>
+                          <span style={{ color: "var(--c-text-muted)" }}>Step {step.step_no}</span>
+                          <span style={{ fontWeight: 600 }}>{(step as { approver_name?: string }).approver_name ?? "—"}</span>
+                          <span style={{ marginLeft: "auto", fontFamily: "var(--ff-mono)", fontSize: 10, color: "var(--c-text-muted)" }}>
+                            {step.status === "approved" && step.decided_at ? new Date(step.decided_at).toLocaleDateString("ja-JP") : step.status === "pending" ? "承認待ち" : "—"}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="nm">QCDS</div>
-                    <div className="desc">取決見通表</div>
-                    <div className="meta">{qcds ? `更新 ${formatDate(qcds.updated_at)}` : "未登録"}</div>
-                  </Link>
-                  <Link href={`/projects/${id}/quote`} className="qlink">
-                    <div className="ico">
-                      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6M9 13h6M9 17h6M9 9h2" /></svg>
-                    </div>
-                    <div className="nm">見積書</div>
-                    <div className="desc">顧客見積</div>
-                    <div className="meta">{project.quote_count > 0 ? `${project.quote_count}件発行` : "未発行"}</div>
-                  </Link>
-                  <Link href={`/projects/${id}/order`} className="qlink">
-                    <div className="ico">
-                      <svg viewBox="0 0 24 24"><path d="M3 7h18l-2 12H5L3 7zM8 7V4h8v3" /></svg>
-                    </div>
-                    <div className="nm">注文書</div>
-                    <div className="desc">発注管理</div>
-                    <div className="meta">{project.order_count > 0 ? `${project.order_count}件` : "未発行"}</div>
-                  </Link>
-                </div>
+                  );
+                })()}
               </div>
 
             </div>
           </div>
 
+          {/* ===== 取決見通表（vtbl）全幅 ===== */}
+          {ledgerWorks.length > 0 && (() => {
+            // 支払開始月から12ヶ月順に並べる（会計年度4月始まり）
+            const months: number[] = [];
+            for (let i = 0; i < 12; i++) {
+              months.push(((payStartMonth - 1 + i) % 12) + 1);
+            }
+            const totalBudget = ledgerWorks.reduce((s, w) => s + (w.budget_amount ?? 0), 0);
+            const totalAgreed = ledgerWorks.reduce((s, w) => s + (w.agreed_amount ?? 0), 0);
+            const monthTotals = months.map(m =>
+              ledgerWorks.reduce((s, w) => s + (w.monthly_payments?.[String(m)] ?? 0), 0)
+            );
+            return (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                  <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>実行予算 / 取決見通 / 精算(支払)見通</h3>
+                  <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>※ 取決金額は発注書合計と自動連動</span>
+                </div>
+                <div style={{ overflowX: "auto", width: "100%" }}>
+                  <table className="vtbl" style={{ width: "100%", minWidth: "unset", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ background: "var(--c-surface-2)", padding: "7px 8px", textAlign: "left", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 32, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>No</th>
+                        <th style={{ background: "var(--c-surface-2)", padding: "7px 8px", textAlign: "left", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", minWidth: 120, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>支払先</th>
+                        <th style={{ background: "var(--c-surface-2)", padding: "7px 8px", textAlign: "left", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 80, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>工種</th>
+                        <th style={{ background: "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 90, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>実行予算</th>
+                        <th style={{ background: "color-mix(in oklab, var(--c-warn) 10%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 90, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>取決金額</th>
+                        <th style={{ background: "color-mix(in oklab, var(--c-warn) 10%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 80, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>取決差額</th>
+                        {/* 月列ヘッダー: 先頭に支払開始月ドロップダウン */}
+                        <th colSpan={12} style={{ background: "color-mix(in oklab, var(--c-status-progress) 10%, var(--c-surface-2))", padding: "4px 8px", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span>精算(支払)見通</span>
+                            <select
+                              value={payStartMonth}
+                              onChange={e => setPayStartMonth(Number(e.target.value))}
+                              style={{ fontSize: 10, padding: "1px 4px", border: "1px solid var(--c-border)", borderRadius: 3, background: "var(--c-surface)", cursor: "pointer" }}
+                            >
+                              {[4,5,6,7,8,9,10,11,12,1,2,3].map(m => (
+                                <option key={m} value={m}>{m}月〜</option>
+                              ))}
+                            </select>
+                          </div>
+                        </th>
+                        <th style={{ background: "color-mix(in oklab, var(--c-status-progress) 10%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 80, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>支払計</th>
+                        <th style={{ background: "color-mix(in oklab, var(--c-status-progress) 10%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>残支払</th>
+                      </tr>
+                      {/* 月ラベル行 */}
+                      <tr>
+                        <td colSpan={6} style={{ background: "var(--c-surface-2)", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)" }} />
+                        {months.map(m => (
+                          <th key={m} style={{ background: "color-mix(in oklab, var(--c-status-progress) 10%, var(--c-surface-2))", padding: "4px 6px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 66, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 10 }}>{m}月</th>
+                        ))}
+                        <td colSpan={2} style={{ background: "color-mix(in oklab, var(--c-status-progress) 10%, var(--c-surface-2))", borderBottom: "1px solid var(--c-border)" }} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {ledgerWorks.map((w, idx) => {
+                        const diff = (w.budget_amount ?? 0) - (w.agreed_amount ?? 0);
+                        const paySum = months.reduce((s, m) => s + (w.monthly_payments?.[String(m)] ?? 0), 0);
+                        const remaining = (w.agreed_amount ?? 0) - paySum;
+                        // 取決金額が設定されている場合のみ「済」判定
+                        const isDone = w.agreed_amount != null && w.agreed_amount > 0
+                          && (w.payment_completed || (paySum > 0 && remaining <= 0));
+                        return (
+                          <tr key={w.id} style={{ borderBottom: "1px solid var(--c-border)" }}>
+                            <td style={{ padding: "6px 8px", textAlign: "center", fontFamily: "var(--ff-mono)", color: "var(--c-text-muted)", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)" }}>{idx + 1}</td>
+                            <td style={{ padding: "6px 8px", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", fontWeight: 500 }}>{w.vendor_name ?? "—"}</td>
+                            <td style={{ padding: "6px 8px", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", color: "var(--c-text-muted)", fontSize: 11 }}>{w.work_type ?? "—"}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "color-mix(in oklab, var(--c-primary) 4%, var(--c-surface))" }}>{w.budget_amount != null ? fmtYen(w.budget_amount) : "—"}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "color-mix(in oklab, var(--c-warn) 4%, var(--c-surface))" }}>{w.agreed_amount != null ? fmtYen(w.agreed_amount) : "—"}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", color: diff > 0 ? "var(--c-success)" : diff < 0 ? "var(--c-danger)" : "var(--c-text-muted)" }}>
+                              {w.budget_amount != null && w.agreed_amount != null ? fmtYen(diff) : "—"}
+                            </td>
+                            {months.map(m => {
+                              const val = w.monthly_payments?.[String(m)];
+                              const isEditing = editingPayCell?.workId === w.id && editingPayCell?.month === m;
+                              return (
+                                <td
+                                  key={m}
+                                  onClick={() => {
+                                    if (!isEditing) {
+                                      setEditingPayCell({ workId: w.id, month: m });
+                                      setEditingPayValue(val != null ? String(val) : "");
+                                    }
+                                  }}
+                                  style={{
+                                    padding: isEditing ? "2px 4px" : "6px 6px",
+                                    textAlign: "right",
+                                    fontFamily: "var(--ff-mono)",
+                                    borderRight: "1px solid var(--c-border)",
+                                    background: isEditing ? "var(--c-primary-50)" : "var(--c-surface)",
+                                    color: val ? "var(--c-text)" : "var(--c-text-subtle)",
+                                    fontSize: 11,
+                                    cursor: "text",
+                                    outline: isEditing ? "2px solid var(--c-primary)" : "none",
+                                    outlineOffset: -1,
+                                    minWidth: 60,
+                                  }}
+                                >
+                                  {isEditing ? (
+                                    <input
+                                      autoFocus
+                                      type="number"
+                                      value={editingPayValue}
+                                      onChange={e => setEditingPayValue(e.target.value)}
+                                      onBlur={() => savePayCell(w.id, m, editingPayValue)}
+                                      onKeyDown={e => {
+                                        if (e.key === "Enter") savePayCell(w.id, m, editingPayValue);
+                                        if (e.key === "Escape") setEditingPayCell(null);
+                                      }}
+                                      style={{
+                                        width: "100%", border: "none", background: "transparent",
+                                        fontFamily: "var(--ff-mono)", fontSize: 11,
+                                        textAlign: "right", outline: "none",
+                                      }}
+                                    />
+                                  ) : (
+                                    val ? fmtYen(val) : <span style={{ color: "var(--c-border)", userSelect: "none" }}>—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "color-mix(in oklab, var(--c-primary) 4%, var(--c-surface))", fontWeight: 700 }}>
+                              {fmtYen(paySum)}
+                            </td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", background: isDone ? "color-mix(in oklab, var(--c-success) 8%, var(--c-surface))" : "var(--c-surface)", fontWeight: isDone ? 700 : 400, color: isDone ? "var(--c-success)" : "var(--c-text)" }}>
+                              {isDone ? "済" : w.agreed_amount != null ? fmtYen(Math.max(0, remaining)) : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ background: "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface))", fontWeight: 700, borderTop: "1.5px solid var(--c-border)" }}>
+                        <td colSpan={3} style={{ padding: "7px 8px", borderRight: "1px solid var(--c-border)", fontSize: 12 }}>直接工事費 計</td>
+                        <td style={{ padding: "7px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)" }}>{fmtYen(totalBudget)}</td>
+                        <td style={{ padding: "7px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)" }}>{fmtYen(totalAgreed)}</td>
+                        <td style={{ padding: "7px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)" }}>{fmtYen(totalBudget - totalAgreed)}</td>
+                        {monthTotals.map((t, i) => (
+                          <td key={i} style={{ padding: "7px 6px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", fontSize: 11 }}>{t ? fmtYen(t) : "—"}</td>
+                        ))}
+                        <td colSpan={2} />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
         </div>
       )}
     </AppShell>
+    </>
   );
 }

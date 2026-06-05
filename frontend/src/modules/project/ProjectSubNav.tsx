@@ -30,8 +30,7 @@ interface Tab {
 
 function getTabs(projectId: string): Tab[] {
   return [
-    { href: `/projects/${projectId}`,               label: "詳細",    countKey: null },
-    { href: `/projects/${projectId}/ledger`,          label: "工事台帳", countKey: null },
+    { href: `/projects/${projectId}`,               label: "工事台帳", countKey: null },
     { href: `/projects/${projectId}/qcds`,           label: "QCDS",    countKey: "qcds" },
     { href: `/projects/${projectId}/estimate`,       label: "業者見積", countKey: "estimate" },
     { href: `/projects/${projectId}/quote`,          label: "顧客見積", countKey: "quote" },

@@ -46,6 +46,7 @@ from app.modules.admin.router import router as admin_router
 from app.modules.admin.company_settings_router import router as company_settings_router
 from app.modules.admin.section_templates_router import router as section_templates_router
 from app.modules.admin.excel_import_router import router as excel_import_router
+from app.modules.admin.audit_router import router as audit_router
 
 # ── schedule ──────────────────────────────────────────────────────────────────
 from app.modules.schedule.gantt_router import router as gantt_router
@@ -156,6 +157,7 @@ app.include_router(admin_router, prefix=PREFIX)
 app.include_router(company_settings_router, prefix=PREFIX)
 app.include_router(section_templates_router, prefix=PREFIX)
 app.include_router(excel_import_router, prefix=PREFIX)
+app.include_router(audit_router, prefix=PREFIX)
 
 # schedule
 app.include_router(gantt_router, prefix=PREFIX)

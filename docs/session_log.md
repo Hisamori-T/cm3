@@ -3395,3 +3395,212 @@ TypeScript の `onClick` 型エラーが未修正のままだった。
 - 残確認事項 Q2〜Q5
 
 ---
+
+## Session 2026-06-04（続き）— 設計書作成・機能拡張設計・実装開始
+
+### 作業内容
+
+**設計書整備**
+- 直前セッション（設計書作成セッション）の引き継ぎ: 5設計書（01〜05）を `docs/specs/` に移動
+- 設計書ヒアリング（ひさん Q&A 5問）実施
+  - Q1: 工事台帳承認 → 任意ユーザーを都度選択
+  - Q2: 取決金額 = 発注書合計
+  - Q3: 変更理由入力欄 → なし
+  - Q4: 承認ルート = 担当者がすべての承認依頼を行うフロー
+  - Q5: 印影設定 → 全帳票に自動反映
+- 追加要件: 権限ロールの複数選択対応
+- `docs/specs/設計書_06_機能拡張仕様_2026-06.md` 新規作成
+
+**Phase 1 実装（DB基盤・Backend・Frontend）**
+- Alembicマイグレーション `w7x8y9z0a1b2` 新規作成:
+  - `users.roles userrole[]` 追加（複数ロール対応）
+  - `users.stamp_text / stamp_style` 追加（印影設定）
+  - `ledger_approvals` 承認枠を4枠→5枠に変更（担当→現場担当 + 営業担当追加）
+- `backend/app/models/user.py`: `roles[]`, `stamp_text`, `stamp_style` カラム追加
+- `backend/app/schemas/user.py`: `UserCreate/Update/Read` に `roles[]`, `stamp_*` 追加
+- `backend/app/shared/services/permissions.py`: 新規作成（`has_role()`, `require_roles()`, `is_admin()` etc.）
+- `backend/app/modules/admin/router.py`: 複数ロール対応・印影CRUD対応
+- `backend/app/modules/project/ledger_router.py`: `LEDGER_ROLE_LABELS` を5枠に更新・権限チェックを `has_role()` に移行
+- `frontend/src/types/auth.ts`: `UserRole`, `User` に `roles[]`, `stamp_*` 追加、`ROLE_LABEL/COLOR` 定数追加
+- `frontend/src/app/admin/page.tsx`: 新規作成（admin.html準拠の統合管理ページ）
+  - 左ナビ: 組織/マスタ/運用の3グループ、10セクション
+  - ユーザー管理: 複数ロール選択UI（チェックボックスグループ）・印影設定・スタンププレビュー
+  - 会社情報: 旧 /admin/company と同等
+  - 印紙税表・見積条件文: 旧機能をマージ
+  - 承認ルート/基本契約約款/QCDSテンプレート/監査ログ/バックアップ/システム状態: 準備中（次フェーズ）
+- `frontend/src/components/layout/AppShell.tsx`:
+  - NAV_ADMIN を `/admin/users`, `/admin/import`, `/admin/company` の3件 → `/admin` 1件に統合
+  - 管理者権限チェックを `roles[]` 配列対応に更新
+- `frontend/src/app/projects/page.tsx`:
+  - 「Excelインポート」ボタンを「新規案件」横に追加（インラインモーダル）
+  - `ExcelImportContent` コンポーネントをページ内定義（D&D + 自動インポート）
+- `frontend/src/app/projects/[id]/page.tsx`:
+  - 工事台帳承認スタンプ5枠カード（右カラム・工事価格の上）追加
+  - 見積書承認ステータス ミニパネル（工事割出サマリー末尾）追加
+  - クイックリンクカード削除
+  - 押印依頼モーダル追加
+  - `canEdit` 判定を複数ロール対応に更新
+- `frontend/src/app/projects/[id]/history/page.tsx`: 5W1H形式に改修
+  - 誰が/何を/いつ/どのように の4項目（WHYは省略）
+
+### 変更ファイル
+- `docs/specs/` — 設計書5本を移動（新規フォルダ作成）
+- `docs/specs/設計書_06_機能拡張仕様_2026-06.md` — 新規
+- `backend/alembic/versions/w7x8y9z0a1b2_multi_role_stamp_ledger5.py` — 新規
+- `backend/app/models/user.py` — roles[], stamp_text/style 追加
+- `backend/app/schemas/user.py` — 更新
+- `backend/app/shared/services/permissions.py` — 新規
+- `backend/app/modules/admin/router.py` — 複数ロール・印影対応
+- `backend/app/modules/project/ledger_router.py` — 5枠更新
+- `frontend/src/types/auth.ts` — roles[] 対応
+- `frontend/src/app/admin/page.tsx` — 新規（統合管理画面）
+- `frontend/src/components/layout/AppShell.tsx` — NAV_ADMIN 統合
+- `frontend/src/app/projects/page.tsx` — Excelインポートモーダル追加
+- `frontend/src/app/projects/[id]/page.tsx` — 工事台帳承認・見積承認mini・QLink削除
+- `frontend/src/app/projects/[id]/history/page.tsx` — 5W1H形式
+
+### 次のアクション
+- VPS デプロイ（Alembicマイグレーション w7x8y9z0a1b2 適用）
+- `/admin` ページの動作確認（ユーザー管理・印影設定・会社情報）
+- 工事台帳→案件詳細マージの残タスク（next session）:
+  - 取決見通表（vtbl）の全幅テーブルを案件詳細ページに追加
+  - 取決金額↔発注書自動連動ロジック（`services/qcds_sync.py`）
+  - QCDSページから ledger タブへのリダイレクト設定
+- admin.html: 承認ルート/基本契約約款/QCDSテンプレート/監査ログ/バックアップ/システム状態の実装
+
+---
+
+## Session 2026-06-04（続き）— 次セッションタスク一括実行
+
+### 作業内容
+
+**取決見通表（vtbl）を案件詳細ページに追加**
+- `/projects/[id]/page.tsx` の 2カラムグリッド直下に取決見通表を追加
+- 支払開始月ドロップダウン（ヘッダー先頭、デフォルト4月）
+- 残支払列: `payment_completed` または 月別合計≥取決金額 で「済」表示（緑）
+- テーブル幅100%（minWidth撤廃）
+- 取決チェックボックス列は削除（agreement_checked カラムは維持）
+- フッター行: 直接工事費 計 合計行
+
+**取決金額 ↔ 発注書 自動連動**
+- `backend/app/shared/services/qcds_sync.py` 新規作成
+  - `sync_agreed_amount_from_orders()`: 業者別発注書合計 → QCDS agreed_amount に自動反映
+- 発注書 create / update / delete の3エンドポイントにフック追加
+
+**Admin 未実装セクション 全実装**
+- `backend/app/modules/admin/audit_router.py` 新規作成:
+  - `GET /admin/audit-log` 監査ログ一覧（ページネーション）
+  - `GET /admin/audit-log/export-csv` CSV エクスポート（UTF-8 BOM付き）
+  - `GET /admin/system-status` DBバージョン・テーブル数・稼働確認
+- Alembicマイグレーション `x8y9z0a1b2c3`:
+  - `company_settings.approval_route_config` JSONB 追加（3ステップ初期値）
+  - `contract_clauses` テーブル作成（第1〜9条デフォルト挿入）
+  - `qcds_templates` テーブル作成（標準テンプレート挿入）
+- `backend/app/modules/admin/router.py` に6エンドポイント追加:
+  - 承認ルート GET/PATCH
+  - 基本契約約款 GET/PATCH
+  - QCDSテンプレート GET/POST/PATCH
+- `frontend/src/app/admin/page.tsx` に6セクション実装:
+  - 承認ルート: ステップ別ロールチェックボックス・保存
+  - 基本契約約款: インライン編集（第1〜9条）
+  - QCDSテンプレート: 一覧表示・追加フォーム・経費率表示
+  - 監査ログ: ページネーション付き一覧・CSV出力ボタン
+  - バックアップ: 手動実行UI（VPS コマンド表示）
+  - システム状態: DB接続・バージョン・テーブル数確認
+
+**VPS デプロイ完了**
+- tar.gz 差分転送 → `tar -xzf` 展開
+- `cmv3-api` リビルド → migration `w7x8y9z0a1b2`, `x8y9z0a1b2c3` 自動適用（head 確認済み）
+- `cmv3-web` リビルド（TypeScript エラー修正: `loadProjects` → `fetchProjects(1, filterStatus, searchQ)`）
+- 動作確認: API 200 / Web 200 / migration head: `x8y9z0a1b2c3` ✅
+
+### 変更ファイル
+- `backend/alembic/versions/w7x8y9z0a1b2_multi_role_stamp_ledger5.py` — 前セッション分（VPS適用済み）
+- `backend/alembic/versions/x8y9z0a1b2c3_admin_features.py` — 新規
+- `backend/app/shared/services/qcds_sync.py` — 新規
+- `backend/app/modules/admin/audit_router.py` — 新規
+- `backend/app/modules/admin/router.py` — 承認ルート・約款・QCDSテンプレートAPI追加
+- `backend/app/modules/purchase/routers/orders.py` — 発注書フック追加
+- `backend/app/main.py` — audit_router 登録
+- `frontend/src/app/admin/page.tsx` — 6セクション実装
+- `frontend/src/app/projects/page.tsx` — ExcelImport onImported 修正
+- `frontend/src/app/projects/[id]/page.tsx` — 取決見通表追加・LedgerDirectWork型追加
+
+### 次のアクション
+- ブラウザで以下を確認:
+  - `/admin` → 承認ルート・基本契約約款・QCDSテンプレート・監査ログ・システム状態
+  - `/projects/[id]` → 取決見通表の表示（工事台帳承認スタンプ・見積書承認ミニも確認）
+- ユーザー管理で「権限ロール」複数選択が保存されるか確認
+- 発注書を更新したときに QCDS 取決金額が自動反映されるか確認
+
+---
+
+## Session 2026-06-04（続き）— バグ修正5件
+
+### 修正内容
+
+1. **残支払「済」バグ** (`projects/[id]/page.tsx`)
+   - `agreed_amount == null` または `paySum == 0` のときも「済」になっていた
+   - 修正: `agreed_amount != null && agreed_amount > 0 && paySum > 0 && remaining <= 0` に変更
+
+2. **発注書保存 500 エラー** (`qcds_sync.py`)
+   - `PurchaseOrderStatus.cancelled` が存在しない Enum 値でエラー
+   - 修正: `status.in_([issued, partial_delivered, delivered])` に変更
+
+3. **管理者設定 404 エラー** (`admin/page.tsx`)
+   - `apiFetch("/admin/...")` が `/api/v1` なしで Next.js ページに到達
+   - 修正: 全 `apiFetch` 呼び出しに `/api/v1` プレフィックスを追加
+
+4. **承認スタンプデザイン変更** (`projects/[id]/page.tsx`)
+   - 縦リストから印影プレビュースタイル（横グリッド・丸スタンプ）に変更
+
+5. **承認待ち「完了済み」に表示されない** (`approvals.py`)
+   - 自分が依頼者ではなく承認者として参加した案件が表示されていなかった
+   - 修正: `approved_as_approver` クエリを追加し、自分が承認ステップに参加 & status=approved のものも `completed` に含める
+
+6. **詳細タブ→「工事台帳」に名称変更** (`ProjectSubNav.tsx`)
+   - `getTabs()` の先頭エントリのラベルを「詳細」→「工事台帳」に変更
+
+### 変更ファイル
+- `backend/app/shared/services/qcds_sync.py`
+- `backend/app/api/v1/approvals.py`
+- `frontend/src/app/admin/page.tsx`
+- `frontend/src/app/projects/[id]/page.tsx`
+- `frontend/src/modules/project/ProjectSubNav.tsx`
+
+### デプロイ
+- cmv3-api restart + cmv3-web rebuild → API 200 / Web 200
+
+---
+
+## Session 2026-06-04（続き）— 管理者設定CRUD・精算入力・取決連動修正
+
+### 修正内容
+
+**1. 工事台帳承認依頼が依頼中に反映されない**
+- `ledger_router.py` に `GET /ledger-approvals/pending-for-me` エンドポイント追加
+- `approvals/page.tsx` に「工事台帳 押印依頼」セクション追加
+- `Promise.all` で quote 承認 + ledger 承認を同時取得
+
+**2. 取決金額が発注書から反映されない**
+- `qcds_sync.py` に `vendor_name_snapshot` でのフォールバックマッチング追加
+- QCDS行に vendor_id が未設定でも vendor_name で部分一致して更新
+
+**3. 精算(支払)見通セルが入力できない**
+- 月別支払セルをクリックでインライン編集可能に改修
+- `editingPayCell / editingPayValue` state 追加
+- Enter/Escape/onBlur で `PATCH /projects/{id}/ledger/direct-works/{id}` を呼んで保存
+
+**4. 管理者設定マスタの CRUD 整備**
+- 印紙税表: 行追加（フォーム）・削除ボタン追加、法改正時の手動更新説明追加
+- 見積条件文: 追加・編集・削除（有効/無効）の完全CRUD実装
+- QCDSテンプレート: 全フィールドの編集フォーム実装（経費率・保険料率・固定費）
+
+### 変更ファイル
+- `backend/app/shared/services/qcds_sync.py` — vendor_name フォールバック
+- `backend/app/modules/project/ledger_router.py` — pending-for-me エンドポイント追加
+- `frontend/src/app/approvals/page.tsx` — 工事台帳押印依頼セクション
+- `frontend/src/app/projects/[id]/page.tsx` — 月別支払インライン編集
+- `frontend/src/app/admin/page.tsx` — 印紙税・見積条件文・QCDS CRUD
+
+---

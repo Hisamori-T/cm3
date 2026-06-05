@@ -134,40 +134,51 @@ export default function HistoryPage() {
             <div
               key={item.id}
               className="card"
-              style={{ padding: "12px 16px" }}
+              style={{ padding: "14px 18px" }}
             >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                  <span style={{
-                    fontSize: 11, padding: "2px 6px",
-                    borderRadius: "var(--r-sm)",
-                    background: "var(--c-surface-2)",
-                    color: "var(--c-text-muted)",
-                    border: "1px solid var(--c-border)",
-                  }}>
+              {/* 5W1H ヘッダー */}
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px", fontSize: 13 }}>
+                <span style={{ color: "var(--c-text-muted)", fontSize: 11, fontWeight: 600 }}>誰が</span>
+                <span style={{ fontWeight: 600 }}>{item.changed_by_name}</span>
+                <span style={{ color: "var(--c-text-muted)", fontSize: 11, fontWeight: 600 }}>何を</span>
+                <span>
+                  <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: "var(--r-sm)", background: "var(--c-surface-2)", color: "var(--c-text-muted)", border: "1px solid var(--c-border)", marginRight: 6 }}>
                     {ENTITY_TYPE_LABEL[item.entity_type] ?? item.entity_type}
                   </span>
-                  <span style={{
-                    fontSize: 11, padding: "2px 6px",
-                    borderRadius: "var(--r-sm)",
-                    background: "color-mix(in oklab, var(--c-accent) 12%, var(--c-surface))",
-                    color: "var(--c-accent)",
-                    fontWeight: 600,
-                  }}>
+                  <span style={{ fontSize: 11, padding: "2px 6px", borderRadius: "var(--r-sm)", background: "color-mix(in oklab, var(--c-accent) 12%, var(--c-surface))", color: "var(--c-accent)", fontWeight: 600, marginRight: 6 }}>
                     {CHANGE_TYPE_LABEL[item.change_type] ?? item.change_type}
                   </span>
-                  <span style={{ fontSize: 13, fontWeight: 500, color: "var(--c-text)" }}>
-                    {item.changed_by_name}
-                  </span>
-                </div>
-                <time style={{ fontSize: 12, color: "var(--c-text-muted)", flexShrink: 0 }}>
-                  {new Date(item.changed_at).toLocaleString("ja-JP", {
-                    year: "numeric", month: "2-digit", day: "2-digit",
-                    hour: "2-digit", minute: "2-digit",
-                  })}
-                </time>
+                </span>
+                <span style={{ color: "var(--c-text-muted)", fontSize: 11, fontWeight: 600 }}>いつ</span>
+                <span style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: "var(--c-text-muted)" }}>
+                  {new Date(item.changed_at).toLocaleString("ja-JP", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                </span>
+                <span style={{ color: "var(--c-text-muted)", fontSize: 11, fontWeight: 600 }}>どのように</span>
+                <span>
+                  {item.field_changes && Object.keys(item.field_changes).length > 0 ? (
+                    <table style={{ borderCollapse: "collapse", fontSize: 11, width: "100%" }}>
+                      <thead>
+                        <tr style={{ color: "var(--c-text-muted)" }}>
+                          <th style={{ textAlign: "left", fontWeight: 500, padding: "2px 12px 2px 0", width: 120 }}>フィールド</th>
+                          <th style={{ textAlign: "left", fontWeight: 500, padding: "2px 12px 2px 0" }}>変更前</th>
+                          <th style={{ textAlign: "left", fontWeight: 500 }}>変更後</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(item.field_changes).map(([field, diff]) => (
+                          <tr key={field} style={{ borderTop: "1px solid var(--c-border)" }}>
+                            <td style={{ padding: "2px 12px 2px 0", color: "var(--c-text-muted)" }}>{field}</td>
+                            <td style={{ padding: "2px 12px 2px 0", color: "var(--c-danger)", textDecoration: "line-through" }}>{formatValue(diff.before)}</td>
+                            <td style={{ padding: "2px 0", color: "var(--c-success)" }}>{formatValue(diff.after)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <span style={{ color: "var(--c-text-subtle)", fontSize: 12 }}>—</span>
+                  )}
+                </span>
               </div>
-              <ChangeDetail fieldChanges={item.field_changes} />
             </div>
           ))}
         </div>
