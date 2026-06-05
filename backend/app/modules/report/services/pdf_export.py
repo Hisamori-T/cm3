@@ -912,11 +912,18 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
     project_number = getattr(project, "project_number", "") or ""
 
     subtotal = float(getattr(invoice, "current_purchase", None) or 0)
-    tax_amount = float(getattr(invoice, "tax_amount", None) or 0)
-    total = float(getattr(invoice, "total_amount", None) or 0)
     prev_balance = float(getattr(invoice, "previous_balance", None) or 0)
     received = float(getattr(invoice, "received_amount", None) or 0)
     balance_fwd = prev_balance - received
+
+    # 追記行（items）の金額合計を加算
+    extra_total = sum(
+        float(getattr(item, "amount", None) or 0)
+        for item in (getattr(invoice, "items", []) or [])
+    )
+    subtotal_all = subtotal + extra_total
+    tax_amount = int(subtotal_all * 0.10)
+    total = subtotal_all + tax_amount
 
     # n/n回目ラベル（摘要欄・1行目に表示）
     seq = getattr(invoice, "split_sequence", None)
@@ -1041,7 +1048,7 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
       <td>{_fmt_yen(prev_balance) if prev_balance else ""}</td>
       <td>{_fmt_yen(received) if received else ""}</td>
       <td>{_fmt_yen(balance_fwd) if (prev_balance or received) else ""}</td>
-      <td>{_fmt_yen(subtotal)}</td>
+      <td>{_fmt_yen(subtotal_all)}</td>
       <td>{_fmt_yen(tax_amount)}</td>
       <td class="highlight">{_fmt_yen(total)}</td>
     </tr>
@@ -1062,7 +1069,7 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
     {items_html}
     <tr class="calc-row">
       <td></td><td style="text-align:center">計</td>
-      <td class="right">{_fmt_yen(subtotal)}</td><td></td>
+      <td class="right">{_fmt_yen(subtotal_all)}</td><td></td>
     </tr>
     <tr class="calc-row">
       <td></td><td>消費税（10%）</td>

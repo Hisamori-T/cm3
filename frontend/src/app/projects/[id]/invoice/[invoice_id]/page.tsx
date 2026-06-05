@@ -435,7 +435,7 @@ export default function InvoiceDetailPage() {
 
             {/* ヘッダー */}
             <div style={{
-              display: "grid", gridTemplateColumns: "110px 1fr 120px 140px 28px",
+              display: "grid", gridTemplateColumns: "145px 1fr 120px 140px 28px",
               gap: 8, marginBottom: 4, fontSize: 11, fontWeight: 600, color: "var(--c-text-muted)",
               padding: "0 8px",
             }}>
@@ -446,7 +446,7 @@ export default function InvoiceDetailPage() {
 
             {/* 固定行（工事名） */}
             <div style={{
-              display: "grid", gridTemplateColumns: "110px 1fr 120px 140px 28px",
+              display: "grid", gridTemplateColumns: "145px 1fr 120px 140px 28px",
               gap: 8, padding: "7px 8px", marginBottom: 6,
               background: "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))",
               borderRadius: "var(--r-md)", fontSize: 12,
@@ -469,7 +469,7 @@ export default function InvoiceDetailPage() {
             {/* 追記行リスト */}
             {extraRows.map((row, i) => (
               <div key={i} style={{
-                display: "grid", gridTemplateColumns: "110px 1fr 120px 140px 28px",
+                display: "grid", gridTemplateColumns: "145px 1fr 120px 140px 28px",
                 gap: 8, marginBottom: 6, alignItems: "center",
               }}>
                 <Input type="date" value={row.date} disabled={isPaid}
