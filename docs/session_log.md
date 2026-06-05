@@ -3662,8 +3662,23 @@ TypeScript の `onClick` 型エラーが未修正のままだった。
 ### デプロイ
 - cmv3-web リビルド → `✅ Up / HTTP 200`
 
+---
+
+## Session 2026-06-05（続き）— 管理画面 QCDSテンプレートセクション削除
+
+### 背景
+QCDS原価算定表ページ下部の「経費率・固定費設定」パネルで管理できるため、管理者画面の QCDSテンプレートは不要と判断。
+
+### 作業内容
+- `AdminSection` 型から `"qcds-templates"` を削除
+- NAV から「QCDSテンプレート」メニューを削除
+- `QCDSTemplatesSection` コンポーネント・関連型・関数を削除（142行削減）
+- commit: 77b13a5 / VPS デプロイ → HTTP 200 確認
+
+### 変更ファイル
+- `frontend/src/app/admin/page.tsx`
+
 ### 次のアクション
-- `/admin` → QCDSテンプレートで通信交通費が「10000」と正しく表示されることを確認
 - `/admin` → 見積条件文で「標準見積条件書（建築改修工事）」が表示されることを確認
 - Phase G-4: 工事台帳 PDF/Excel 出力
 
