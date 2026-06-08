@@ -4777,6 +4777,66 @@ GET    /invoices/{id}/payment-notice-pdf
 - ④ QCDS Excel/PDF: UIに表示される全データを出力
 - ⑤ 顧客見積 ステータス: 詳細画面内に移動 + QuoteStatus.approved 追加 + 承認完了時の自動承認済み
 
+### 作業結果
+
+**① 印影修正**
+- `ledger_router.py`: `LedgerApprovalRead` に `approver_stamp_text` フィールド追加
+  - `_stamp()` ヘルパー: `stamp_text` 優先、未設定なら `full_name` の姓
+- `exports.py`（見積書PDF）: `stamp_text` を fetch して `stamp_users` に格納（旧: `full_name` のみ）
+- `pdf_export.py`: `_stamp_td` の split 廃止（`stamp_users` が既に解決済みの値を持つため）
+- `page.tsx`: `a.approver_stamp_text ?? a.approver_name.split()[0]` で表示
+- TypeScript `LedgerApproval` インターフェースに `approver_stamp_text: string | null` 追加
+
+**② 受注額**
+- `router.py` の `_to_list_item`: `project_price` が 0/null の場合、発行済み・承認済み見積の最大 `total_amount` をフォールバック
+- `selectinload(Project.quotes)` をリスト用クエリに追加
+
+**③ 工事台帳 PDF**
+- `exports.py` の ledger エンドポイント: `LedgerApproval`・担当者を eager load し承認印データを構築
+- `pdf_export.generate_ledger_pdf()`: 案件情報グリッド・担当者・承認印5枠・直接工事費テーブル・工事割出サマリーを全出力（A3横）
+
+**④ QCDS PDF/Excel**
+- `exports.py`: QCDS PDF/Excel エンドポイントで `selectinload(QCDS.expense_items)` 追加
+- `pdf_export.generate_qcds_pdf()`: 現場経費テーブル（`QCDSExpenseItem`）を追加
+- `excel_export.export_qcds_excel()`: 現場経費明細シート（項目名・金額）を追加
+
+**⑤ 顧客見積 ステータス変更**
+- `shared/models/enums.py`: `QuoteStatus.approved = "approved"` 追加
+- `alembic/versions/a1b2c3d4e5f6_add_quote_approved_status.py`: 新規マイグレーション（`ALTER TYPE quotestatus ADD VALUE 'approved'`）
+- `alembic/versions/merge_heads_2026.py`: 複数ヘッド解消のためのマージマイグレーション追加
+- `quote_core.py`: スタンプ押印時、全3スタンプ完了で `status = QuoteStatus.approved` を自動設定
+- `quote/page.tsx`: ステータス変更ボタンを一覧から削除（「詳細で変更」テキストに差し替え）
+- `quote/[quote_id]/page.tsx`: `handleStatusChange()` + ステータスボタン（発行済みに / 下書きに戻す / 承認済みに）を詳細ページのアクションエリアに追加
+
+### 変更ファイル
+- backend/app/modules/project/ledger_router.py
+- backend/app/modules/project/router.py
+- backend/app/modules/report/routers/exports.py
+- backend/app/modules/report/services/pdf_export.py
+- backend/app/modules/report/services/excel_export.py
+- backend/app/shared/models/enums.py
+- backend/app/modules/estimate/routers/quote_core.py
+- backend/alembic/versions/a1b2c3d4e5f6_add_quote_approved_status.py（新規）
+- backend/alembic/versions/merge_heads_2026.py（新規）
+- frontend/src/app/projects/[id]/page.tsx
+- frontend/src/app/projects/[id]/quote/page.tsx
+- frontend/src/app/projects/[id]/quote/[quote_id]/page.tsx
+
+### デプロイ
+- commit: 211745d / GitHub push 済み
+- Alembic `upgrade heads` 適用済み（approved enum + merge）
+- cmv3-api: Up 確認済み
+- cmv3-web: rebuild + Started 確認済み
+
+### 次のアクション
+- ① 工事台帳承認スタンプが `stamp_text`（例: たいら）で表示されることを確認
+- ② 案件一覧の 26-1-001 受注額が ¥0 → 見積金額に変わることを確認
+- ③ 工事台帳 PDF に承認印・案件情報・全テーブルが出力されることを確認
+- ④ QCDS PDF/Excel に現場経費が出力されることを確認
+- ⑤ 顧客見積詳細ページにステータス変更ボタンがあること・全スタンプ完了時に自動承認されることを確認
+
+---
+
 
 
 
