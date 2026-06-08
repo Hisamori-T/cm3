@@ -355,7 +355,7 @@ async def change_status(
         project_id=project_id,
         changed_by=current_user.id,
         change_type=EditHistoryChangeType.update,
-        field_changes={"status": {"old": old_status.value, "new": body.status.value}},
+        field_changes={"status": {"before": old_status.value, "after": body.status.value}},
     )
     await db.commit()
 

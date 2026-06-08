@@ -7,11 +7,17 @@ import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 
+interface FieldDiff {
+  before?: unknown;
+  after?: unknown;
+  old?: unknown;   // 旧キー（後方互換）
+  new?: unknown;   // 旧キー（後方互換）
+}
 interface EditHistoryItem {
   id: string;
   entity_type: string;
   change_type: string;
-  field_changes: Record<string, { before: unknown; after: unknown }> | null;
+  field_changes: Record<string, FieldDiff> | null;
   changed_by_name: string;
   changed_at: string;
 }
@@ -30,11 +36,33 @@ const CHANGE_TYPE_LABEL: Record<string, string> = {
   create: "作成", update: "更新", status_change: "ステータス変更", delete: "削除",
 };
 
+// ステータス値の日本語変換
+const STATUS_LABEL: Record<string, string> = {
+  quote: "見積中", ordered: "受注", started: "着工", in_progress: "施工中",
+  completed: "完工", invoiced: "請求済", paid: "入金済",
+  draft: "下書き", issued: "発行済", sent: "送付済",
+};
+
+const FIELD_LABEL: Record<string, string> = {
+  status: "ステータス", project_name: "工事名", client_name: "発注者",
+  project_price: "工事価格", period_contract_start: "着工日", period_contract_end: "完工日",
+  project_location: "現場場所", project_overview: "概要",
+};
+
 function formatValue(v: unknown): string {
   if (v === null || v === undefined) return "—";
   if (typeof v === "boolean") return v ? "はい" : "いいえ";
-  if (typeof v === "number") return v.toLocaleString();
-  return String(v);
+  if (typeof v === "number") return `¥${v.toLocaleString()}`;
+  const s = String(v);
+  return STATUS_LABEL[s] ?? s;
+}
+
+/** before/after を優先、なければ旧フォーマット old/new を使う */
+function getDiff(diff: FieldDiff): { before: unknown; after: unknown } {
+  return {
+    before: "before" in diff ? diff.before : diff.old,
+    after:  "after"  in diff ? diff.after  : diff.new,
+  };
 }
 
 function ChangeDetail({ fieldChanges }: { fieldChanges: EditHistoryItem["field_changes"] }) {
@@ -165,13 +193,22 @@ export default function HistoryPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {Object.entries(item.field_changes).map(([field, diff]) => (
-                          <tr key={field} style={{ borderTop: "1px solid var(--c-border)" }}>
-                            <td style={{ padding: "2px 12px 2px 0", color: "var(--c-text-muted)" }}>{field}</td>
-                            <td style={{ padding: "2px 12px 2px 0", color: "var(--c-danger)", textDecoration: "line-through" }}>{formatValue(diff.before)}</td>
-                            <td style={{ padding: "2px 0", color: "var(--c-success)" }}>{formatValue(diff.after)}</td>
-                          </tr>
-                        ))}
+                        {Object.entries(item.field_changes).map(([field, diff]) => {
+                          const { before, after } = getDiff(diff);
+                          return (
+                            <tr key={field} style={{ borderTop: "1px solid var(--c-border)" }}>
+                              <td style={{ padding: "2px 12px 2px 0", color: "var(--c-text-muted)" }}>
+                                {FIELD_LABEL[field] ?? field}
+                              </td>
+                              <td style={{ padding: "2px 12px 2px 0", color: "var(--c-danger)", textDecoration: "line-through" }}>
+                                {formatValue(before)}
+                              </td>
+                              <td style={{ padding: "2px 0", color: "var(--c-success)" }}>
+                                {formatValue(after)}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   ) : (
