@@ -4593,3 +4593,55 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
+## Session 2026-06-08（続き）— 請求書 Phase R-1 設計書執筆
+
+### 作業内容（予定）
+- Q3 確定：支払通知書 R-1 で実装（必須要件と確定）
+- `docs/specs/設計書_06_機能拡張仕様_2026-06.md` に Phase R-1 の完全設計を追加
+  - 新 Enum 定義（ProjectRole / InvoicePhase / DeductionType）
+  - DB スキーマ差分（projects / invoices テーブル追加列 + invoice_deductions 新テーブル）
+  - SQLAlchemy 2.0 スタイルのモデル定義
+  - Alembic マイグレーション SQL
+  - 新 API エンドポイント一覧
+  - UI 画面仕様（出来高入力 / 控除査定 / 支払通知書 PDF）
+
+### 作業結果
+
+**設計書 セクション 10「請求書システム Phase R-1」追加完了**
+
+`docs/specs/設計書_06_機能拡張仕様_2026-06.md` に以下10サブセクションを追加：
+
+| # | 内容 |
+|---|---|
+| 10.0 | スコープ確定テーブル（R-1/R-2/R-3 分類） |
+| 10.1 | 新 Enum 定義（ProjectRole / InvoicePhase / DeductionType） |
+| 10.2 | DB スキーマ差分 SQL（projects / invoices / invoice_deductions） |
+| 10.3 | SQLAlchemy 2.0 モデル定義（Invoice 追加列 / InvoiceDeduction 新クラス / Project 追加列） |
+| 10.4 | Alembic マイグレーション（upgrade/downgrade 完全版） |
+| 10.5 | 新 API エンドポイント（role変更/progress-summary/控除CRUD/支払通知書PDF） |
+| 10.6 | Pydantic スキーマ追加/変更分 |
+| 10.7 | サービス層 控除計算ロジック |
+| 10.8 | フロントエンド UI 仕様（バッジ/出来高入力/控除入力/支払通知書PDF） |
+| 10.9 | 編集履歴記録方針（親 Invoice の edit_histories に記録） |
+| 10.10 | 実装ファイル一覧（Backend/Frontend 全対象ファイル） |
+
+**既存コードとの整合性確認事項**:
+- `ContractType`（prime/sub）は既存。`ProjectRole` は新規 enum（public を含む）
+- `InvoiceStatus` は既存のまま変更なし。`InvoicePhase` は別概念として追加
+- `BillingMethod` と `InvoicePhase` は役割が異なり競合なし
+- 既存 `Invoice.items`（InvoiceItem）と新規 `Invoice.deductions`（InvoiceDeduction）は役割が異なり競合なし
+
+### 変更ファイル
+- `docs/specs/設計書_06_機能拡張仕様_2026-06.md`（セクション 10 追加）
+
+### 次のアクション
+- 設計書をもとにバックエンド実装を開始する
+  1. Alembic マイグレーション作成・適用
+  2. Enum / モデル / スキーマ追加
+  3. API エンドポイント実装
+  4. フロントエンド UI 実装
+
+---
+
+
+
