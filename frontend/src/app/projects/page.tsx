@@ -218,7 +218,7 @@ export default function ProjectsPage() {
     }
     setSelectedIds(new Set());
     setDeleting(false);
-    await fetchProjects(page, filterStatus, searchQ);
+    await fetchProjects(page, filterStatus, searchQ, filterRole);
     if (failed > 0) alert(`${failed} 件の削除に失敗しました（権限がない可能性があります）`);
   }
 
@@ -549,7 +549,7 @@ export default function ProjectsPage() {
               <button onClick={() => setShowImportModal(false)} style={{ border: "none", background: "none", fontSize: 20, cursor: "pointer", color: "var(--c-text-muted)" }}>×</button>
             </div>
             <div style={{ padding: "24px" }}>
-              <ExcelImportContent onImported={() => { setShowImportModal(false); fetchProjects(1, filterStatus, searchQ); }} />
+              <ExcelImportContent onImported={() => { setShowImportModal(false); fetchProjects(1, filterStatus, searchQ, filterRole); }} />
             </div>
           </div>
         </div>
