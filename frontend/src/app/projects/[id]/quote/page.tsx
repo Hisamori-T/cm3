@@ -254,40 +254,7 @@ export default function QuoteListPage() {
                     </span>
                   </td>
                   <td onClick={e => e.stopPropagation()}>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {q.status === "draft" && (
-                        <button
-                          onClick={e => handleStatusChange(q.id, "issued", e)}
-                          style={{
-                            fontSize: 10, padding: "2px 7px", borderRadius: "var(--r-sm)",
-                            background: "color-mix(in oklab, var(--c-primary) 12%, var(--c-surface))",
-                            color: "var(--c-primary)", border: "1px solid color-mix(in oklab, var(--c-primary) 25%, transparent)",
-                            cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap",
-                          }}
-                        >発行済みに</button>
-                      )}
-                      {q.status === "issued" && (
-                        <button
-                          onClick={e => handleStatusChange(q.id, "draft", e)}
-                          style={{
-                            fontSize: 10, padding: "2px 7px", borderRadius: "var(--r-sm)",
-                            background: "var(--c-surface-2)", color: "var(--c-text-muted)",
-                            border: "1px solid var(--c-border)", cursor: "pointer",
-                          }}
-                        >下書きに戻す</button>
-                      )}
-                      {(q.status === "issued" || q.status === "sent") && (
-                        <button
-                          onClick={e => handleStatusChange(q.id, "approved", e)}
-                          style={{
-                            fontSize: 10, padding: "2px 7px", borderRadius: "var(--r-sm)",
-                            background: "color-mix(in oklab, var(--c-success) 12%, var(--c-surface))",
-                            color: "var(--c-success)", border: "1px solid color-mix(in oklab, var(--c-success) 25%, transparent)",
-                            cursor: "pointer", fontWeight: 600,
-                          }}
-                        >承認済みに</button>
-                      )}
-                    </div>
+                    <span style={{ fontSize: 10, color: "var(--c-text-muted)" }}>詳細で変更</span>
                   </td>
                   <td style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
                     {fmtDate(q.created_at)}

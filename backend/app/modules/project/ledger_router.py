@@ -49,6 +49,7 @@ class LedgerApprovalRead(BaseModel):
     # 押印情報
     approver_id: uuid.UUID | None
     approver_name: str | None
+    approver_stamp_text: str | None  # stamp_text 優先、未設定なら姓
     approved_at: datetime | None
     comment: str | None
     display_order: int
@@ -314,12 +315,23 @@ def _build_response(
         for w in direct_works
     ]
 
+    def _stamp(user: Any) -> str | None:
+        """stamp_text 優先、未設定なら full_name の姓（最初のスペース区切り）を返す。"""
+        if not user:
+            return None
+        if user.stamp_text:
+            return user.stamp_text
+        name = user.full_name or ""
+        parts = name.split()
+        return parts[0] if parts else name or None
+
     approvals = [
         LedgerApprovalRead(
             id=a.id,
             role_label=a.role_label,
             approver_id=a.approver_id,
             approver_name=a.approver.full_name if a.approver else None,
+            approver_stamp_text=_stamp(a.approver),
             approved_at=a.approved_at,
             comment=a.comment,
             display_order=a.display_order,

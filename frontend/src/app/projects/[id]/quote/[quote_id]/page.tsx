@@ -151,6 +151,22 @@ export default function QuoteDetailPage() {
   const [tmplEditText, setTmplEditText] = useState("");
   const [condPdfLoading, setCondPdfLoading] = useState(false);
 
+  // ステータス変更
+  const [statusChanging, setStatusChanging] = useState(false);
+
+  async function handleStatusChange(newStatus: string) {
+    setStatusChanging(true);
+    try {
+      await apiFetch(`/api/v1/projects/${projectId}/quotes/${quoteId}`, {
+        method: "PATCH", body: JSON.stringify({ status: newStatus }),
+      });
+      const labelMap: Record<string, string> = { draft: "下書き", issued: "発行済み", approved: "承認済み" };
+      showMsg(`ステータスを「${labelMap[newStatus] ?? newStatus}」に変更しました`);
+      await load();
+    } catch (err) { showMsg(`エラー: ${(err as Error).message}`); }
+    finally { setStatusChanging(false); }
+  }
+
   // 承認依頼モーダル
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
 
@@ -632,6 +648,28 @@ export default function QuoteDetailPage() {
                 適用
               </Button>
             </div>
+          )}
+          {/* ステータス変更ボタン */}
+          {quote.status === "draft" && (
+            <Button size="sm" disabled={statusChanging}
+              style={{ background: "var(--c-primary)", color: "#fff" }}
+              onClick={() => handleStatusChange("issued")}>
+              {statusChanging ? "変更中…" : "発行済みに"}
+            </Button>
+          )}
+          {quote.status === "issued" && (
+            <>
+              <Button size="sm" disabled={statusChanging}
+                style={{ background: "var(--c-surface-2)", color: "var(--c-text-muted)", border: "1px solid var(--c-border)" }}
+                onClick={() => handleStatusChange("draft")}>
+                下書きに戻す
+              </Button>
+              <Button size="sm" disabled={statusChanging}
+                style={{ background: "color-mix(in oklab, var(--c-success) 12%, var(--c-surface))", color: "var(--c-success)", border: "1px solid color-mix(in oklab, var(--c-success) 30%, var(--c-border))", fontWeight: 600 }}
+                onClick={() => handleStatusChange("approved")}>
+                {statusChanging ? "変更中…" : "承認済みに"}
+              </Button>
+            </>
           )}
           {/* Excel */}
           <Button

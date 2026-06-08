@@ -279,6 +279,14 @@ async def stamp_approval(
         quote.approver_id = body.user_id
         quote.approved_at = now
 
+    # 全3スタンプ完了時にステータスを自動で承認済みへ
+    from app.models.enums import QuoteStatus
+    if (body.stamp and
+            quote.person_in_charge_confirmed_at and
+            quote.reviewed_at and
+            quote.approved_at):
+        quote.status = QuoteStatus.approved
+
     await db.commit()
     db.expunge_all()
     result = (await db.execute(

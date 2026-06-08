@@ -1052,6 +1052,23 @@ def export_qcds_excel(project: Any, qcds: Any) -> bytes:
             ws.cell(row, 5).font = Font(size=9)
             row += 1
 
+    # 現場経費項目
+    expense_items = sorted(getattr(qcds, "expense_items", []) or [], key=lambda x: (getattr(x, "section", ""), getattr(x, "row_no", 0)))
+    if expense_items:
+        row += 2
+        he = ws.cell(row, 1, "現場経費明細")
+        he.fill = _header_fill()
+        he.font = Font(bold=True, size=10, color="FFFFFF")
+        ws.merge_cells(f"A{row}:G{row}")
+        row += 1
+        exp_cols = [("項目名", 28), ("金額", 16)]
+        row = _apply_table_header(ws, row, exp_cols)
+        for e in expense_items:
+            ws.cell(row, 1, getattr(e, "item_name", "")).border = _thin()
+            _money_cell(ws, row, 2, getattr(e, "amount_override", None))
+            ws.cell(row, 1).font = Font(size=9)
+            row += 1
+
     buf2 = io.BytesIO()
     wb.save(buf2)
     return buf2.getvalue()

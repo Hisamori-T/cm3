@@ -219,10 +219,16 @@ async def export_quote_pdf(
     stamp_users: dict[str, str] = {}
     if user_ids:
         rows = (await db.execute(
-            select(UserModel.id, UserModel.full_name, UserModel.phone).where(UserModel.id.in_(user_ids))
+            select(UserModel.id, UserModel.full_name, UserModel.phone, UserModel.stamp_text)
+            .where(UserModel.id.in_(user_ids))
         )).all()
         for r in rows:
-            stamp_users[str(r.id)] = r.full_name
+            # stamp_text 優先。未設定なら姓（スペース区切り先頭）を使用
+            if r.stamp_text:
+                stamp_users[str(r.id)] = r.stamp_text
+            else:
+                parts = (r.full_name or "").split()
+                stamp_users[str(r.id)] = parts[0] if parts else (r.full_name or "")
             if r.phone:
                 stamp_users[f"{r.id}_phone"] = r.phone
 
@@ -475,17 +481,57 @@ async def export_project_ledger_pdf(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    """工事台帳（実行予算・取決見通）を PDF で出力する。"""
+    """工事台帳（全データ: 案件情報・承認印・予算・取決・精算）を PDF で出力する。"""
     from app.models.qcds import QCDS
-    project = await _get_project(project_id, db)
+    from app.models.ledger import LedgerApproval
+
+    # プロジェクト（担当者含む）
+    project = (await db.execute(
+        select(Project)
+        .options(
+            selectinload(Project.sales_person),
+            selectinload(Project.construction_person),
+        )
+        .where(Project.id == project_id)
+    )).scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=404, detail="案件が見つかりません")
+
+    # QCDS（直接工事費 + 経費）
     qcds = (await db.execute(
-        select(QCDS).options(selectinload(QCDS.direct_works))
+        select(QCDS)
+        .options(selectinload(QCDS.direct_works), selectinload(QCDS.expense_items))
         .where(QCDS.project_id == project_id)
         .order_by(QCDS.revision.desc())
     )).scalars().first()
     direct_works = qcds.direct_works if qcds else []
+
+    # 工事台帳承認印（stamp_text 優先）
+    def _stamp_val(user: Any) -> str:
+        if not user:
+            return ""
+        if user.stamp_text:
+            return user.stamp_text
+        parts = (user.full_name or "").split()
+        return parts[0] if parts else user.full_name or ""
+
+    approvals_raw = (await db.execute(
+        select(LedgerApproval)
+        .options(selectinload(LedgerApproval.approver))
+        .where(LedgerApproval.project_id == project_id)
+        .order_by(LedgerApproval.display_order)
+    )).scalars().all()
+    approvals = [
+        {
+            "role_label": a.role_label,
+            "stamp_text": _stamp_val(a.approver),
+            "approved_at": str(a.approved_at.date()) if a.approved_at else None,
+        }
+        for a in approvals_raw
+    ]
+
     co = await _get_company(db)
-    data = pdf_export.generate_ledger_pdf(project, qcds, list(direct_works), co)
+    data = pdf_export.generate_ledger_pdf(project, qcds, list(direct_works), co, approvals)
     client = getattr(project, "client_name", "") or ""
     pname  = getattr(project, "project_name", "") or ""
     filename = f"工事台帳_{project.project_number}_{pname}_{client}.pdf".replace("/", "_")
@@ -498,11 +544,12 @@ async def export_qcds_excel_ep(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    """QCDS 原価算定表を Excel で出力する。"""
+    """QCDS 原価算定表を Excel で出力する（直接工事費・現場経費・工事割出サマリー）。"""
     from app.models.qcds import QCDS
     project = await _get_project(project_id, db)
     qcds = (await db.execute(
-        select(QCDS).options(selectinload(QCDS.direct_works))
+        select(QCDS)
+        .options(selectinload(QCDS.direct_works), selectinload(QCDS.expense_items))
         .where(QCDS.project_id == project_id)
         .order_by(QCDS.revision.desc())
     )).scalars().first()
@@ -523,7 +570,8 @@ async def export_qcds_pdf_ep(
     from app.models.qcds import QCDS
     project = await _get_project(project_id, db)
     qcds = (await db.execute(
-        select(QCDS).options(selectinload(QCDS.direct_works))
+        select(QCDS)
+        .options(selectinload(QCDS.direct_works), selectinload(QCDS.expense_items))
         .where(QCDS.project_id == project_id)
         .order_by(QCDS.revision.desc())
     )).scalars().first()

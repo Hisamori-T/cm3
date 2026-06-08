@@ -45,6 +45,15 @@ logger = structlog.get_logger(__name__)
 
 
 def _to_list_item(p: Project) -> ProjectListItem:
+    # 受注額: project_price が未設定(0/None)の場合は発行済み見積の最大金額をフォールバック
+    price = float(p.project_price) if p.project_price else None
+    if not price and hasattr(p, "quotes"):
+        issued = [q for q in p.quotes if getattr(q, "status", None) in ("issued", "approved")]
+        if issued:
+            amounts = [float(q.total_amount) for q in issued if q.total_amount]
+            if amounts:
+                price = max(amounts)
+
     return ProjectListItem(
         id=p.id,
         project_number=p.project_number,
@@ -53,7 +62,7 @@ def _to_list_item(p: Project) -> ProjectListItem:
         status=p.status,
         order_type=p.order_type,
         contract_type=p.contract_type,
-        project_price=float(p.project_price) if p.project_price is not None else None,
+        project_price=price,
         sales_person_name=p.sales_person.full_name if p.sales_person else None,
         construction_person_name=p.construction_person.full_name if p.construction_person else None,
         created_at=p.created_at,
@@ -78,6 +87,7 @@ async def list_projects(
         .options(
             selectinload(Project.sales_person),
             selectinload(Project.construction_person),
+            selectinload(Project.quotes),  # 受注額フォールバック用
         )
         .where(Project.deleted_at.is_(None))
         .order_by(Project.created_at.desc())

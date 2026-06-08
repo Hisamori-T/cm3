@@ -717,7 +717,7 @@ export default function ProjectDetailPage() {
                     {ledgerApprovals.map((a, i) => {
                       const isStamped = !!a.approved_at;
                       const isPending = !isStamped && !!a.approver_user_id;
-                      const lastName = a.approver_name?.split(/[\s　]/)[0] ?? "";
+                      const lastName = a.approver_stamp_text ?? a.approver_name?.split(/[\s　]/)[0] ?? "";
                       return (
                         <div key={a.id} style={{ borderRight: i < ledgerApprovals.length - 1 ? "1px solid #999" : "none", display: "flex", flexDirection: "column", alignItems: "center" }}>
                           {/* ロール行 */}

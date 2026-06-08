@@ -572,16 +572,11 @@ def _render_quote_html(quote: Any, project: Any, items: list, sections: list,
     # ── 承認スタンプ（承認→審査→担当）──────────────────────────────────────
     def _stamp_td(uid: Any, at: Any) -> str:
         key = str(uid) if uid else ""
-        full_name = stamp_users.get(key, "") if key else ""
-        if full_name and at:
-            # 押印済み: 苗字（姓）を赤丸で表示
-            # 姓名はスペース区切りの場合は先頭パート、なければ名前全体
-            parts = full_name.split()
-            surname = parts[0] if parts else full_name
-            return f'<td><div class="stamp-circle">{_h(surname)}</div></td>'
-        else:
-            # 未押印: 空セル
-            return "<td></td>"
+        # stamp_users には stamp_text 優先の値が入っている（exports.py で解決済み）
+        stamp_val = stamp_users.get(key, "") if key else ""
+        if stamp_val and at:
+            return f'<td><div class="stamp-circle">{_h(stamp_val)}</div></td>'
+        return "<td></td>"
 
     stamp_td_approver  = _stamp_td(getattr(quote, "approver_id", None),         getattr(quote, "approved_at", None))
     stamp_td_reviewer  = _stamp_td(getattr(quote, "reviewer_id", None),          getattr(quote, "reviewed_at", None))
@@ -1834,8 +1829,14 @@ def _category_ja(raw: Any) -> str:
 
 # ── 工事台帳 PDF ──────────────────────────────────────────────────────────────
 
-def generate_ledger_pdf(project: Any, qcds_rows: list, direct_works: list, company: CompanyInfo) -> bytes:
-    """工事台帳（実行予算・取決金額・精算見通し）をA3横PDFで生成する。"""
+def generate_ledger_pdf(
+    project: Any,
+    qcds_rows: Any,
+    direct_works: list,
+    company: CompanyInfo,
+    approvals: list[dict] | None = None,
+) -> bytes:
+    """工事台帳（案件情報・担当者・承認印・予算/取決/精算テーブル・経費）をA3横PDFで生成する。"""
     import weasyprint
 
     logo_url = _logo_data_url()
@@ -1844,10 +1845,27 @@ def generate_ledger_pdf(project: Any, qcds_rows: list, direct_works: list, compa
     pnum   = _h(getattr(project, "project_number", "") or "")
     pname  = _h(getattr(project, "project_name", "") or "")
     client = _h(getattr(project, "client_name", "") or "")
+    loc    = _h(getattr(project, "project_location", "") or "")
     price  = _fmt_yen(getattr(project, "project_price", None))
     cstart = _fmt_date(getattr(project, "period_contract_start", None))
     cend   = _fmt_date(getattr(project, "period_contract_end", None))
+    pay    = _h(getattr(project, "payment_condition", "") or "")
+    sales  = _h(getattr(project, "sales_person", None) and project.sales_person.full_name or "")
+    const  = _h(getattr(project, "construction_person", None) and project.construction_person.full_name or "")
 
+    # 承認印スタンプ行
+    stamp_html = ""
+    for a in (approvals or []):
+        role  = _h(a.get("role_label", ""))
+        stamp = _h(a.get("stamp_text", ""))
+        dated = _h(a.get("approved_at", "") or "")
+        if stamp and dated:
+            circle = f'<div class="stamp-circle">{stamp}</div><div style="font-size:7pt;color:#555;margin-top:2pt;">{dated}</div>'
+        else:
+            circle = '<div style="width:38pt;height:38pt;border:1pt dashed #ccc;border-radius:50%;margin:auto;"></div>'
+        stamp_html += f'<td><div style="font-size:8pt;font-weight:600;text-align:center;border-bottom:0.5pt solid #ccc;padding-bottom:2pt;margin-bottom:4pt;">{role}</div>{circle}</td>'
+
+    # 直接工事費テーブル
     total_budget     = sum(float(getattr(w, "budget_amount",     0) or 0) for w in direct_works)
     total_agreed     = sum(float(getattr(w, "agreed_amount",     0) or 0) for w in direct_works)
     total_settlement = sum(float(getattr(w, "settlement_amount", 0) or 0) for w in direct_works)
@@ -1868,17 +1886,42 @@ def generate_ledger_pdf(project: Any, qcds_rows: list, direct_works: list, compa
           <td class="right">{_fmt_yen(settlement) if settlement is not None else "—"}</td>
         </tr>"""
 
+    # 工事割出サマリー
+    calc = getattr(qcds_rows, "calc", None) if qcds_rows else None
+    calc_html = ""
+    if calc:
+        def _cr(label: str, val: Any) -> str:
+            return f'<tr><td style="padding:3pt 6pt;background:#f0f4fa;font-weight:600;">{_h(label)}</td><td class="right" style="padding:3pt 6pt;">{_fmt_yen(val) if val is not None else "—"}</td></tr>'
+        calc_html = f"""
+<table style="width:340pt;border-collapse:collapse;font-size:8.5pt;margin-top:6mm;margin-left:auto;">
+  <thead><tr><th colspan="2" style="background:#1F4E79;color:#fff;padding:4pt 6pt;text-align:left;">工事割出サマリー</th></tr></thead>
+  <tbody>
+    {_cr("直接工事費（実行予算）", getattr(calc,"direct_cost_budget",None))}
+    {_cr("直接工事費（取決見通）", getattr(calc,"direct_cost_agreed",None))}
+    {_cr("現場経費合計", getattr(calc,"site_overhead_total",None))}
+    {_cr("原価合計", getattr(calc,"construction_cost_total",None))}
+    {_cr("一般管理費", getattr(calc,"general_admin_cost",None))}
+    {_cr("目標営業利益", getattr(calc,"operating_profit",None))}
+  </tbody>
+</table>"""
+
     css = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
-@page { size: A3 landscape; margin: 12mm 18mm; }
+@page { size: A3 landscape; margin: 10mm 15mm; }
 body { font-family: 'Noto Sans CJK JP','Noto Sans JP',sans-serif; font-size: 9pt; color:#111; }
-.header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8mm; }
-.title { font-size:18pt; font-weight:bold; letter-spacing:.15em; margin-bottom:2mm; }
-.meta { font-size:9pt; color:#555; line-height:1.8; }
+.top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:5mm; }
+.title { font-size:18pt; font-weight:bold; letter-spacing:.15em; margin-bottom:3mm; }
+.info-grid { display:grid; grid-template-columns:80pt 1fr 80pt 1fr; gap:2pt; font-size:8.5pt; margin-bottom:5mm; }
+.info-label { background:#e8edf5; padding:2pt 5pt; font-weight:600; }
+.info-val   { padding:2pt 5pt; border-bottom:0.5pt solid #ddd; }
+.stamp-table { border-collapse:collapse; border:1pt solid #999; margin-bottom:5mm; }
+.stamp-table td { border:1pt solid #999; padding:4pt 8pt; text-align:center; width:70pt; vertical-align:top; }
+.stamp-circle { width:38pt; height:38pt; border:2pt solid #C00000; border-radius:50%; margin:auto; color:#C00000; font-size:11pt; font-weight:bold; display:flex; align-items:center; justify-content:center; writing-mode:vertical-rl; }
 .co { text-align:right; font-size:8pt; color:#555; }
-table.main { width:100%; border-collapse:collapse; font-size:9pt; }
-table.main th { background:#e8edf5; border:.8pt solid #888; padding:5pt 6pt; text-align:center; font-weight:600; }
-table.main td { border:.7pt solid #bbb; padding:4pt 6pt; }
+table.main { width:100%; border-collapse:collapse; font-size:8.5pt; }
+table.main th { background:#e8edf5; border:.8pt solid #888; padding:4pt 5pt; text-align:center; font-weight:600; }
+table.main td { border:.7pt solid #bbb; padding:3pt 5pt; }
+.section-head { font-size:10pt; font-weight:700; margin:5mm 0 2mm; border-left:4pt solid #1F4E79; padding-left:6pt; }
 .center { text-align:center; }
 .right { text-align:right; font-family:monospace; }
 .total-row td { background:#d0e4f7; font-weight:bold; }
@@ -1886,13 +1929,10 @@ table.main td { border:.7pt solid #bbb; padding:4pt 6pt; }
 
     html_str = f"""<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
 <style>{css}</style></head><body>
-<div class="header">
+
+<div class="top">
   <div>
     <div class="title">工　事　台　帳</div>
-    <div class="meta">
-      工事番号：{pnum}&nbsp;&nbsp;&nbsp;工事名：{pname}<br>
-      発注者：{client}&nbsp;&nbsp;&nbsp;工事価格：{price}&nbsp;&nbsp;&nbsp;工期：{cstart} 〜 {cend}
-    </div>
   </div>
   <div class="co">
     {logo_img}<br>
@@ -1901,10 +1941,29 @@ table.main td { border:.7pt solid #bbb; padding:4pt 6pt; }
     TEL {_h(company.tel)}
   </div>
 </div>
+
+<!-- 案件情報 -->
+<div class="info-grid">
+  <div class="info-label">工事番号</div><div class="info-val">{pnum}</div>
+  <div class="info-label">工事名</div><div class="info-val">{pname}</div>
+  <div class="info-label">発注者</div><div class="info-val">{client}</div>
+  <div class="info-label">工事場所</div><div class="info-val">{loc}</div>
+  <div class="info-label">工期</div><div class="info-val">{cstart} 〜 {cend}</div>
+  <div class="info-label">支払条件</div><div class="info-val">{pay}</div>
+  <div class="info-label">工事価格</div><div class="info-val">{price}</div>
+  <div class="info-label">担当</div><div class="info-val">営業：{sales}　現場：{const}</div>
+</div>
+
+<!-- 承認印 -->
+<div class="section-head">工事台帳 承認</div>
+<table class="stamp-table"><tr>{stamp_html}</tr></table>
+
+<!-- 直接工事費テーブル -->
+<div class="section-head">直接工事費</div>
 <table class="main">
   <thead><tr>
     <th style="width:4%">No</th>
-    <th style="width:28%">支払先</th>
+    <th style="width:26%">支払先</th>
     <th style="width:17%">実行予算</th>
     <th style="width:17%">取決金額</th>
     <th style="width:17%">取決差額</th>
@@ -1921,6 +1980,7 @@ table.main td { border:.7pt solid #bbb; padding:4pt 6pt; }
     </tr>
   </tbody>
 </table>
+{calc_html}
 </body></html>"""
 
     return weasyprint.HTML(string=html_str).write_pdf()
@@ -1972,6 +2032,25 @@ def generate_qcds_pdf(project: Any, qcds: Any, company: CompanyInfo) -> bytes:
     total_agreed     = sum(float(getattr(w, "agreed_amount",     0) or 0) for w in direct_works)
     total_settlement = sum(float(getattr(w, "settlement_amount", 0) or 0) for w in direct_works)
 
+    # 現場経費 items
+    expense_items = sorted(getattr(qcds, "expense_items", []) or [], key=lambda x: (getattr(x, "section", ""), getattr(x, "row_no", 0)))
+    expense_rows = ""
+    for e in expense_items:
+        amt = getattr(e, "amount_override", None)
+        expense_rows += f'<tr><td>{_h(getattr(e,"item_name",""))}</td><td class="right">{_fmt_yen(amt) if amt is not None else "—"}</td></tr>'
+
+    expense_section = ""
+    if expense_rows:
+        expense_section = f"""
+<div style="font-size:10pt;font-weight:700;margin:5mm 0 2mm;border-left:4pt solid #1F4E79;padding-left:6pt;">現場経費</div>
+<table style="width:260pt;border-collapse:collapse;font-size:8.5pt;">
+  <thead><tr>
+    <th style="background:#e8edf5;border:.8pt solid #888;padding:4pt 5pt;text-align:left;">項目</th>
+    <th style="background:#e8edf5;border:.8pt solid #888;padding:4pt 5pt;text-align:center;width:100pt;">金額</th>
+  </tr></thead>
+  <tbody>{expense_rows}</tbody>
+</table>"""
+
     css = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
 @page { size: A3 landscape; margin: 12mm 18mm; }
@@ -2018,6 +2097,7 @@ table.main td { border:.7pt solid #bbb; padding:4pt 6pt; }
   </tbody>
 </table>
 {calc_html}
+{expense_section}
 </body></html>"""
 
     return weasyprint.HTML(string=html_str).write_pdf()

@@ -52,6 +52,7 @@ class QCDSCategory(str, enum.Enum):
 class QuoteStatus(str, enum.Enum):
     draft = "draft"
     issued = "issued"
+    approved = "approved"  # 全承認印完了時に自動設定
 
 
 class OrderStatus(str, enum.Enum):
