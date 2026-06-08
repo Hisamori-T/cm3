@@ -4678,6 +4678,54 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
+## Session 2026-06-08（続き）— Phase R-1 詳細設計（コントローラー/サービス/PDF/フロントエンド）
+
+### 作業内容（予定）
+設計書 10.11〜10.14 として以下4セクションを追加する：
+- 10.11: ルーティング・エンドポイント骨格設計（コントローラー層）
+- 10.12: サービス層 詳細設計（関数シグネチャ・ロジック・エラー処理）
+- 10.13: 支払通知書 PDF レイアウト詳細設計（WeasyPrint）
+- 10.14: フロントエンドコンポーネント設計（型定義・props・状態管理）
+
+### 作業結果
+
+設計書 `docs/specs/設計書_06_機能拡張仕様_2026-06.md` に 10.11〜10.14 を追加：
+
+**10.11 コントローラー層設計**
+- 既存 `invoices.py`/`project/router.py` のパターン（`_to_read()`・`structlog`・`APIRouter`）を踏襲した骨格コードを記載
+- `PATCH /projects/{id}/role` / `GET progress-summary` / 控除CRUD 5本 / `GET payment-notice-pdf` の計8エンドポイント
+- 既存 `_to_read()` 関数への R-1 追加フィールド拡張方法を明記
+- 発行時スナップショット転記の追記箇所（既存 status 変更処理内）を明記
+
+**10.12 サービス層詳細設計（deduction_service.py）**
+- 関数一覧: `add_deduction` / `update_deduction` / `remove_deduction` / `get_progress_summary`
+- ヘルパー: `_guard_draft`（draft 以外拒否） / `_calc_amount`（rate or 手動） / `_recalculate_totals`（集計→Invoice更新）
+- `get_progress_summary`: SQL `func.sum` で動的計算・`Decimal` で進捗率計算
+- 下請業者名の取得元を暫定設計し、実装時確認事項として明記
+
+**10.13 支払通知書 PDF 設計（WeasyPrint）**
+- A4縦 レイアウト・テーブル構成・ASCII アスキーアートで全体図を明記
+- `_PAYMENT_NOTICE_CSS` + `generate_payment_notice_pdf()` + `_render_payment_notice_html()` のコードを設計
+- 支払予定日・支払方法フィールドの不足を実装時確認事項として明記
+
+**10.14 フロントエンドコンポーネント設計**
+- 型定義: `DeductionType` / `DEDUCTION_LABEL` / `InvoiceDeductionRead` / `ProgressSummaryResponse` / `ProjectRole` / `PROJECT_ROLE_LABEL` / `PROJECT_ROLE_COLOR`
+- ① `RoleBadge` コンポーネント（色・ラベル一覧）
+- ② `ProgressSection`（% ⟺ 金額 双方向連動・progress-summary API 呼び出し）
+- ③ `DeductionSection`（追加/削除フォーム・rate%→Decimal 変換）
+- ④ 支払通知書 PDF ダウンロードボタン（表示条件: prime かつ deductions.length > 0）
+
+### 変更ファイル
+- `docs/specs/設計書_06_機能拡張仕様_2026-06.md`（10.11〜10.14 追加）
+
+### 次のアクション
+- 設計フェーズ完了。実装開始の承認をもらう
+- 実装時の確認事項（下請業者名フィールド・支払方法フィールドの要否）をひさんに確認
+
+---
+
+
+
 
 
 
