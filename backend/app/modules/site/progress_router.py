@@ -154,17 +154,23 @@ async def delete_progress(
     current_user: User = Depends(get_current_user),
 ) -> None:
     """進捗ログを削除する（作成者または管理者のみ）。"""
-    log = await db.get(ProgressLog, log_id)
-    if log is None or log.project_id != project_id:
+    result = await db.execute(
+        select(ProgressLog)
+        .options(selectinload(ProgressLog.attachments))
+        .where(ProgressLog.id == log_id, ProgressLog.project_id == project_id)
+    )
+    log = result.scalar_one_or_none()
+    if log is None:
         raise HTTPException(status_code=404, detail="ログが見つかりません")
-    if log.logged_by != current_user.id and current_user.role != "admin":
+    is_admin = current_user.role in ("admin", "super_admin") or any(
+        r in ("admin", "super_admin") for r in (current_user.roles or [])
+    )
+    if log.logged_by != current_user.id and not is_admin:
         raise HTTPException(status_code=403, detail="削除権限がありません")
 
-    # 添付ファイルをディスクから削除
+    # 添付ファイルをディスクから削除（missing_ok=True で存在しなくてもエラーにしない）
     for att in log.attachments:
-        p = Path(att.file_path)
-        if p.exists():
-            p.unlink()
+        Path(att.file_path).unlink(missing_ok=True)
 
     await db.delete(log)
     await db.commit()

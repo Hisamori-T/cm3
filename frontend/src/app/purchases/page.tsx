@@ -162,11 +162,17 @@ export default function PurchasesPage() {
                     const sc = STATUS_COLOR[o.status];
                     const overdue = o.delivery_date && o.delivery_date < new Date().toISOString().slice(0, 10) && o.status !== "delivered" && o.status !== "completed";
                     return (
-                      <tr key={o.id} style={{ borderBottom: "1px solid var(--c-border)" }}>
+                      <tr
+                        key={o.id}
+                        onClick={() => window.location.href = `/projects/${o.project_id}/purchase`}
+                        style={{ borderBottom: "1px solid var(--c-border)", cursor: "pointer" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "var(--c-surface-2)")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "")}
+                      >
                         <td style={{ padding: "8px 12px" }}>
-                          <Link href={`/projects/${o.project_id}`} style={{ color: "var(--c-primary)", textDecoration: "none", fontWeight: 600, fontSize: 12 }}>
+                          <span style={{ color: "var(--c-primary)", fontWeight: 600, fontSize: 12 }}>
                             {o.project_number}
-                          </Link>
+                          </span>
                           <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 1 }}>{o.project_name ?? "—"}</div>
                         </td>
                         <td style={{ padding: "8px 12px", color: "var(--c-text)" }}>{o.vendor_name ?? "—"}</td>

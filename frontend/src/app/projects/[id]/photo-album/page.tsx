@@ -220,10 +220,11 @@ function PhotoCard({ att, onOpen, onDelete }: {
   onDelete: (id: string) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
+  const isImg = att.mime_type?.startsWith("image/") ?? false;
 
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation();
-    if (!confirm("この写真を削除しますか？")) return;
+    if (!confirm("この写真/図面を削除しますか？")) return;
     setDeleting(true);
     try {
       await fetch(`${API_URL}/api/v1/progress/attachments/${att.id}`, {
@@ -234,15 +235,43 @@ function PhotoCard({ att, onOpen, onDelete }: {
     } catch { /* ignore */ } finally { setDeleting(false); }
   }
 
+  async function handleFileOpen(e: React.MouseEvent) {
+    if (isImg) { onOpen(); return; }
+    e.stopPropagation();
+    try {
+      const r = await fetch(`${API_URL}/api/v1/progress/attachments/${att.id}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!r.ok) throw new Error();
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const isPdf = att.mime_type === "application/pdf";
+      if (isPdf) { window.open(url, "_blank"); }
+      else {
+        const a = document.createElement("a");
+        a.href = url; a.download = att.file_name;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+    } catch { alert("ファイルの取得に失敗しました"); }
+  }
+
   const typeColor = att.photo_type ? TYPE_COLOR[att.photo_type] : null;
 
   return (
     <div
-      onClick={onOpen}
+      onClick={handleFileOpen}
       style={{ background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-lg)", overflow: "hidden", position: "relative", cursor: "pointer" }}
     >
-      <div style={{ aspectRatio: "4/3", overflow: "hidden", background: "var(--c-surface-2)" }}>
-        <AuthImage attachmentId={att.id} fileName={att.file_name} />
+      <div style={{ aspectRatio: "4/3", overflow: "hidden", background: "var(--c-surface-2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {isImg ? (
+          <AuthImage attachmentId={att.id} fileName={att.file_name} />
+        ) : (
+          <div style={{ textAlign: "center", color: "var(--c-text-muted)", padding: 8 }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <div style={{ fontSize: 10, marginTop: 4, wordBreak: "break-all" }}>{att.file_name}</div>
+          </div>
+        )}
       </div>
 
       {/* 削除ボタン */}
@@ -304,14 +333,25 @@ export default function PhotoAlbumPage() {
     setLoading(true);
     try {
       const data = await apiFetch<ListResponse>(`/api/v1/projects/${id}/progress?limit=200`);
-      setLogs(data.items.filter((l) => l.attachments.some((a) => a.mime_type?.startsWith("image/"))));
+      setLogs(data.items.filter((l) => l.attachments.some((a) =>
+        a.mime_type?.startsWith("image/") ||
+        a.mime_type === "application/pdf" ||
+        a.photo_type === "drawing" ||
+        /\.(jww|dxf|dwg)$/i.test(a.file_name)
+      )));
     } finally { setLoading(false); }
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
 
+  // 画像 + 図面（PDF/CAD含む）を全て含める
   const allAttachments: Attachment[] = logs.flatMap((l) =>
-    l.attachments.filter((a) => a.mime_type?.startsWith("image/"))
+    l.attachments.filter((a) =>
+      a.mime_type?.startsWith("image/") ||
+      a.mime_type === "application/pdf" ||
+      a.photo_type === "drawing" ||
+      /\.(jww|dxf|dwg)$/i.test(a.file_name)
+    )
   );
   const filtered = filterType ? allAttachments.filter((a) => a.photo_type === filterType) : allAttachments;
   const groups = groupByWorkType(logs);
@@ -336,7 +376,12 @@ export default function PhotoAlbumPage() {
     setLogs((prev) =>
       prev.map((log) => ({
         ...log,
-        attachments: log.attachments.filter((a) => a.id !== attId),
+        attachments: log.attachments.filter((a) => a.id !== attId && (
+          a.mime_type?.startsWith("image/") ||
+          a.mime_type === "application/pdf" ||
+          a.photo_type === "drawing" ||
+          /\.(jww|dxf|dwg)$/i.test(a.file_name)
+        )),
       })).filter((log) => log.attachments.some((a) => a.mime_type?.startsWith("image/")))
     );
   }

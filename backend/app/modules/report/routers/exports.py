@@ -432,3 +432,36 @@ async def export_condition_pdf(
     )
     filename = f"見積条件書_{project.project_number or project_id}.pdf"
     return _pdf_response(data, filename)
+
+
+@router.get("/purchase-orders/{order_id}/export-pdf")
+async def export_purchase_order_pdf(
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """発注書をPDFで出力する。"""
+    from app.models.purchase import PurchaseOrder, PurchaseOrderItem
+    from app.models.vendor import Vendor
+    order = (await db.execute(
+        select(PurchaseOrder)
+        .options(selectinload(PurchaseOrder.items))
+        .where(PurchaseOrder.id == order_id)
+    )).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="発注書が見つかりません")
+
+    project = await _get_project(order.project_id, db)
+
+    # vendor_name をモデルに注入（read-only 参照用）
+    if order.vendor_id and not getattr(order, "vendor_name", None):
+        vendor = await db.get(Vendor, order.vendor_id)
+        if vendor:
+            object.__setattr__(order, "vendor_name", vendor.vendor_name) if hasattr(order, "__setattr__") else None
+            order.__dict__["vendor_name"] = vendor.vendor_name
+
+    co = await _get_company(db)
+    data = pdf_export.generate_purchase_order_pdf(order, project, co)
+    filename = f"発注書_{order.order_number or order_id}.pdf"
+    return _pdf_response(data, filename)
+

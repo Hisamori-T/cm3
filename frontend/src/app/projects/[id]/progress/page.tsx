@@ -224,8 +224,25 @@ export default function ProgressPage() {
     if (e.target.files) setFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
   }
 
-  function attachmentDownloadUrl(id: string) {
-    return `${API_URL}/api/v1/progress/attachments/${id}`;
+  /** 認証トークン付きでファイルを取得し、画像/PDFは新窓表示・その他はダウンロード */
+  async function handleFileOpen(id: string, fileName: string, mimeType: string | null) {
+    try {
+      const r = await fetch(`${API_URL}/api/v1/progress/attachments/${id}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const isDisplayable = mimeType?.startsWith("image/") || mimeType === "application/pdf";
+      if (isDisplayable) {
+        window.open(url, "_blank");
+      } else {
+        const a = document.createElement("a");
+        a.href = url; a.download = fileName;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 15000);
+    } catch { alert("ファイルの取得に失敗しました"); }
   }
 
   const inputStyle: React.CSSProperties = {
@@ -296,7 +313,7 @@ export default function ProgressPage() {
 
       {/* hidden file inputs（即ファイル選択用） */}
       <input ref={photoInputRef} type="file" multiple accept="image/*" style={{ display: "none" }} onChange={handleFileChange} />
-      <input ref={drawingInputRef} type="file" multiple accept="image/*,.pdf" style={{ display: "none" }} onChange={handleFileChange} />
+      <input ref={drawingInputRef} type="file" multiple accept="image/*,.pdf,.jww,.dxf,.dwg" style={{ display: "none" }} onChange={handleFileChange} />
 
       {/* 入力フォーム */}
       {showForm && (
@@ -501,12 +518,10 @@ export default function ProgressPage() {
                   {log.attachments.length > 0 && (
                     <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                       {log.attachments.map((att) => (
-                        <a
+                        <div
                           key={att.id}
-                          href={attachmentDownloadUrl(att.id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: "block", textDecoration: "none" }}
+                          onClick={() => handleFileOpen(att.id, att.file_name, att.mime_type)}
+                          style={{ display: "block", textDecoration: "none", cursor: "pointer" }}
                         >
                           {isImage(att.mime_type) ? (
                             <AuthImage attachmentId={att.id} fileName={att.file_name} />
@@ -525,7 +540,7 @@ export default function ProgressPage() {
                               </span>
                             </div>
                           )}
-                        </a>
+                        </div>
                       ))}
                     </div>
                   )}

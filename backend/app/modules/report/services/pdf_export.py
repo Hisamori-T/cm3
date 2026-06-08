@@ -1092,6 +1092,128 @@ def _render_invoice_html(invoice: Any, project: Any, co: CompanyInfo, payments: 
 </body></html>"""
 
 
+# ── 発注書 PDF ────────────────────────────────────────────────────────────────
+
+_PURCHASE_ORDER_CSS = """
+* { box-sizing: border-box; margin: 0; padding: 0; }
+@page { size: A4 portrait; margin: 15mm 18mm; }
+body {
+    font-family: 'Noto Sans CJK JP', 'Noto Serif JP', 'Noto Sans JP', sans-serif;
+    font-size: 9.5pt; color: #111; line-height: 1.6;
+}
+.title { text-align: center; font-size: 16pt; font-weight: bold; margin-bottom: 8mm; letter-spacing: 0.2em; }
+.proj-ref { text-align: right; font-size: 8.5pt; color: #555; margin-bottom: 4mm; }
+.meta-row { display: flex; justify-content: space-between; margin-bottom: 6mm; gap: 12mm; }
+.vendor-block { flex: 1; }
+.vendor-name { font-size: 13pt; font-weight: bold; border-bottom: 1.5pt solid #333; padding-bottom: 2mm; margin-bottom: 2mm; }
+.company-block { text-align: right; min-width: 180pt; }
+.company-logo-row { display: flex; align-items: center; justify-content: flex-end; gap: 8pt; margin-bottom: 2mm; }
+.company-name-large { font-size: 11pt; font-weight: bold; }
+.company-info { font-size: 8pt; color: #444; line-height: 1.55; }
+.order-info { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 3pt 8pt; margin-bottom: 5mm; font-size: 8.5pt; border: 0.8pt solid #ccc; padding: 4pt 8pt; border-radius: 3pt; }
+.oi-label { color: #666; white-space: nowrap; }
+.oi-value { font-weight: 600; }
+table.items { width: 100%; border-collapse: collapse; margin-bottom: 5mm; font-size: 8.5pt; }
+table.items th { background: #e8edf5; border: 0.8pt solid #888; padding: 4pt 5pt; text-align: center; font-weight: 600; }
+table.items td { border: 0.8pt solid #bbb; padding: 3pt 5pt; }
+table.items .right { text-align: right; font-family: monospace; }
+table.items .center { text-align: center; }
+.calc-row td { background: #f5f7fa; font-weight: 600; }
+.total-row td { background: #d0e4f7; font-weight: bold; font-size: 10.5pt; }
+.footer-note { font-size: 8pt; color: #666; margin-top: 4mm; border-top: 0.5pt solid #ccc; padding-top: 2mm; }
+"""
+
+
+def generate_purchase_order_pdf(order: Any, project: Any, company: CompanyInfo) -> bytes:
+    """発注書 PDF を生成する（業者宛）。"""
+    import weasyprint
+    html_str = _render_purchase_order_html(order, project, company)
+    return weasyprint.HTML(string=html_str).write_pdf()
+
+
+def _render_purchase_order_html(order: Any, project: Any, co: CompanyInfo) -> str:
+    logo_url = _logo_data_url()
+    logo_img = f'<img src="{logo_url}" style="height:28pt;" alt="CLAP">' if logo_url else ""
+
+    vendor_name = _h(getattr(order, "vendor_name", "") or "")
+    order_number = getattr(order, "order_number", "") or ""
+    order_date = _fmt_date_jp(getattr(order, "order_date", None))
+    delivery_date = _fmt_date_jp(getattr(order, "delivery_date", None))
+    delivery_address = _h(getattr(order, "delivery_address", "") or "")
+    project_number = _h(getattr(project, "project_number", "") or "")
+    project_name = _h(getattr(project, "project_name", "") or "")
+
+    subtotal = float(getattr(order, "subtotal", 0) or 0)
+    tax = float(getattr(order, "tax_amount", 0) or 0)
+    total = float(getattr(order, "total_amount", 0) or 0)
+
+    # 明細行
+    items_html = ""
+    for item in sorted(getattr(order, "items", []) or [], key=lambda x: getattr(x, "row_no", 0)):
+        name = _h(getattr(item, "item_name", "") or "")
+        spec = _h(getattr(item, "spec", "") or "")
+        unit = _h(getattr(item, "unit", "") or "")
+        qty = getattr(item, "quantity", 0) or 0
+        unit_price = getattr(item, "unit_price", 0) or 0
+        amount = getattr(item, "amount", 0) or 0
+        items_html += f"""<tr>
+          <td>{name}</td><td>{spec}</td><td class="center">{unit}</td>
+          <td class="right">{int(qty):,}</td>
+          <td class="right">{_fmt_yen(unit_price)}</td>
+          <td class="right">{_fmt_yen(amount)}</td>
+        </tr>"""
+
+    # 空行で10行まで埋める
+    row_count = len(getattr(order, "items", []) or [])
+    for _ in range(max(0, 10 - row_count)):
+        items_html += '<tr style="height:16pt"><td></td><td></td><td></td><td></td><td></td><td></td></tr>'
+
+    return f"""<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<style>{_PURCHASE_ORDER_CSS}</style></head>
+<body>
+<div class="proj-ref">弊社工事番号：{project_number}&nbsp;&nbsp;&nbsp;発行日：{order_date}</div>
+<div class="title">発　注　書</div>
+<div class="meta-row">
+  <div class="vendor-block">
+    <div class="vendor-name">{vendor_name}&nbsp;御中</div>
+    <div style="font-size:8.5pt;color:#555;margin-top:2mm;">下記の通りご発注申し上げます。</div>
+    <div style="margin-top:3mm;font-size:9pt;"><span style="color:#666;">工事名：</span><strong>{project_name}</strong></div>
+    {f'<div style="margin-top:1mm;font-size:8.5pt;color:#555;">納品先：{delivery_address}</div>' if delivery_address else ""}
+  </div>
+  <div class="company-block">
+    <div class="company-logo-row">{logo_img}<span class="company-name-large">株式会社　クラップ</span></div>
+    <div class="company-info">
+      {_h(co.address or "福井県坂井市三国町錦3-4-2")}<br>
+      TEL&nbsp;{_h(co.tel or "0776-81-8330")}&nbsp;FAX&nbsp;{_h(co.fax or "0776-81-8331")}<br>
+      代表取締役&nbsp;{_h(getattr(co, "representative", "") or "奴間 正人")}<br>
+      登録番号：{_h(co.tax_reg_no or "T5210001007332")}
+    </div>
+  </div>
+</div>
+<div class="order-info">
+  <span class="oi-label">発注番号</span><span class="oi-value">{_h(order_number)}</span>
+  <span class="oi-label">発注日</span><span class="oi-value">{order_date}</span>
+  <span class="oi-label">納品期日</span><span class="oi-value">{delivery_date or "—"}</span>
+  <span class="oi-label">発注金額（税込）</span><span class="oi-value" style="color:#1e3a8a;">{_fmt_yen(total)}</span>
+</div>
+<table class="items">
+  <thead><tr>
+    <th style="width:32%">品名・工種</th><th style="width:22%">仕様</th>
+    <th style="width:7%">単位</th><th style="width:8%">数量</th>
+    <th style="width:15%">単価</th><th style="width:16%">金額</th>
+  </tr></thead>
+  <tbody>
+    {items_html}
+    <tr class="calc-row"><td colspan="5" style="text-align:right;padding-right:8pt;">小　計</td><td class="right">{_fmt_yen(subtotal)}</td></tr>
+    <tr class="calc-row"><td colspan="5" style="text-align:right;padding-right:8pt;">消費税（10%）</td><td class="right">{_fmt_yen(tax)}</td></tr>
+    <tr class="total-row"><td colspan="5" style="text-align:right;padding-right:8pt;">合　計</td><td class="right">{_fmt_yen(total)}</td></tr>
+  </tbody>
+</table>
+<div class="footer-note">※ 本発注書受領後、速やかにご確認のご連絡をお願い申し上げます。</div>
+</body></html>"""
+
+
 # ── 注文書 / 注文請書 PDF ─────────────────────────────────────────────────────
 
 # 基本契約約款（サンプルHTMLに準拠）

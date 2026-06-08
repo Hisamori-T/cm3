@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { fmtYen } from "@/lib/format";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+function getToken() { return typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") || "" : ""; }
+
 type OrderStatus = "draft" | "issued" | "partial_delivered" | "delivered" | "completed";
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
@@ -110,6 +113,16 @@ export default function PurchasePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  // 展開中の発注書ID（詳細明細アコーディオン）
+  const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
+
+  function toggleExpand(orderId: string) {
+    setExpandedOrders(prev => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId); else next.add(orderId);
+      return next;
+    });
+  }
 
   // フォーム状態: null=非表示, "new"=新規, string=編集中orderのID
   const [formMode, setFormMode] = useState<"new" | string | null>(null);
@@ -580,6 +593,23 @@ export default function PurchasePage() {
                     {!formMode && order.status === "draft" && (
                       <button onClick={() => openEdit(order)} style={{ background: "none", border: "1px solid var(--c-border)", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-xs)", color: "var(--c-text)" }}>✏️ 修正</button>
                     )}
+                    {/* PDF出力ボタン */}
+                    <button
+                      onClick={async () => {
+                        try {
+                          const r = await fetch(`${API_URL}/api/v1/purchase-orders/${order.id}/export-pdf`, {
+                            headers: { Authorization: `Bearer ${getToken()}` },
+                          });
+                          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                          const blob = await r.blob();
+                          const a = document.createElement("a");
+                          a.href = URL.createObjectURL(blob);
+                          a.download = `発注書_${order.vendor_name || order.id}.pdf`;
+                          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                        } catch (e) { alert(`PDF生成エラー: ${(e as Error).message}`); }
+                      }}
+                      style={{ background: "#C00000", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-xs)" }}
+                    >📄 PDF</button>
                     {!formMode && (
                       <button onClick={() => handleDelete(order.id, order.status === "draft")} style={{ background: "none", border: "1px solid #fca5a5", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-xs)", color: "#dc2626" }}>🗑 削除</button>
                     )}
@@ -595,14 +625,55 @@ export default function PurchasePage() {
                       </span>
                     </div>
                   )}
-                  {order.items.slice(0, 3).map((item) => (
-                    <div key={item.id} style={{ fontSize: "var(--fs-xs)", color: "var(--c-text-muted)", display: "flex", justifyContent: "space-between" }}>
-                      <span>{item.item_name}{item.spec ? ` (${item.spec})` : ""}</span>
-                      <span>{fmtYen(item.amount)}</span>
-                    </div>
-                  ))}
-                  {order.items.length > 3 && (
-                    <div style={{ fontSize: "var(--fs-xs)", color: "var(--c-text-muted)" }}>他 {order.items.length - 3} 件</div>
+                  {/* 明細プレビュー（3件） or 全件展開 */}
+                  {expandedOrders.has(order.id) ? (
+                    <>
+                      <table style={{ width: "100%", fontSize: "var(--fs-xs)", borderCollapse: "collapse", marginTop: 4 }}>
+                        <thead>
+                          <tr style={{ background: "var(--c-surface-2)", fontSize: 10, color: "var(--c-text-muted)" }}>
+                            <th style={{ padding: "3px 6px", textAlign: "left", borderBottom: "1px solid var(--c-border)" }}>品名</th>
+                            <th style={{ padding: "3px 6px", textAlign: "left", borderBottom: "1px solid var(--c-border)" }}>仕様</th>
+                            <th style={{ padding: "3px 6px", textAlign: "right", borderBottom: "1px solid var(--c-border)" }}>数量</th>
+                            <th style={{ padding: "3px 6px", textAlign: "right", borderBottom: "1px solid var(--c-border)" }}>単価</th>
+                            <th style={{ padding: "3px 6px", textAlign: "right", borderBottom: "1px solid var(--c-border)" }}>金額</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {order.items.map((item) => (
+                            <tr key={item.id} style={{ borderBottom: "1px solid var(--c-border)" }}>
+                              <td style={{ padding: "3px 6px" }}>{item.item_name}</td>
+                              <td style={{ padding: "3px 6px", color: "var(--c-text-muted)" }}>{item.spec || "—"}</td>
+                              <td style={{ padding: "3px 6px", textAlign: "right" }}>{item.quantity}{item.unit || ""}</td>
+                              <td style={{ padding: "3px 6px", textAlign: "right", fontFamily: "var(--ff-mono)" }}>{fmtYen(item.unit_price)}</td>
+                              <td style={{ padding: "3px 6px", textAlign: "right", fontFamily: "var(--ff-mono)", fontWeight: 600 }}>{fmtYen(item.amount)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ background: "var(--c-surface-2)", fontWeight: 700 }}>
+                            <td colSpan={4} style={{ padding: "3px 6px", fontSize: 10 }}>小計 / 税 / 合計</td>
+                            <td style={{ padding: "3px 6px", textAlign: "right", fontFamily: "var(--ff-mono)", fontSize: 10 }}>
+                              {fmtYen(order.subtotal)} / {fmtYen(order.tax_amount)} / {fmtYen(order.total_amount)}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                      <button onClick={() => toggleExpand(order.id)} style={{ marginTop: 4, fontSize: "var(--fs-xs)", background: "none", border: "none", cursor: "pointer", color: "var(--c-primary)", padding: "2px 0" }}>
+                        ▲ 閉じる
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      {order.items.slice(0, 3).map((item) => (
+                        <div key={item.id} style={{ fontSize: "var(--fs-xs)", color: "var(--c-text-muted)", display: "flex", justifyContent: "space-between" }}>
+                          <span>{item.item_name}{item.spec ? ` (${item.spec})` : ""}</span>
+                          <span>{fmtYen(item.amount)}</span>
+                        </div>
+                      ))}
+                      <button onClick={() => toggleExpand(order.id)} style={{ marginTop: 4, fontSize: "var(--fs-xs)", background: "none", border: "none", cursor: "pointer", color: "var(--c-primary)", padding: "2px 0" }}>
+                        {order.items.length > 3 ? `▼ 全${order.items.length}件を表示` : "▼ 詳細を表示"}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
