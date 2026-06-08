@@ -168,10 +168,12 @@ async def delete_progress(
     if log.logged_by != current_user.id and not is_admin:
         raise HTTPException(status_code=403, detail="削除権限がありません")
 
-    # 添付ファイルをディスクから削除（missing_ok=True で存在しなくてもエラーにしない）
+    # 添付ファイルをディスクおよびDBから削除（cascade未設定のため明示削除が必要）
     for att in log.attachments:
         Path(att.file_path).unlink(missing_ok=True)
+        await db.delete(att)
 
+    await db.flush()  # 添付削除を先にコミットしてから親を削除
     await db.delete(log)
     await db.commit()
 
