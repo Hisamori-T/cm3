@@ -1815,3 +1815,178 @@ def generate_photo_album_pdf(
 </body></html>"""
 
     return weasyprint.HTML(string=html_str).write_pdf()
+
+
+# ── 工事台帳 PDF ──────────────────────────────────────────────────────────────
+
+def generate_ledger_pdf(project: Any, qcds_rows: list, direct_works: list, company: CompanyInfo) -> bytes:
+    """工事台帳（実行予算・取決見通）のPDFを生成する。"""
+    import weasyprint
+
+    logo_url = _logo_data_url()
+    logo_img = f'<img src="{logo_url}" style="height:24pt;" alt="CLAP">' if logo_url else ""
+
+    pnum   = _h(getattr(project, "project_number", "") or "")
+    pname  = _h(getattr(project, "project_name", "") or "")
+    client = _h(getattr(project, "client_name", "") or "")
+    price  = _fmt_yen(getattr(project, "project_price", None))
+    cstart = _fmt_date(getattr(project, "period_contract_start", None))
+    cend   = _fmt_date(getattr(project, "period_contract_end", None))
+
+    total_budget = sum(float(getattr(w, "budget_amount", 0) or 0) for w in direct_works)
+    total_agreed = sum(float(getattr(w, "agreed_amount", 0) or 0) for w in direct_works)
+
+    rows_html = ""
+    for i, w in enumerate(sorted(direct_works, key=lambda x: getattr(x, "row_no", 0)), 1):
+        budget  = getattr(w, "budget_amount", None)
+        agreed  = getattr(w, "agreed_amount", None)
+        diff    = (float(budget or 0) - float(agreed or 0)) if (budget is not None and agreed is not None) else None
+        diff_color = "#c00" if diff is not None and diff < 0 else "#000"
+        rows_html += f"""<tr>
+          <td class="center">{i}</td>
+          <td>{_h(getattr(w, "vendor_name_snapshot", "") or "")}</td>
+          <td>{_h(getattr(w, "work_type", "") or "")}</td>
+          <td class="right">{_fmt_yen(budget) if budget is not None else "—"}</td>
+          <td class="right">{_fmt_yen(agreed) if agreed is not None else "—"}</td>
+          <td class="right" style="color:{diff_color};">{_fmt_yen(diff) if diff is not None else "—"}</td>
+        </tr>"""
+
+    css = """
+* { box-sizing: border-box; margin: 0; padding: 0; }
+@page { size: A4 landscape; margin: 12mm 15mm; }
+body { font-family: 'Noto Sans CJK JP','Noto Sans JP',sans-serif; font-size: 9pt; color:#111; }
+.header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8mm; }
+.title { font-size:16pt; font-weight:bold; letter-spacing:.1em; margin-bottom:2mm; }
+.meta { font-size:8.5pt; color:#555; line-height:1.8; }
+.co { text-align:right; font-size:8pt; color:#555; }
+table.main { width:100%; border-collapse:collapse; font-size:8.5pt; }
+table.main th { background:#e8edf5; border:.8pt solid #888; padding:4pt 5pt; text-align:center; font-weight:600; }
+table.main td { border:.7pt solid #bbb; padding:3pt 5pt; }
+.center { text-align:center; }
+.right { text-align:right; font-family:monospace; }
+.total-row td { background:#d0e4f7; font-weight:bold; }
+"""
+
+    html_str = f"""<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<style>{css}</style></head><body>
+<div class="header">
+  <div>
+    <div class="title">工　事　台　帳</div>
+    <div class="meta">
+      工事番号：{pnum}&nbsp;&nbsp;&nbsp;工事名：{pname}<br>
+      発注者：{client}&nbsp;&nbsp;&nbsp;工事価格：{price}&nbsp;&nbsp;&nbsp;工期：{cstart} 〜 {cend}
+    </div>
+  </div>
+  <div class="co">
+    {logo_img}<br>
+    {_h(company.name)}<br>
+    {_h(company.address)}<br>
+    TEL {_h(company.tel)}
+  </div>
+</div>
+<table class="main">
+  <thead><tr>
+    <th style="width:4%">No</th>
+    <th style="width:22%">支払先</th>
+    <th style="width:15%">工種</th>
+    <th style="width:18%">実行予算</th>
+    <th style="width:18%">取決金額</th>
+    <th style="width:18%">取決差額</th>
+  </tr></thead>
+  <tbody>
+    {rows_html}
+    <tr class="total-row">
+      <td colspan="3" style="text-align:center;">合　計</td>
+      <td class="right">{_fmt_yen(total_budget)}</td>
+      <td class="right">{_fmt_yen(total_agreed)}</td>
+      <td class="right">{_fmt_yen(total_budget - total_agreed)}</td>
+    </tr>
+  </tbody>
+</table>
+</body></html>"""
+
+    return weasyprint.HTML(string=html_str).write_pdf()
+
+
+# ── QCDS 原価算定表 PDF / Excel ───────────────────────────────────────────────
+
+def generate_qcds_pdf(project: Any, qcds: Any, company: CompanyInfo) -> bytes:
+    """QCDS 原価算定表の PDF を生成する。"""
+    import weasyprint
+
+    logo_url = _logo_data_url()
+    logo_img = f'<img src="{logo_url}" style="height:24pt;" alt="CLAP">' if logo_url else ""
+    pnum  = _h(getattr(project, "project_number", "") or "")
+    pname = _h(getattr(project, "project_name", "") or "")
+
+    direct_works = sorted(getattr(qcds, "direct_works", []) or [], key=lambda x: getattr(x, "row_no", 0))
+    calc = getattr(qcds, "calc", None)
+
+    rows_html = ""
+    for i, w in enumerate(direct_works, 1):
+        rows_html += f"""<tr>
+          <td class="center">{i}</td>
+          <td>{_h(getattr(w, "vendor_name_snapshot", "") or "")}</td>
+          <td>{_h(getattr(w, "work_type", "") or "")}</td>
+          <td class="center">{_h(str(getattr(w, "category", "") or ""))}</td>
+          <td class="right">{_fmt_yen(getattr(w, "budget_amount", None))}</td>
+          <td class="right">{_fmt_yen(getattr(w, "agreed_amount", None))}</td>
+        </tr>"""
+
+    def _cr(label: str, value: Any) -> str:
+        return f'<tr><td style="padding:2pt 8pt;color:#555;">{_h(label)}</td><td class="right" style="padding:2pt 8pt;font-family:monospace;">{_fmt_yen(value) if value is not None else "—"}</td></tr>'
+
+    calc_html = ""
+    if calc:
+        calc_html = f"""<table style="width:300pt;border-collapse:collapse;font-size:8.5pt;margin-top:6mm;">
+          <thead><tr><th colspan="2" style="background:#e8edf5;border:.8pt solid #888;padding:4pt 8pt;text-align:left;">工事割出サマリー</th></tr></thead>
+          <tbody>
+            {_cr("直接工事費（実行予算）", getattr(calc, "direct_cost_budget", None))}
+            {_cr("直接工事費（取決見通）", getattr(calc, "direct_cost_agreed", None))}
+            {_cr("現場経費合計", getattr(calc, "site_overhead_total", None))}
+            {_cr("原価合計", getattr(calc, "construction_cost_total", None))}
+            {_cr("一般管理費", getattr(calc, "general_admin_cost", None))}
+            {_cr("営業利益", getattr(calc, "operating_profit", None))}
+          </tbody>
+        </table>"""
+
+    css = """
+* { box-sizing: border-box; margin: 0; padding: 0; }
+@page { size: A4 landscape; margin: 12mm 15mm; }
+body { font-family: 'Noto Sans CJK JP','Noto Sans JP',sans-serif; font-size: 9pt; color:#111; }
+.header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6mm; }
+.title { font-size:14pt; font-weight:bold; letter-spacing:.1em; }
+.meta { font-size:8.5pt; color:#555; margin-top:2mm; }
+.co { text-align:right; font-size:8pt; color:#555; }
+table.main { width:100%; border-collapse:collapse; font-size:8.5pt; margin-bottom:4mm; }
+table.main th { background:#e8edf5; border:.8pt solid #888; padding:4pt 5pt; text-align:center; font-weight:600; }
+table.main td { border:.7pt solid #bbb; padding:3pt 5pt; }
+.center { text-align:center; }
+.right { text-align:right; font-family:monospace; }
+"""
+
+    html_str = f"""<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<style>{css}</style></head><body>
+<div class="header">
+  <div>
+    <div class="title">QCDS 原価算定表</div>
+    <div class="meta">工事番号：{pnum}&nbsp;&nbsp;&nbsp;工事名：{pname}</div>
+  </div>
+  <div class="co">{logo_img}<br>{_h(company.name)}</div>
+</div>
+<table class="main">
+  <thead><tr>
+    <th style="width:4%">No</th>
+    <th style="width:25%">支払先</th>
+    <th style="width:18%">工種</th>
+    <th style="width:10%">区分</th>
+    <th style="width:20%">実行予算</th>
+    <th style="width:20%">取決金額</th>
+  </tr></thead>
+  <tbody>{rows_html}</tbody>
+</table>
+{calc_html}
+</body></html>"""
+
+    return weasyprint.HTML(string=html_str).write_pdf()
+

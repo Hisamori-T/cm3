@@ -871,23 +871,16 @@ def export_project_all_excel(
     ws_proj.merge_cells("A1:B1")
     r = 2
     fields = [
-        ("工事番号", project.project_number),
-        ("工事名", project.project_name),
-        ("工事場所", project.project_location),
-        ("発注者", project.client_name),
-        ("元発注者", project.original_client_name),
-        ("工事価格", project.project_price),
+        ("工事番号", getattr(project, "project_number", None)),
+        ("工事名", getattr(project, "project_name", None)),
+        ("工事場所", getattr(project, "project_location", None)),
+        ("発注者", getattr(project, "client_name", None)),
+        ("元発注者", getattr(project, "original_client_name", None)),
+        ("工事価格", getattr(project, "project_price", None)),
         ("ステータス", str(project.status) if project.status else None),
-        ("工期(見積)開始", project.period_quote_start),
-        ("工期(見積)終了", project.period_quote_end),
-        ("工期(契約)開始", project.period_contract_start),
-        ("工期(契約)終了", project.period_contract_end),
-        ("工期(実施)開始", project.period_actual_start),
-        ("工期(実施)終了", project.period_actual_end),
-        ("支払条件", project.payment_condition),
-        ("客先担当(会社)", project.client_contact_company),
-        ("客先担当(担当者)", project.client_contact_person),
-        ("概要", project.project_summary),
+        ("工期(契約)開始", getattr(project, "period_contract_start", None)),
+        ("工期(契約)終了", getattr(project, "period_contract_end", None)),
+        ("支払条件", getattr(project, "payment_condition", None)),
     ]
     for label, value in fields:
         _row(r, label, value)
@@ -925,9 +918,9 @@ def export_project_all_excel(
             ("見積番号", quote.quote_number),
             ("発行日", quote.issue_date),
             ("ステータス", str(quote.status) if quote.status else None),
-            ("消費税抜合計", quote.subtotal_excl_tax if hasattr(quote, "subtotal_excl_tax") else None),
-            ("消費税", quote.tax_amount if hasattr(quote, "tax_amount") else None),
-            ("合計(税込)", quote.total_incl_tax if hasattr(quote, "total_incl_tax") else None),
+            ("消費税抜合計", getattr(quote, "subtotal", None)),
+            ("消費税", getattr(quote, "tax_amount", None)),
+            ("合計(税込)", getattr(quote, "total_amount", None)),
         ]
         r2 = 1
         for label, value in summary:
@@ -981,10 +974,10 @@ def export_project_all_excel(
         for inv in invoices:
             ws_inv.cell(next_r, 1, inv.invoice_number or "").border = _thin()
             ws_inv.cell(next_r, 2, _fmt(inv.issue_date)).border = _thin()
-            ws_inv.cell(next_r, 3, _fmt(inv.due_date)).border = _thin()
-            _money_cell(ws_inv, next_r, 4, inv.subtotal_excl_tax)
-            _money_cell(ws_inv, next_r, 5, inv.tax_amount)
-            _money_cell(ws_inv, next_r, 6, inv.total_incl_tax)
+            ws_inv.cell(next_r, 3, _fmt(getattr(inv, "payment_due_date", None))).border = _thin()
+            _money_cell(ws_inv, next_r, 4, getattr(inv, "current_purchase", None))
+            _money_cell(ws_inv, next_r, 5, getattr(inv, "tax_amount", None))
+            _money_cell(ws_inv, next_r, 6, getattr(inv, "total_amount", None))
             ws_inv.cell(next_r, 7, str(inv.status) if inv.status else "").border = _thin()
             for c in range(1, 8):
                 ws_inv.cell(next_r, c).font = Font(size=9)
@@ -993,3 +986,70 @@ def export_project_all_excel(
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+def export_qcds_excel(project: Any, qcds: Any) -> bytes:
+    """QCDS 原価算定表を Excel で出力する。"""
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "QCDS原価算定表"
+    for col, w in zip("ABCDEFG", [5, 22, 16, 10, 16, 16, 16]):
+        ws.column_dimensions[col].width = w
+
+    title_cell = ws.cell(1, 1, "QCDS 原価算定表")
+    title_cell.font = Font(bold=True, size=12)
+    ws.merge_cells("A1:G1")
+    ws.cell(2, 1, f"工事番号: {getattr(project, 'project_number', '')}  工事名: {getattr(project, 'project_name', '')}").font = Font(size=9, color="666666")
+    ws.merge_cells("A2:G2")
+
+    dw_cols = [("No",5),("支払先",22),("工種",16),("区分",10),("実行予算",16),("取決金額",16),("精算見通",16)]
+    row = _apply_table_header(ws, 4, dw_cols)
+
+    direct_works = sorted(getattr(qcds, "direct_works", []) or [], key=lambda x: getattr(x, "row_no", 0))
+    for i, w in enumerate(direct_works, 1):
+        ws.cell(row, 1, i).border = _thin()
+        ws.cell(row, 2, getattr(w, "vendor_name_snapshot", "") or "").border = _thin()
+        ws.cell(row, 3, getattr(w, "work_type", "") or "").border = _thin()
+        ws.cell(row, 4, str(getattr(w, "category", "") or "")).border = _thin()
+        _money_cell(ws, row, 5, getattr(w, "budget_amount", None))
+        _money_cell(ws, row, 6, getattr(w, "agreed_amount", None))
+        _money_cell(ws, row, 7, getattr(w, "settlement_amount", None))
+        for c in range(1, 8):
+            ws.cell(row, c).font = Font(size=9)
+        row += 1
+
+    total_budget = sum(float(getattr(w, "budget_amount", 0) or 0) for w in direct_works)
+    total_agreed = sum(float(getattr(w, "agreed_amount", 0) or 0) for w in direct_works)
+    ws.merge_cells(f"A{row}:D{row}")
+    ws.cell(row, 1, "合計").font = Font(bold=True, size=9)
+    _money_cell(ws, row, 5, total_budget)
+    _money_cell(ws, row, 6, total_agreed)
+    ws.cell(row, 5).font = Font(bold=True, size=9)
+    ws.cell(row, 6).font = Font(bold=True, size=9)
+
+    calc = getattr(qcds, "calc", None)
+    if calc:
+        row += 2
+        hc = ws.cell(row, 1, "工事割出サマリー")
+        hc.fill = _header_fill()
+        hc.font = Font(bold=True, size=10, color="FFFFFF")
+        ws.merge_cells(f"A{row}:G{row}")
+        row += 1
+        for label, attr in [
+            ("直接工事費（実行予算）", "direct_cost_budget"),
+            ("直接工事費（取決見通）", "direct_cost_agreed"),
+            ("現場経費合計", "site_overhead_total"),
+            ("原価合計", "construction_cost_total"),
+            ("一般管理費", "general_admin_cost"),
+            ("営業利益", "operating_profit"),
+        ]:
+            lc = ws.cell(row, 1, label)
+            lc.font = Font(size=9, bold=True); lc.fill = _sub_fill(); lc.border = _thin()
+            ws.merge_cells(f"A{row}:D{row}")
+            _money_cell(ws, row, 5, getattr(calc, attr, None))
+            ws.cell(row, 5).font = Font(size=9)
+            row += 1
+
+    buf2 = io.BytesIO()
+    wb.save(buf2)
+    return buf2.getvalue()

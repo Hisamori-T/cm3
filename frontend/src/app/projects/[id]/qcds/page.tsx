@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+function getToken() { return typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") || "" : ""; }
 import { useAuth } from "@/contexts/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
@@ -394,6 +397,25 @@ export default function QCDSPage() {
           {autoSaveStatus === "pending" && <span style={{ fontSize: 12, color: "var(--c-accent)" }}>変更あり（自動保存まで待機中）</span>}
           {autoSaveStatus === "saving" && <span style={{ fontSize: 12, color: "var(--c-text-muted)" }}>保存中...</span>}
           {autoSaveStatus === "saved"  && <span style={{ fontSize: 12, color: "var(--c-success)" }}>✓ 保存済み</span>}
+          {/* Excel/PDF 出力 */}
+          <button onClick={() => {
+            fetch(`${API_URL}/api/v1/projects/${id}/qcds/export-excel`, { headers: { Authorization: `Bearer ${getToken()}` } })
+              .then(r => r.blob()).then(blob => {
+                const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+                a.download = `QCDS_${id}.xlsx`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              });
+          }} style={{ fontSize: 12, padding: "4px 10px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", background: "var(--c-surface-2)", cursor: "pointer" }}>
+            Excel
+          </button>
+          <button onClick={() => {
+            fetch(`${API_URL}/api/v1/projects/${id}/qcds/export-pdf`, { headers: { Authorization: `Bearer ${getToken()}` } })
+              .then(r => r.blob()).then(blob => {
+                const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+                a.download = `QCDS_${id}.pdf`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              });
+          }} style={{ fontSize: 12, padding: "4px 10px", border: "none", borderRadius: "var(--r-md)", background: "#C00000", color: "#fff", cursor: "pointer" }}>
+            PDF
+          </button>
           <Button variant="primary" size="sm" onClick={handleSave} disabled={isSaving}>
             {isSaving ? "保存中..." : "今すぐ保存"}
           </Button>

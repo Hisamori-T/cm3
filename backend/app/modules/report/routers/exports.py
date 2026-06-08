@@ -23,7 +23,7 @@ from app.models.user import User
 from app.models.company_settings import CompanySettings
 from app.models.invoice import Payment
 from app.services import excel_export
-from app.modules.report.services import pdf_export
+from app.modules.report.services import pdf_export, excel_export as new_excel_export
 
 router = APIRouter(tags=["exports"])
 
@@ -166,7 +166,9 @@ async def export_project_all(
     )).scalars().all()
 
     data = excel_export.export_project_all_excel(project, qcds_rows, list(quotes), list(orders), list(invoices))
-    filename = f"工事台帳_{project.project_number}_{project.project_name}.xlsx"
+    client = getattr(project, "client_name", "") or ""
+    pname  = getattr(project, "project_name", "") or ""
+    filename = f"工事台帳_{project.project_number}_{pname}_{client}.xlsx".replace("/", "_").replace("\\", "_")
     return _xlsx_response(data, filename)
 
 
@@ -465,3 +467,69 @@ async def export_purchase_order_pdf(
     filename = f"発注書_{order.order_number or order_id}.pdf"
     return _pdf_response(data, filename)
 
+
+
+@router.get("/projects/{project_id}/export-pdf")
+async def export_project_ledger_pdf(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """工事台帳（実行予算・取決見通）を PDF で出力する。"""
+    from app.models.qcds import QCDS
+    project = await _get_project(project_id, db)
+    qcds = (await db.execute(
+        select(QCDS).options(selectinload(QCDS.direct_works))
+        .where(QCDS.project_id == project_id)
+        .order_by(QCDS.revision.desc())
+    )).scalars().first()
+    direct_works = qcds.direct_works if qcds else []
+    co = await _get_company(db)
+    data = pdf_export.generate_ledger_pdf(project, qcds, list(direct_works), co)
+    client = getattr(project, "client_name", "") or ""
+    pname  = getattr(project, "project_name", "") or ""
+    filename = f"工事台帳_{project.project_number}_{pname}_{client}.pdf".replace("/", "_")
+    return _pdf_response(data, filename)
+
+
+@router.get("/projects/{project_id}/qcds/export-excel")
+async def export_qcds_excel_ep(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """QCDS 原価算定表を Excel で出力する。"""
+    from app.models.qcds import QCDS
+    project = await _get_project(project_id, db)
+    qcds = (await db.execute(
+        select(QCDS).options(selectinload(QCDS.direct_works))
+        .where(QCDS.project_id == project_id)
+        .order_by(QCDS.revision.desc())
+    )).scalars().first()
+    if qcds is None:
+        raise HTTPException(status_code=404, detail="QCDSデータがありません")
+    data = new_excel_export.export_qcds_excel(project, qcds)
+    filename = f"QCDS_{project.project_number}_{getattr(project,'project_name','')}.xlsx".replace("/","_")
+    return _xlsx_response(data, filename)
+
+
+@router.get("/projects/{project_id}/qcds/export-pdf")
+async def export_qcds_pdf_ep(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """QCDS 原価算定表を PDF で出力する。"""
+    from app.models.qcds import QCDS
+    project = await _get_project(project_id, db)
+    qcds = (await db.execute(
+        select(QCDS).options(selectinload(QCDS.direct_works))
+        .where(QCDS.project_id == project_id)
+        .order_by(QCDS.revision.desc())
+    )).scalars().first()
+    if qcds is None:
+        raise HTTPException(status_code=404, detail="QCDSデータがありません")
+    co = await _get_company(db)
+    data = pdf_export.generate_qcds_pdf(project, qcds, co)
+    filename = f"QCDS_{project.project_number}_{getattr(project,'project_name','')}.pdf".replace("/","_")
+    return _pdf_response(data, filename)

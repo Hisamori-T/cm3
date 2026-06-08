@@ -260,6 +260,30 @@ export default function AcknowledgmentPage() {
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(null), 4000); };
 
+  /** 注文書のデータをこの注文請書に反映する */
+  async function handleImportFromOrder() {
+    try {
+      const orders = await apiFetch<{
+        id: string; order_number: string | null; issue_date: string | null;
+        client_company: string | null; client_person: string | null; client_address: string | null;
+        construction_period_start: string | null; construction_period_end: string | null;
+        payment_condition: string | null; status: string;
+      }[]>(`/api/v1/projects/${projectId}/orders`);
+      const issuedOrders = orders.filter(o => o.status === "sent" || o.status === "signed");
+      const target = issuedOrders.length > 0 ? issuedOrders[issuedOrders.length - 1] : orders[orders.length - 1];
+      if (!target) { showMsg("注文書がありません"); return; }
+      if (!confirm(`「${target.order_number || "注文書"}」のデータを注文請書に反映しますか？`)) return;
+      if (target.issue_date) setIssueDate(target.issue_date);
+      if (target.client_company) setClientCompany(target.client_company);
+      if (target.client_person) setClientPerson(target.client_person);
+      if (target.client_address) setClientAddress(target.client_address);
+      if (target.construction_period_start) setPeriodStart(target.construction_period_start);
+      if (target.construction_period_end) setPeriodEnd(target.construction_period_end);
+      if (target.payment_condition) setPaymentCondition(target.payment_condition);
+      showMsg(`✓ 注文書「${target.order_number || "注文書"}」のデータを反映しました。保存ボタンで確定してください。`);
+    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
+  }
+
   async function handleSave() {
     if (!selected) return;
     setSaving(true);
@@ -467,6 +491,15 @@ export default function AcknowledgmentPage() {
                   >
                     <Download size={14} /> Excel
                   </button>
+                  {/* 注文書から取込 */}
+                  {!isIssued && (
+                    <button onClick={handleImportFromOrder}
+                      className="btn"
+                      style={{ display: "flex", alignItems: "center", gap: 5, background: "color-mix(in oklab, var(--c-success) 12%, var(--c-surface))", color: "var(--c-success)", border: "1px solid color-mix(in oklab, var(--c-success) 30%, var(--c-border))" }}
+                    >
+                      📋 注文書から取込
+                    </button>
+                  )}
                   {/* 保存 */}
                   {!isIssued && (
                     <button onClick={handleSave} disabled={saving}

@@ -375,27 +375,36 @@ export default function ProjectDetailPage() {
       ]}
       action={
         !isEditing ? (
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
+          <div style={{ display: "flex", gap: 8 }}>
+            {/* Excel出力 */}
+            <Button variant="default" size="sm" onClick={() => {
               const token = typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") : "";
               if (!token) return;
               const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-              fetch(`${base}/api/v1/projects/${id}/export`, {
-                headers: { Authorization: `Bearer ${token}` },
-              }).then((r) => r.blob()).then((blob) => {
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `工事台帳_${project?.project_number}.xlsx`;
-                a.click();
-                URL.revokeObjectURL(url);
-              });
-            }}
-          >
-            <Button variant="default" size="sm">Excel出力</Button>
-          </a>
+              fetch(`${base}/api/v1/projects/${id}/export`, { headers: { Authorization: `Bearer ${token}` } })
+                .then(r => r.blob()).then(blob => {
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `工事台帳_${project?.project_number}_${project?.project_name}_${project?.client_name ?? ""}.xlsx`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                });
+            }}>Excel出力</Button>
+            {/* PDF出力 */}
+            <Button variant="default" size="sm"
+              style={{ background: "#C00000", color: "#fff" }}
+              onClick={() => {
+                const token = typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") : "";
+                if (!token) return;
+                const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                fetch(`${base}/api/v1/projects/${id}/export-pdf`, { headers: { Authorization: `Bearer ${token}` } })
+                  .then(r => r.blob()).then(blob => {
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `工事台帳_${project?.project_number}_${project?.project_name}.pdf`;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  });
+              }}>PDF出力</Button>
+          </div>
         ) : undefined
       }
     >
