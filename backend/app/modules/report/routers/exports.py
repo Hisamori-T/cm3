@@ -581,3 +581,29 @@ async def export_qcds_pdf_ep(
     data = pdf_export.generate_qcds_pdf(project, qcds, co)
     filename = f"QCDS_{project.project_number}_{getattr(project,'project_name','')}.pdf".replace("/","_")
     return _pdf_response(data, filename)
+
+
+# ── Phase R-1: 支払通知書 PDF ──────────────────────────────────────────────
+
+@router.get("/projects/{project_id}/invoices/{invoice_id}/payment-notice-pdf")
+async def export_payment_notice_pdf(
+    project_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """支払通知書を PDF で出力する（元請フロー）。"""
+    from app.models.invoice import InvoiceDeduction
+    invoice = (await db.execute(
+        select(Invoice)
+        .options(selectinload(Invoice.deductions))
+        .where(Invoice.id == invoice_id, Invoice.project_id == project_id)
+    )).scalar_one_or_none()
+    if invoice is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="請求書が見つかりません")
+
+    project = await _get_project(project_id, db)
+    co = await _get_company(db)
+    data = pdf_export.generate_payment_notice_pdf(invoice, project, co)
+    filename = f"支払通知書_{invoice.invoice_number or invoice_id}.pdf"
+    return _pdf_response(data, filename)

@@ -45,6 +45,21 @@ export const PREV_CONSTRUCTION_LABEL: Record<PrevConstructionType, string> = {
   none: "なし",
 };
 
+// Phase R-1: 案件立場
+export type ProjectRole = "prime" | "sub" | "public";
+
+export const PROJECT_ROLE_LABEL: Record<ProjectRole, string> = {
+  prime: "元請",
+  sub: "下請",
+  public: "公共",
+};
+
+export const PROJECT_ROLE_COLOR: Record<ProjectRole, string> = {
+  prime: "#1d4ed8",
+  sub: "#ea580c",
+  public: "#16a34a",
+};
+
 export interface ProjectListItem {
   id: string;
   project_number: string;
@@ -53,6 +68,7 @@ export interface ProjectListItem {
   status: ProjectStatus;
   order_type: OrderType | null;
   contract_type: ContractType | null;
+  project_role: ProjectRole | null;
   project_price: number | null;
   sales_person_name: string | null;
   construction_person_name: string | null;
@@ -105,6 +121,7 @@ export interface ProjectDetail {
   construction_person_name: string | null;
   created_by: string;
   project_price: number | null;
+  project_role: ProjectRole | null;
   period_quote_start: string | null;
   period_quote_end: string | null;
   period_contract_start: string | null;

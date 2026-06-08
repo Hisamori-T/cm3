@@ -1,5 +1,36 @@
 export type InvoiceStatus = "draft" | "sent" | "paid" | "partially_paid" | "overdue" | "cancelled";
 export type BillingMethod = "direct_amount" | "percentage" | "item_selection";
+export type InvoicePhase = "advance" | "interim" | "partial" | "final" | "none";
+export type DeductionType = "safety_fee" | "materials_advance" | "parking_fee" | "statutory_welfare" | "other";
+
+export const DEDUCTION_LABEL: Record<DeductionType, string> = {
+  safety_fee: "安全協力会費",
+  materials_advance: "材料費立替",
+  parking_fee: "駐車場代",
+  statutory_welfare: "法定福利費",
+  other: "その他",
+};
+
+export interface InvoiceDeductionRead {
+  id: string;
+  invoice_id: string;
+  deduction_type: DeductionType;
+  description: string | null;
+  amount: number;
+  calculation_rate: number | null;
+  account_hint: string | null;
+  is_deleted: boolean;
+  row_no: number;
+  created_at: string;
+}
+
+export interface ProgressSummaryResponse {
+  contract_amount: number | null;
+  cumulative_billed: number;
+  current_purchase: number | null;
+  outstanding_contract: number | null;
+  progress_percent: number | null;
+}
 
 export const INVOICE_STATUS_LABEL: Record<InvoiceStatus, string> = {
   draft: "下書き",
@@ -61,6 +92,13 @@ export interface InvoiceRead {
   work_description: string | null;
   work_remarks: string | null;
   completion_date: string | null;
+  // Phase R-1
+  invoice_phase: InvoicePhase;
+  project_role_snapshot: string | null;
+  contract_amount_snapshot: number | null;
+  total_deduction_amount: number;
+  final_payable_amount: number;
+  deductions: InvoiceDeductionRead[];
   items: InvoiceItemRead[];
   payments: PaymentRead[];
   created_at: string;

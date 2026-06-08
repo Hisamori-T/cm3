@@ -10,12 +10,17 @@ import { Input } from "@/components/ui/input";
 import { fmtYen } from "@/lib/format";
 import {
   BILLING_METHOD_LABEL,
+  DEDUCTION_LABEL,
   INVOICE_STATUS_LABEL,
   BillingMethod,
+  DeductionType,
+  InvoiceDeductionRead,
   InvoiceRead,
   InvoiceStatus,
   PaymentRead,
+  ProgressSummaryResponse,
 } from "@/types/invoice";
+import type { ProjectDetail, ProjectRole } from "@/types/project";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 function getToken() { return typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") || "" : ""; }
@@ -83,6 +88,16 @@ export default function InvoiceDetailPage() {
   // 総額請求書の子（分割）一覧
   const [splitChildren, setSplitChildren] = useState<InvoiceRead[]>([]);
 
+  // Phase R-1: 案件立場・出来高・控除
+  const [projectRole, setProjectRole] = useState<ProjectRole | null>(null);
+  const [progressSummary, setProgressSummary] = useState<ProgressSummaryResponse | null>(null);
+  const [progressPercent, setProgressPercent] = useState("");
+  const [addDeductionType, setAddDeductionType] = useState<DeductionType>("safety_fee");
+  const [addDeductionMode, setAddDeductionMode] = useState<"rate" | "manual">("manual");
+  const [addDeductionRate, setAddDeductionRate] = useState("");
+  const [addDeductionAmt, setAddDeductionAmt] = useState("");
+  const [addingDeduction, setAddingDeduction] = useState(false);
+
   useEffect(() => { load(); }, [invoiceId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
@@ -113,6 +128,19 @@ export default function InvoiceDetailPage() {
         const all = await apiFetch<InvoiceRead[]>(`/api/v1/projects/${projectId}/invoices`);
         setSplitChildren(all.filter(i => i.parent_invoice_id === data.id).sort((a, b) => (a.split_sequence ?? 0) - (b.split_sequence ?? 0)));
       }
+      // Phase R-1: 案件立場取得
+      try {
+        const proj = await apiFetch<ProjectDetail>(`/api/v1/projects/${projectId}`);
+        setProjectRole(proj.project_role);
+        // 下請なら進捗サマリー取得
+        if (proj.project_role === "sub") {
+          const summary = await apiFetch<ProgressSummaryResponse>(`/api/v1/projects/${projectId}/invoices/progress-summary`);
+          setProgressSummary(summary);
+          if (summary.contract_amount && summary.contract_amount > 0 && data.current_purchase) {
+            setProgressPercent((data.current_purchase / summary.contract_amount * 100).toFixed(1));
+          }
+        }
+      } catch { /* 案件取得失敗は無視 */ }
     } catch {
       setMsg("読み込みに失敗しました");
     } finally {
@@ -121,6 +149,33 @@ export default function InvoiceDetailPage() {
   }
 
   const showMsg = (text: string) => { setMsg(text); setTimeout(() => setMsg(null), 3000); };
+
+  // Phase R-1: 控除追加
+  async function handleAddDeduction() {
+    setAddingDeduction(true);
+    try {
+      const body: Record<string, unknown> = { deduction_type: addDeductionType };
+      if (addDeductionMode === "rate" && addDeductionRate) {
+        body.calculation_rate = parseFloat(addDeductionRate) / 100;
+      } else if (addDeductionAmt) {
+        body.amount = parseInt(addDeductionAmt);
+      }
+      await apiFetch(`/api/v1/projects/${projectId}/invoices/${invoiceId}/deductions`, {
+        method: "POST", body: JSON.stringify(body),
+      });
+      setAddDeductionRate(""); setAddDeductionAmt("");
+      await load();
+    } catch { showMsg("控除追加に失敗しました"); }
+    finally { setAddingDeduction(false); }
+  }
+
+  async function handleRemoveDeduction(deductionId: string) {
+    if (!confirm("この控除項目を削除しますか？")) return;
+    try {
+      await apiFetch(`/api/v1/projects/${projectId}/invoices/${invoiceId}/deductions/${deductionId}`, { method: "DELETE" });
+      await load();
+    } catch { showMsg("削除に失敗しました"); }
+  }
 
   async function handleSave() {
     setSaving(true);
@@ -865,6 +920,148 @@ export default function InvoiceDetailPage() {
               </table>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Phase R-1: 出来高セクション（下請フロー） */}
+      {projectRole === "sub" && !loading && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-head"><div className="card-title">出来高（下請請求）</div></div>
+          <div style={{ display: "grid", gridTemplateColumns: "160px 1fr", gap: 0 }}>
+            {[
+              ["契約金額（税抜）", progressSummary?.contract_amount != null ? fmt(progressSummary.contract_amount) : "—"],
+              ["前回累計請求額", fmt(progressSummary?.cumulative_billed ?? 0)],
+              ["請求残高（税抜）", progressSummary?.outstanding_contract != null ? fmt(progressSummary.outstanding_contract) : "—"],
+            ].map(([label, val], i) => (
+              <div key={i} style={{ display: "contents" }}>
+                <div style={{ padding: "8px 12px", fontSize: 12, background: "var(--c-surface-2)", borderBottom: "1px solid var(--c-border)" }}>{label}</div>
+                <div style={{ padding: "8px 12px", fontSize: 13, fontWeight: 600, borderBottom: "1px solid var(--c-border)" }}>{val}</div>
+              </div>
+            ))}
+            <div style={{ padding: "8px 12px", fontSize: 12, background: "var(--c-surface-2)" }}>今回出来高</div>
+            <div style={{ padding: "8px 12px", display: "flex", gap: 8, alignItems: "center" }}>
+              <input
+                type="number" step="0.1" value={progressPercent}
+                onChange={e => {
+                  setProgressPercent(e.target.value);
+                  const pct = parseFloat(e.target.value);
+                  const contract = progressSummary?.contract_amount ?? 0;
+                  if (!isNaN(pct) && contract > 0) setCurrentPurchase(String(Math.round(contract * pct / 100)));
+                }}
+                style={{ width: 70, border: "1px solid var(--c-border)", borderRadius: 4, padding: "2px 6px" }}
+              /> %
+              <span style={{ color: "var(--c-text-muted)" }}>⟺</span>
+              <input
+                type="number" value={currentPurchase}
+                onChange={e => {
+                  setCurrentPurchase(e.target.value);
+                  const contract = progressSummary?.contract_amount ?? 0;
+                  const amt = parseInt(e.target.value) || 0;
+                  if (contract > 0) setProgressPercent((amt / contract * 100).toFixed(1));
+                }}
+                style={{ width: 120, border: "1px solid var(--c-border)", borderRadius: 4, padding: "2px 6px" }}
+              /> 円
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Phase R-1: 控除セクション（元請フロー） */}
+      {projectRole === "prime" && !loading && inv && (
+        <div className="card" style={{ marginTop: 16 }}>
+          <div className="card-head">
+            <div className="card-title">控除項目（天引き）</div>
+          </div>
+          <div style={{ padding: "12px 16px" }}>
+            {/* 控除一覧 */}
+            {(inv.deductions || []).length > 0 && (
+              <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 12, fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: "var(--c-surface-2)" }}>
+                    <th style={{ padding: "6px 8px", textAlign: "left", fontWeight: 600 }}>種別</th>
+                    <th style={{ padding: "6px 8px", textAlign: "right", fontWeight: 600 }}>控除額</th>
+                    <th style={{ width: 36 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {inv.deductions.map((d: InvoiceDeductionRead) => (
+                    <tr key={d.id} style={{ borderTop: "1px solid var(--c-border)" }}>
+                      <td style={{ padding: "6px 8px" }}>
+                        {d.description || DEDUCTION_LABEL[d.deduction_type]}
+                        {d.calculation_rate && <small style={{ color: "var(--c-text-muted)", marginLeft: 6 }}>({(d.calculation_rate * 100).toFixed(1)}%)</small>}
+                      </td>
+                      <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)" }}>{fmt(d.amount)}</td>
+                      <td style={{ padding: "0 8px" }}>
+                        {inv.status === "draft" && (
+                          <button onClick={() => handleRemoveDeduction(d.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--c-danger)" }}>✕</button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  <tr style={{ borderTop: "2px solid var(--c-border)", background: "var(--c-surface-2)" }}>
+                    <td style={{ padding: "6px 8px", fontWeight: 600 }}>控除合計</td>
+                    <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", fontWeight: 600 }}>{fmt(inv.total_deduction_amount)}</td>
+                    <td></td>
+                  </tr>
+                  <tr style={{ background: "var(--c-primary)", color: "#fff" }}>
+                    <td style={{ padding: "8px 8px", fontWeight: 700, fontSize: 14 }}>当月支払決定額</td>
+                    <td style={{ padding: "8px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", fontWeight: 700, fontSize: 14 }}>{fmt(inv.final_payable_amount)}</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            )}
+            {/* 控除追加フォーム（draft のみ） */}
+            {inv.status === "draft" && (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <select value={addDeductionType} onChange={e => setAddDeductionType(e.target.value as DeductionType)}
+                  style={{ border: "1px solid var(--c-border)", borderRadius: 4, padding: "4px 8px", fontSize: 12 }}>
+                  {(Object.entries(DEDUCTION_LABEL) as [DeductionType, string][]).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+                <select value={addDeductionMode} onChange={e => setAddDeductionMode(e.target.value as "rate" | "manual")}
+                  style={{ border: "1px solid var(--c-border)", borderRadius: 4, padding: "4px 8px", fontSize: 12 }}>
+                  <option value="manual">手動</option>
+                  <option value="rate">率（%）</option>
+                </select>
+                {addDeductionMode === "rate" ? (
+                  <input type="number" step="0.01" placeholder="例: 0.5" value={addDeductionRate}
+                    onChange={e => setAddDeductionRate(e.target.value)}
+                    style={{ width: 80, border: "1px solid var(--c-border)", borderRadius: 4, padding: "4px 8px", fontSize: 12 }} />
+                ) : (
+                  <input type="number" placeholder="金額（円）" value={addDeductionAmt}
+                    onChange={e => setAddDeductionAmt(e.target.value)}
+                    style={{ width: 120, border: "1px solid var(--c-border)", borderRadius: 4, padding: "4px 8px", fontSize: 12 }} />
+                )}
+                <button onClick={handleAddDeduction} disabled={addingDeduction}
+                  style={{ padding: "4px 14px", borderRadius: 4, background: "var(--c-primary)", color: "#fff", border: "none", cursor: "pointer", fontSize: 12 }}>
+                  {addingDeduction ? "追加中..." : "追加"}
+                </button>
+              </div>
+            )}
+            {/* 支払通知書 PDF ボタン */}
+            {(inv.deductions || []).length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  onClick={async () => {
+                    const r = await fetch(`${API_URL}/api/v1/projects/${projectId}/invoices/${invoiceId}/payment-notice-pdf`, {
+                      headers: { Authorization: `Bearer ${getToken()}` },
+                    });
+                    if (!r.ok) { showMsg("PDF生成エラー"); return; }
+                    const blob = await r.blob();
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `支払通知書_${inv.invoice_number || invoiceId}.pdf`;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                  }}
+                  style={{ padding: "6px 16px", borderRadius: 4, background: "#1d4ed8", color: "#fff", border: "none", cursor: "pointer", fontSize: 13 }}
+                >
+                  支払通知書 PDF
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </AppShell>

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 from app.models.base import TimestampMixin
-from app.models.enums import BillingMethod, InvoiceStatus
+from app.models.enums import BillingMethod, DeductionType, InvoicePhase, InvoiceStatus, ProjectRole
 
 if TYPE_CHECKING:
     from app.models.project import Project
@@ -59,6 +59,14 @@ class Invoice(Base, TimestampMixin):
     parent_invoice_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="SET NULL"), nullable=True
     )
+    # Phase R-1: 出来高・控除・支払通知書
+    invoice_phase: Mapped[InvoicePhase] = mapped_column(
+        SAEnum(InvoicePhase, name="invoicephase"), nullable=False, default=InvoicePhase.none
+    )
+    project_role_snapshot: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    contract_amount_snapshot: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
+    total_deduction_amount: Mapped[float] = mapped_column(Numeric(12, 0), nullable=False, default=0)
+    final_payable_amount: Mapped[float] = mapped_column(Numeric(12, 0), nullable=False, default=0)
 
     # relationships
     project: Mapped["Project"] = relationship("Project", back_populates="invoices")
@@ -76,6 +84,35 @@ class Invoice(Base, TimestampMixin):
     parent: Mapped["Invoice | None"] = relationship(
         "Invoice", foreign_keys=[parent_invoice_id], back_populates="children", remote_side="Invoice.id"
     )
+    deductions: Mapped[list["InvoiceDeduction"]] = relationship(
+        "InvoiceDeduction",
+        back_populates="invoice",
+        primaryjoin="and_(InvoiceDeduction.invoice_id == Invoice.id, InvoiceDeduction.is_deleted == False)",  # noqa: E712
+        order_by="InvoiceDeduction.row_no",
+    )
+
+
+class InvoiceDeduction(Base, TimestampMixin):
+    """請求書控除項目（元請→下請 支払通知書用）。"""
+
+    __tablename__ = "invoice_deductions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False
+    )
+    deduction_type: Mapped[DeductionType] = mapped_column(
+        SAEnum(DeductionType, name="deductiontype"), nullable=False
+    )
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    amount: Mapped[float] = mapped_column(Numeric(12, 0), nullable=False)
+    calculation_rate: Mapped[float | None] = mapped_column(Numeric(8, 4), nullable=True)
+    account_hint: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    is_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    row_no: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+    # relationships
+    invoice: Mapped["Invoice"] = relationship("Invoice", back_populates="deductions", foreign_keys=[invoice_id])
 
 
 class InvoiceItem(Base):

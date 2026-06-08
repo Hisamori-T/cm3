@@ -24,6 +24,7 @@ from app.models.enums import (
     ContractType,
     OrderType,
     PrevConstructionType,
+    ProjectRole,
     ProjectStatus,
 )
 
@@ -111,6 +112,9 @@ class Project(Base, TimestampMixin):
 
     # 金額・ステータス
     project_price: Mapped[float | None] = mapped_column(Numeric(12, 0), nullable=True)
+    project_role: Mapped[ProjectRole | None] = mapped_column(
+        SAEnum(ProjectRole, name="projectrole"), nullable=True, default=None
+    )
     status: Mapped[ProjectStatus] = mapped_column(
         SAEnum(ProjectStatus, name="projectstatus"),
         nullable=False,

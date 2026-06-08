@@ -7,7 +7,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.enums import BillingMethod, InvoiceStatus
+from app.models.enums import BillingMethod, DeductionType, InvoicePhase, InvoiceStatus
 
 
 class InvoiceItemCreate(BaseModel):
@@ -86,6 +86,51 @@ class PaymentRead(BaseModel):
 # Invoice Read
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# 控除スキーマ（Phase R-1）
+# ---------------------------------------------------------------------------
+
+class InvoiceDeductionCreate(BaseModel):
+    """控除項目 追加リクエスト。"""
+    deduction_type: DeductionType
+    description: str | None = None
+    amount: float | None = None
+    calculation_rate: float | None = None
+    row_no: int | None = None
+
+
+class InvoiceDeductionUpdate(BaseModel):
+    """控除項目 更新リクエスト。"""
+    description: str | None = None
+    amount: float | None = None
+    calculation_rate: float | None = None
+    row_no: int | None = None
+
+
+class InvoiceDeductionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    invoice_id: uuid.UUID
+    deduction_type: DeductionType
+    description: str | None
+    amount: float
+    calculation_rate: float | None
+    account_hint: str | None
+    is_deleted: bool
+    row_no: int
+    created_at: datetime
+
+
+class ProgressSummaryResponse(BaseModel):
+    """案件の出来高進捗サマリー。"""
+    contract_amount: float | None
+    cumulative_billed: float
+    current_purchase: float | None
+    outstanding_contract: float | None
+    progress_percent: float | None
+
+
 class InvoiceRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -113,6 +158,13 @@ class InvoiceRead(BaseModel):
     work_description: str | None = None
     work_remarks: str | None = None
     completion_date: date | None = None
+    # Phase R-1 追加フィールド
+    invoice_phase: InvoicePhase = InvoicePhase.none
+    project_role_snapshot: str | None = None
+    contract_amount_snapshot: float | None = None
+    total_deduction_amount: float = 0
+    final_payable_amount: float = 0
+    deductions: list[InvoiceDeductionRead] = []
     items: list[InvoiceItemRead]
     payments: list[PaymentRead]
     created_at: datetime

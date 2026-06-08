@@ -193,3 +193,30 @@ class PaymentMethod(str, enum.Enum):
     bank_transfer = "bank_transfer"
     promissory_note = "promissory_note"
     cash = "cash"
+
+
+# ── Phase R-1: 出来高・控除・支払通知書 ─────────────────────────────────────
+
+class ProjectRole(str, enum.Enum):
+    """案件の立場（元請/下請/公共）。"""
+    prime = "prime"    # 元請
+    sub = "sub"        # 下請
+    public = "public"  # 公共
+
+
+class InvoicePhase(str, enum.Enum):
+    """出来高請求フェーズ（下請フロー用）。"""
+    advance = "advance"  # 前払
+    interim = "interim"  # 中間
+    partial = "partial"  # 部分
+    final = "final"      # 完了・最終
+    none = "none"        # 未指定
+
+
+class DeductionType(str, enum.Enum):
+    """控除種別（元請→下請 支払通知書用）。"""
+    safety_fee = "safety_fee"               # 安全協力会費
+    materials_advance = "materials_advance"  # 材料費立替
+    parking_fee = "parking_fee"             # 駐車場代
+    statutory_welfare = "statutory_welfare"  # 法定福利費
+    other = "other"                         # その他

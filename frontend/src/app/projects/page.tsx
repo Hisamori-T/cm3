@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
-import type { ProjectListItem, ProjectListResponse, ProjectStatus } from "@/types/project";
-import { PROJECT_STATUS_LABEL } from "@/types/project";
+import type { ProjectListItem, ProjectListResponse, ProjectRole, ProjectStatus } from "@/types/project";
+import { PROJECT_ROLE_COLOR, PROJECT_ROLE_LABEL, PROJECT_STATUS_LABEL } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { CreateProjectModal } from "@/components/projects/create-project-modal";
 import { fmtYen } from "@/lib/format";
@@ -135,6 +135,7 @@ export default function ProjectsPage() {
   const perPage = 20;
 
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | "">("");
+  const [filterRole, setFilterRole] = useState<ProjectRole | "">("");
   const [searchQ, setSearchQ] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -146,7 +147,7 @@ export default function ProjectsPage() {
 
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const fetchProjects = useCallback(async (p: number, status: string, q: string) => {
+  const fetchProjects = useCallback(async (p: number, status: string, q: string, role: string) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -154,6 +155,7 @@ export default function ProjectsPage() {
       params.set("per_page", String(perPage));
       if (status) params.set("status", status);
       if (q) params.set("q", q);
+      if (role) params.set("role", role);
       const data = await apiFetch<ProjectListResponse>(`/api/v1/projects?${params}`);
       setProjects(data.items);
       setTotal(data.total);
@@ -164,7 +166,7 @@ export default function ProjectsPage() {
     }
   }, []);
 
-  useEffect(() => { fetchProjects(page, filterStatus, searchQ); }, [page, filterStatus, searchQ, fetchProjects]);
+  useEffect(() => { fetchProjects(page, filterStatus, searchQ, filterRole); }, [page, filterStatus, filterRole, searchQ, fetchProjects]);
 
   const handleSearchChange = (v: string) => {
     setSearchInput(v);
@@ -371,11 +373,12 @@ export default function ProjectsPage() {
           </button>
         ))}
         <span className="spacer" />
-        {(filterStatus || searchQ) && (
+        {(filterStatus || filterRole || searchQ) && (
           <button
             className="btn btn-ghost btn-sm"
             onClick={() => {
               setFilterStatus("");
+              setFilterRole("");
               setSearchQ("");
               setSearchInput("");
               setPage(1);
@@ -384,6 +387,25 @@ export default function ProjectsPage() {
             フィルタクリア
           </button>
         )}
+      </div>
+
+      {/* 立場絞り込みタブ */}
+      <div style={{ display: "flex", gap: 6, padding: "0 0 8px" }}>
+        {([["", "すべて"], ["prime", "元請"], ["sub", "下請"], ["public", "公共"]] as [string, string][]).map(([val, label]) => (
+          <button
+            key={val}
+            onClick={() => { setFilterRole(val as ProjectRole | ""); setPage(1); }}
+            style={{
+              padding: "3px 12px", fontSize: 12, borderRadius: 20, cursor: "pointer",
+              border: `1px solid ${val && filterRole === val ? PROJECT_ROLE_COLOR[val as ProjectRole] : "var(--c-border)"}`,
+              background: filterRole === val && val ? `color-mix(in oklab, ${PROJECT_ROLE_COLOR[val as ProjectRole]} 12%, var(--c-surface))` : "var(--c-surface)",
+              color: filterRole === val && val ? PROJECT_ROLE_COLOR[val as ProjectRole] : "var(--c-text-muted)",
+              fontWeight: filterRole === val ? 700 : 400,
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Table */}
@@ -402,6 +424,7 @@ export default function ProjectsPage() {
                 </th>
                 <th style={{ width: 106 }}>工事番号</th>
                 <th>工事名 / 発注者</th>
+                <th style={{ width: 56 }}>立場</th>
                 <th style={{ width: 110 }}>ステータス</th>
                 <th className="num" style={{ width: 120 }}>受注額</th>
                 <th style={{ width: 120 }}>担当</th>
@@ -411,13 +434,13 @@ export default function ProjectsPage() {
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: "var(--c-text-muted)" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "40px 0", color: "var(--c-text-muted)" }}>
                     読み込み中...
                   </td>
                 </tr>
               ) : projects.length === 0 ? (
                 <tr>
-                  <td colSpan={7} style={{ textAlign: "center", padding: "40px 0", color: "var(--c-text-muted)" }}>
+                  <td colSpan={8} style={{ textAlign: "center", padding: "40px 0", color: "var(--c-text-muted)" }}>
                     案件がありません
                   </td>
                 </tr>
@@ -445,6 +468,20 @@ export default function ProjectsPage() {
                         {p.project_name}
                         {p.client_name && <small>{p.client_name}</small>}
                       </div>
+                    </td>
+                    <td>
+                      {p.project_role ? (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 20,
+                          background: `color-mix(in oklab, ${PROJECT_ROLE_COLOR[p.project_role]} 12%, var(--c-surface))`,
+                          color: PROJECT_ROLE_COLOR[p.project_role],
+                          border: `1px solid color-mix(in oklab, ${PROJECT_ROLE_COLOR[p.project_role]} 30%, var(--c-border))`,
+                        }}>
+                          {PROJECT_ROLE_LABEL[p.project_role]}
+                        </span>
+                      ) : (
+                        <span style={{ color: "var(--c-text-muted)", fontSize: 11 }}>—</span>
+                      )}
                     </td>
                     <td>
                       <span className={`badge ${STATUS_CLASS[p.status]}`}>

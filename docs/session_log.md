@@ -4837,6 +4837,58 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
+## Session 2026-06-08（続き）— スクショ再開 + アーキテクチャルール準拠チェック
+
+### 作業内容（予定）
+- スクショで中断された `pdf_export.py` の `_terms_html` 修正が完了済みか確認
+- 設計書 10.11〜10.14（R-1 フェーズ: 請求書控除・案件立場・支払通知書PDF）のアーキテクチャルール違反チェック
+  - 不正なクロスインポート（Rule 1）
+  - 変更の局所性（Rule 2）
+  - UI とロジックの分離
+  - Shared の利用状況
+
+### 作業結果
+
+**① スクショ作業（_terms_html fix）の完了確認と残修正**
+- `_terms_html()` 関数は `pdf_export.py` line 1214 に追加済み（前セッションで完了）
+- ただし `_render_acknowledgment_html` / `_render_order_html` の f-string 内が依然 `{_ORDER_TERMS_HTML}` を直展開していた（未修正）
+- 修正: 各関数内で `terms_html = _terms_html(getattr(doc/ack, "terms_and_conditions", None))` を取得し `{terms_html}` に置換
+- `{_ORDER_TERMS_HTML}` の直接参照が 0 件になったことを grep で確認
+
+**② アーキテクチャルール準拠チェック（設計書 10.11〜10.14）**
+
+| チェック項目 | 結果 | 詳細 |
+|---|---|---|
+| Rule 1: クロスインポート禁止 | ✅ PASS | `deduction_service.py` は同ドメイン・shim・shared のみ参照 |
+| Rule 2: 局所的変更 | ✅ PASS | R-1a〜R-1d に分割済み。別コミット指示あり |
+| Rule 3: UI一斉置換禁止 | ✅ PASS | 新規コンポーネント追加のみ |
+| Shared 利用 | ✅ PASS | `DEDUCTION_LABEL_JA` → `shared/constants/deduction.py` |
+| 権限チェック | 🟡 要修正 → **修正済み** | R-1b が旧単一ロール `current_user.role == UserRole.admin` を使用。`can_edit_project()` に変更（roles[] 複数ロール対応） |
+
+**設計書修正箇所:**
+- `10.11 R-1b`: `from app.shared.services.permissions import can_edit_project` を追加し、権限チェックを `can_edit_project(current_user, project)` に置換
+
+### 変更ファイル
+- `backend/app/modules/report/services/pdf_export.py` — `_render_acknowledgment_html` / `_render_order_html` の `{_ORDER_TERMS_HTML}` → `{terms_html}` 置換
+- `docs/specs/設計書_06_機能拡張仕様_2026-06.md` — 10.11 R-1b の権限チェックを `can_edit_project()` に修正
+
+### 次のアクション
+- `pdf_export.py` 修正を VPS に反映（`docker cp` → `cmv3-api restart`）
+- R-1 実装開始の承認をひさんに確認（実装前確認事項: 下請業者名フィールド・支払方法フィールドの要否）
+
+---
+
+## Session 2026-06-08（続き）— VPS 反映 + Phase R-1 全実装（10.1〜10.14）
+
+### 作業内容（予定）
+1. VPS に `pdf_export.py`（`_terms_html` 完全修正版）を反映
+2. R-1a: `shared/constants/deduction.py` + モデル差分（`InvoiceDeduction` / `Invoice` 新カラム / `ProjectRole` Enum） + Alembic マイグレーション + スキーマ
+3. R-1b: `modules/project/router.py` に `PATCH /projects/{id}/role` 追加（別コミット）
+4. R-1c: `modules/report/services/deduction_service.py` + `modules/report/routers/invoices.py` 控除CRUD + progress-summary + スナップショット転記 + 支払通知書 PDF エンドポイント（別コミット）
+5. R-1d: フロントエンド — `ProjectRole` バッジ・絞り込み / 出来高セクション / 控除セクション / 支払通知書 PDF ボタン（別コミット）
+6. VPS デプロイ（全フェーズ完了後）
+
+### 作業結果
 
 
 

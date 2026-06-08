@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.enums import EditHistoryChangeType, ProjectStatus, UserRole
+from app.shared.services.permissions import can_edit_project
 from app.models.acknowledgment import Acknowledgment
 from app.models.invoice import Invoice
 from app.models.order import Order
@@ -34,6 +35,7 @@ from app.schemas.project import (
     ProjectDetail,
     ProjectListItem,
     ProjectListResponse,
+    ProjectRoleUpdate,
     ProjectUpdate,
     StatusChangeRequest,
 )
@@ -392,6 +394,35 @@ async def change_status(
     except Exception:
         pass
 
+    return await get_project(project_id=project_id, db=db, current_user=current_user)
+
+
+@router.patch("/{project_id}/role", response_model=ProjectDetail)
+async def update_project_role(
+    project_id: uuid.UUID,
+    body: ProjectRoleUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProjectDetail:
+    """案件の立場（元請/下請/公共）を変更する。admin または作成者本人のみ。"""
+    project = (await db.execute(
+        select(Project).where(Project.id == project_id, Project.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if project is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
+
+    if not can_edit_project(current_user, project):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="編集権限がありません")
+
+    old_role = str(project.project_role) if project.project_role else None
+    project.project_role = body.project_role
+    await record_history(
+        db, entity_type="project", entity_id=project.id,
+        change_type=EditHistoryChangeType.update,
+        field_changes={"project_role": {"before": old_role, "after": body.project_role.value}},
+        user_id=current_user.id,
+    )
+    await db.commit()
     return await get_project(project_id=project_id, db=db, current_user=current_user)
 
 

@@ -13,17 +13,27 @@ from sqlalchemy.orm import selectinload
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.models.enums import InvoiceStatus, ProjectStatus
-from app.models.invoice import Invoice, InvoiceItem, Payment
+from app.models.invoice import Invoice, InvoiceDeduction, InvoiceItem, Payment
 from app.models.project import Project
 from app.models.user import User
+from app.modules.report.services.deduction_service import (
+    add_deduction,
+    get_progress_summary,
+    remove_deduction,
+    update_deduction,
+)
 from app.schemas.invoice import (
     InvoiceCreate,
+    InvoiceDeductionCreate,
+    InvoiceDeductionRead,
+    InvoiceDeductionUpdate,
     InvoiceRead,
     InvoiceSummary,
     InvoiceUpdate,
     InvoiceItemRead,
     PaymentCreate,
     PaymentRead,
+    ProgressSummaryResponse,
 )
 
 router = APIRouter(tags=["invoices"])
@@ -56,6 +66,27 @@ def _to_read(inv: Invoice) -> InvoiceRead:
         work_description=inv.work_description,
         work_remarks=inv.work_remarks,
         completion_date=inv.completion_date,
+        # Phase R-1 フィールド
+        invoice_phase=inv.invoice_phase,
+        project_role_snapshot=inv.project_role_snapshot,
+        contract_amount_snapshot=float(inv.contract_amount_snapshot) if inv.contract_amount_snapshot is not None else None,
+        total_deduction_amount=float(inv.total_deduction_amount or 0),
+        final_payable_amount=float(inv.final_payable_amount or 0),
+        deductions=[
+            InvoiceDeductionRead(
+                id=d.id,
+                invoice_id=d.invoice_id,
+                deduction_type=d.deduction_type,
+                description=d.description,
+                amount=float(d.amount),
+                calculation_rate=float(d.calculation_rate) if d.calculation_rate is not None else None,
+                account_hint=d.account_hint,
+                is_deleted=d.is_deleted,
+                row_no=d.row_no,
+                created_at=d.created_at,
+            )
+            for d in (inv.deductions if hasattr(inv, "deductions") else [])
+        ],
         items=[
             InvoiceItemRead(
                 id=i.id, row_no=i.row_no, item_name=i.item_name,
@@ -95,6 +126,7 @@ def _load_options():
     return (
         selectinload(Invoice.items),
         selectinload(Invoice.payments),
+        selectinload(Invoice.deductions),
     )
 
 
@@ -215,6 +247,13 @@ async def update_invoice(
         val = getattr(body, field, None)
         if val is not None:
             setattr(inv, field, val)
+
+    # Phase R-1: draft → sent/paid 時に project_role/contract_amount をスナップショット転記
+    if body.status in (InvoiceStatus.sent, InvoiceStatus.paid) and inv.status == InvoiceStatus.draft:
+        project = (await db.execute(select(Project).where(Project.id == project_id))).scalar_one_or_none()
+        if project:
+            inv.project_role_snapshot = str(project.project_role.value) if project.project_role else None
+            inv.contract_amount_snapshot = float(project.project_price or 0) or None
 
     # 追記行（items）の金額合計を計算して total_amount に反映
     extra_amount = sum(float(item.amount or 0) for item in (body.items or []))
@@ -598,3 +637,67 @@ async def get_invoice_summary(
         outstanding=float(row["outstanding"]),
         latest_due_date=row["latest_due_date"],
     )
+
+
+# ---------------------------------------------------------------------------
+# Phase R-1: 出来高サマリー・控除 CRUD
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/projects/{project_id}/invoices/progress-summary",
+    response_model=ProgressSummaryResponse,
+)
+async def invoice_progress_summary(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ProgressSummaryResponse:
+    """案件の出来高進捗サマリーを返す（累計請求額・残高を動的計算）。"""
+    return await get_progress_summary(project_id, db)
+
+
+@router.post(
+    "/projects/{project_id}/invoices/{invoice_id}/deductions",
+    response_model=InvoiceDeductionRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_invoice_deduction(
+    project_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    body: InvoiceDeductionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> InvoiceDeductionRead:
+    """控除項目を追加する。invoice が draft 状態のみ許可。"""
+    return await add_deduction(project_id, invoice_id, body, db, current_user.id)
+
+
+@router.patch(
+    "/projects/{project_id}/invoices/{invoice_id}/deductions/{deduction_id}",
+    response_model=InvoiceDeductionRead,
+)
+async def update_invoice_deduction(
+    project_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    deduction_id: uuid.UUID,
+    body: InvoiceDeductionUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> InvoiceDeductionRead:
+    """控除項目を更新する。invoice が draft 状態のみ許可。"""
+    return await update_deduction(project_id, invoice_id, deduction_id, body, db, current_user.id)
+
+
+@router.delete(
+    "/projects/{project_id}/invoices/{invoice_id}/deductions/{deduction_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_invoice_deduction(
+    project_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    deduction_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """控除項目を論理削除する（is_deleted = True）。draft のみ許可。"""
+    await remove_deduction(project_id, invoice_id, deduction_id, db, current_user.id)

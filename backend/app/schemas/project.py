@@ -11,6 +11,7 @@ from app.models.enums import (
     ContractType,
     OrderType,
     PrevConstructionType,
+    ProjectRole,
     ProjectStatus,
 )
 
@@ -30,6 +31,11 @@ class ProjectCreate(BaseModel):
     project_price: float | None = None
     period_quote_start: date | None = None
     period_quote_end: date | None = None
+
+
+class ProjectRoleUpdate(BaseModel):
+    """案件立場（元請/下請/公共）変更リクエスト。"""
+    project_role: ProjectRole
 
 
 class ProjectUpdate(BaseModel):
@@ -62,6 +68,7 @@ class ProjectUpdate(BaseModel):
     period_contract_end: date | None = None
     period_actual_start: date | None = None
     period_actual_end: date | None = None
+    project_role: ProjectRole | None = None
 
 
 class ProjectListItem(BaseModel):
@@ -74,6 +81,7 @@ class ProjectListItem(BaseModel):
     status: ProjectStatus
     order_type: OrderType | None
     contract_type: ContractType | None
+    project_role: ProjectRole | None = None
     project_price: float | None
     sales_person_name: str | None
     construction_person_name: str | None
@@ -155,6 +163,7 @@ class ProjectDetail(BaseModel):
     construction_person_name: str | None
     created_by: uuid.UUID
     project_price: float | None
+    project_role: ProjectRole | None = None
     period_quote_start: date | None
     period_quote_end: date | None
     period_contract_start: date | None

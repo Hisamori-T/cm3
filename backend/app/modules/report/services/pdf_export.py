@@ -1211,7 +1211,17 @@ def _render_purchase_order_html(order: Any, project: Any, co: CompanyInfo) -> st
 
 # ── 注文書 / 注文請書 PDF ─────────────────────────────────────────────────────
 
-# 基本契約約款（サンプルHTMLに準拠）
+def _terms_html(terms_and_conditions: str | None) -> str:
+    """DB に保存された約款テキスト（改行区切り）を HTML に変換する。
+    未設定の場合はデフォルトの標準約款 HTML を返す。
+    """
+    if terms_and_conditions and terms_and_conditions.strip():
+        lines = [l.strip() for l in terms_and_conditions.strip().splitlines() if l.strip()]
+        return "\n".join(f'<div class="term-item">{_h(line)}</div>' for line in lines)
+    return _ORDER_TERMS_HTML
+
+
+# 基本契約約款（デフォルト：DB に terms_and_conditions が未設定の場合のフォールバック）
 _ORDER_TERMS_HTML = """
 <div class="term-item">第1条（総則）注文者（以下「甲」という。）と請負者（以下「乙」という。）は、注文書及び注文請書に定めるもののほか、この約款に基づき、図面、仕様書並びに、監督員または甲の現場員の指示に従い、おのおの対等の立場に立って誠実に履行する。</div>
 <div class="term-item">第2条（条件変更等）工事内容及び請負代金の変更、若しくはそれによる工期の変更が必要なときは、甲乙協議して決定する。</div>
@@ -1386,6 +1396,7 @@ def _render_acknowledgment_html(ack: Any, project: Any, co: CompanyInfo) -> str:
     own_address = _h(co.address or "福井県坂井市三国町錦3丁目4-2")
     own_name = _h(co.name or "株式会社クラップ")
     own_rep = _h(co.representative or "奴間 正人")
+    terms_html = _terms_html(getattr(ack, "terms_and_conditions", None))
 
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -1490,7 +1501,7 @@ def _render_acknowledgment_html(ack: Any, project: Any, co: CompanyInfo) -> str:
     </div>
     <div class="terms-area">
       <div class="terms-title">◆基本契約約款◆</div>
-      {_ORDER_TERMS_HTML}
+      {terms_html}
     </div>
   </div>
 </div>
@@ -1542,6 +1553,7 @@ def _render_order_html(doc: Any, project: Any, co: CompanyInfo, is_acknowledgmen
 
     # 弊社名（宛先・固定）
     own_company = _h(co.name) if co.name else "株式会社 クラップ"
+    terms_html = _terms_html(getattr(doc, "terms_and_conditions", None))
 
     return f"""<!DOCTYPE html>
 <html lang="ja">
@@ -1640,13 +1652,120 @@ def _render_order_html(doc: Any, project: Any, co: CompanyInfo, is_acknowledgmen
     </div>
     <div class="terms-area">
       <div class="terms-title">◆基本契約約款◆</div>
-      {_ORDER_TERMS_HTML}
+      {terms_html}
     </div>
   </div>
 </div>
 
 </body>
 </html>"""
+
+
+# ── Phase R-1: 支払通知書 PDF ────────────────────────────────────────────────
+
+_PAYMENT_NOTICE_CSS = """
+* { box-sizing: border-box; margin: 0; padding: 0; }
+@page { size: A4 portrait; margin: 15mm 18mm; }
+body { font-family: 'Noto Serif CJK JP','Noto Sans CJK JP',serif; font-size: 10pt; color: #000; }
+.pn-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4mm; }
+.pn-logo img { height: 26pt; }
+.pn-meta { font-size: 8.5pt; text-align: right; line-height: 1.6; }
+.pn-title { text-align: center; font-size: 20pt; font-weight: bold; letter-spacing: 12px; margin: 5mm 0 8mm; }
+.pn-recipient { font-size: 13pt; font-weight: bold; border-bottom: 1pt solid #000; padding-bottom: 2mm; margin-bottom: 3mm; }
+.pn-greeting { font-size: 9pt; color: #444; margin-bottom: 6mm; }
+table.pn-info { width: 100%; border-collapse: collapse; margin-bottom: 6mm; font-size: 9.5pt; }
+table.pn-info td { padding: 4pt 6pt; border: 0.7pt solid #888; }
+table.pn-info .lbl { background: #f0f4fa; font-weight: bold; width: 32%; }
+table.pn-deduct { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+table.pn-deduct th { background: #e8edf5; border: 0.7pt solid #888; padding: 4pt 6pt; text-align: center; font-weight: 600; }
+table.pn-deduct td { border: 0.7pt solid #bbb; padding: 3pt 6pt; }
+table.pn-deduct .right { text-align: right; font-family: monospace; }
+.subtotal-row td { background: #f0f4fa; font-weight: bold; }
+.total-row td { background: #1F4E79; color: #fff; font-weight: bold; font-size: 11pt; }
+.pn-footer { margin-top: 10mm; font-size: 9pt; color: #555; }
+.pn-signature { text-align: right; margin-top: 6mm; font-size: 9pt; }
+"""
+
+
+def generate_payment_notice_pdf(invoice: Any, project: Any, company: CompanyInfo) -> bytes:
+    """支払通知書 PDF を生成する（元請→下請 向け）。"""
+    import weasyprint
+    html_str = _render_payment_notice_html(invoice, project, company)
+    return weasyprint.HTML(string=html_str).write_pdf()
+
+
+def _render_payment_notice_html(invoice: Any, project: Any, co: CompanyInfo) -> str:
+    from app.shared.constants.deduction import DEDUCTION_LABEL_JA
+
+    logo_url = _logo_data_url()
+    logo_img = f'<img src="{logo_url}" style="height:26pt;" alt="CLAP">' if logo_url else ""
+
+    pnum = _h(getattr(project, "project_number", "") or "")
+    pname = _h(getattr(project, "project_name", "") or "")
+    inv_date = _fmt_date_jp(getattr(invoice, "issue_date", None))
+    vendor_name = _h(getattr(invoice, "work_description", "") or "")
+
+    total_amount = int(float(getattr(invoice, "total_amount", 0) or 0))
+    total_deduction = int(float(getattr(invoice, "total_deduction_amount", 0) or 0))
+    final_payable = int(float(getattr(invoice, "final_payable_amount", 0) or 0))
+
+    deduction_rows = ""
+    active_deductions = [d for d in (getattr(invoice, "deductions", []) or []) if not d.is_deleted]
+    for i, d in enumerate(active_deductions, 1):
+        label = d.description or DEDUCTION_LABEL_JA.get(
+            str(d.deduction_type).replace("DeductionType.", ""), str(d.deduction_type)
+        )
+        rate_note = f"({float(d.calculation_rate)*100:.1f}%)" if d.calculation_rate else ""
+        deduction_rows += (
+            f"<tr>"
+            f"<td class='right'>{i}</td>"
+            f"<td>{_h(label)}{_h(rate_note)}</td>"
+            f"<td class='right'>{_fmt_yen(int(float(d.amount)))}</td>"
+            f"</tr>"
+        )
+
+    return f"""<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<style>{_PAYMENT_NOTICE_CSS}</style></head>
+<body>
+<div class="pn-header">
+  <div class="pn-logo">{logo_img}</div>
+  <div class="pn-meta">{_h(co.name)}<br>弊社工事番号：{pnum}<br>{inv_date}</div>
+</div>
+<div class="pn-title">支　払　通　知　書</div>
+<div class="pn-recipient">{vendor_name}&nbsp;殿</div>
+<div class="pn-greeting">下記の通り、当月のお支払金額をご通知申し上げます。</div>
+
+<table class="pn-info">
+  <tr><td class="lbl">工　事　名</td><td>{pname}</td></tr>
+  <tr><td class="lbl">請 求 金 額</td><td style="text-align:right;">{_fmt_yen(total_amount)}</td></tr>
+</table>
+
+<table class="pn-deduct">
+  <thead><tr>
+    <th style="width:6%">No</th>
+    <th>控 除 内 訳</th>
+    <th style="width:28%">控 除 額</th>
+  </tr></thead>
+  <tbody>
+    {deduction_rows}
+    <tr class="subtotal-row">
+      <td colspan="2" style="text-align:right;padding-right:8pt;">控 除 合 計</td>
+      <td class="right">{_fmt_yen(total_deduction)}</td>
+    </tr>
+    <tr class="total-row">
+      <td colspan="2" style="text-align:right;padding-right:8pt;">当 月 支 払 決 定 額</td>
+      <td class="right">{_fmt_yen(final_payable)}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="pn-footer">※ ご不明の点はお気軽にご連絡ください。</div>
+<div class="pn-signature">
+  {_h(co.address)}<br>
+  {_h(co.name)}&nbsp;&nbsp;代表取締役&nbsp;{_h(co.representative)}
+</div>
+</body></html>"""
 
 
 # ── CompanyInfo をDB設定から構築 ──────────────────────────────────────────────
