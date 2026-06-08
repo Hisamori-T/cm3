@@ -610,11 +610,12 @@ export default function PurchasePage() {
                     {order.order_number && <span style={{ color: "var(--c-text-muted)", marginLeft: 8, fontSize: "var(--fs-sm)" }}>#{order.order_number}</span>}
                     {order.order_date && <span style={{ color: "var(--c-text-muted)", marginLeft: 8, fontSize: "var(--fs-sm)" }}>{order.order_date}</span>}
                   </div>
-                  <div style={{ display: "flex", gap: "var(--sp-2)", alignItems: "center", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "var(--fs-sm)", padding: "2px 8px", borderRadius: 4, background: STATUS_COLOR[order.status] + "22", color: STATUS_COLOR[order.status], fontWeight: 600 }}>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "var(--fs-sm)", padding: "3px 10px", borderRadius: 4, background: STATUS_COLOR[order.status] + "22", color: STATUS_COLOR[order.status], fontWeight: 600 }}>
                       {STATUS_LABEL[order.status]}
                     </span>
-                    <span style={{ fontWeight: 700 }}>{fmtYen(order.total_amount)}</span>
+                    <span style={{ fontWeight: 700, fontFamily: "var(--ff-mono)", fontSize: 14 }}>{fmtYen(order.total_amount)}</span>
+                    <div style={{ width: 1, height: 18, background: "var(--c-border)" }} />
                     {/* ステータス遷移ボタン */}
                     {order.status === "draft" && !formMode && (
                       <button onClick={() => handleIssue(order.id)} style={{ background: "#3b82f6", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-xs)" }}>発注する</button>

@@ -147,6 +147,7 @@ class QuoteUpdate(BaseModel):
     reviewer_id: uuid.UUID | None = None
     person_in_charge_id: uuid.UUID | None = None
     items: list[QuoteItemInput] | None = None
+    status: QuoteStatus | None = None
 
 
 class QuoteApproveStamp(BaseModel):

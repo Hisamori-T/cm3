@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -26,15 +25,17 @@ interface QuoteListItem {
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "下書き",
+  issued: "発行済み",
   sent: "送付済み",
   approved: "承認済み",
   cancelled: "キャンセル",
 };
 
 const STATUS_STYLE: Record<string, React.CSSProperties> = {
-  draft: { background: "var(--c-surface-2)", color: "var(--c-text-muted)" },
-  sent: { background: "color-mix(in oklab, var(--c-primary) 12%, var(--c-surface))", color: "var(--c-primary)" },
-  approved: { background: "color-mix(in oklab, var(--c-success) 14%, var(--c-surface))", color: "var(--c-success)" },
+  draft:     { background: "var(--c-surface-2)", color: "var(--c-text-muted)" },
+  issued:    { background: "color-mix(in oklab, var(--c-primary) 12%, var(--c-surface))", color: "var(--c-primary)" },
+  sent:      { background: "color-mix(in oklab, var(--c-primary) 12%, var(--c-surface))", color: "var(--c-primary)" },
+  approved:  { background: "color-mix(in oklab, var(--c-success) 14%, var(--c-surface))", color: "var(--c-success)" },
   cancelled: { background: "color-mix(in oklab, var(--c-danger) 10%, var(--c-surface))", color: "var(--c-danger)" },
 };
 
@@ -47,7 +48,7 @@ const fmtDate = (s: string | null) =>
 // ページ本体
 // ---------------------------------------------------------------------------
 
-/** 顧客見積書一覧。複数の見積書を枝番ごとに管理する。 */
+/** 顧客見積書一覧。ステータス変更・選択削除対応。 */
 export default function QuoteListPage() {
   const { id: projectId } = useParams<{ id: string }>();
   const router = useRouter();
@@ -56,10 +57,11 @@ export default function QuoteListPage() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    loadQuotes();
-  }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadQuotes(); }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadQuotes() {
     setLoading(true);
@@ -68,23 +70,64 @@ export default function QuoteListPage() {
       setQuotes(data);
     } catch {
       setError("見積書一覧の取得に失敗しました");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
   async function handleCreate() {
     setCreating(true);
     try {
       const created = await apiFetch<{ id: string }>(`/api/v1/projects/${projectId}/quotes`, {
-        method: "POST",
-        body: JSON.stringify({}),
+        method: "POST", body: JSON.stringify({}),
       });
       router.push(`/projects/${projectId}/quote/${created.id}`);
     } catch (e) {
       setError(`作成に失敗しました: ${(e as Error).message}`);
       setCreating(false);
     }
+  }
+
+  async function handleStatusChange(quoteId: string, newStatus: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    try {
+      await apiFetch(`/api/v1/projects/${projectId}/quotes/${quoteId}`, {
+        method: "PATCH", body: JSON.stringify({ status: newStatus }),
+      });
+      showMsg(`ステータスを「${STATUS_LABEL[newStatus]}」に変更しました`);
+      await loadQuotes();
+    } catch (err) { showMsg(`変更失敗: ${(err as Error).message}`); }
+  }
+
+  async function handleDelete() {
+    if (!selected.size) return;
+    if (!confirm(`選択した ${selected.size} 件の見積書を削除しますか？`)) return;
+    setDeleting(true);
+    try {
+      for (const id of selected) {
+        await apiFetch(`/api/v1/projects/${projectId}/quotes/${id}`, { method: "DELETE" });
+      }
+      setSelected(new Set());
+      showMsg(`${selected.size} 件を削除しました`);
+      await loadQuotes();
+    } catch (err) { showMsg(`削除失敗: ${(err as Error).message}`); }
+    finally { setDeleting(false); }
+  }
+
+  function showMsg(text: string) {
+    setMsg(text); setTimeout(() => setMsg(null), 3000);
+  }
+
+  function toggleSelect(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (selected.size === quotes.length) setSelected(new Set());
+    else setSelected(new Set(quotes.map(q => q.id)));
   }
 
   return (
@@ -95,15 +138,34 @@ export default function QuoteListPage() {
         { label: "顧客見積" },
       ]}
       action={
-        <Button
-          variant="default" size="sm"
-          onClick={handleCreate}
-          disabled={creating}
-          style={{ background: "var(--c-primary)", color: "#fff" }}
-        >
-          <Plus className="w-3.5 h-3.5" />
-          {creating ? "作成中…" : "新規見積書を作成"}
-        </Button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {msg && (
+            <span style={{ fontSize: 12, color: msg.includes("失敗") ? "var(--c-danger)" : "var(--c-success)" }}>
+              {msg}
+            </span>
+          )}
+          {selected.size > 0 && (
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              style={{
+                display: "flex", alignItems: "center", gap: 4, padding: "4px 10px",
+                background: "var(--c-danger)", color: "#fff", border: "none",
+                borderRadius: "var(--r-md)", cursor: "pointer", fontSize: 12, fontWeight: 600,
+              }}
+            >
+              <Trash2 size={13} />
+              {deleting ? "削除中…" : `${selected.size}件を削除`}
+            </button>
+          )}
+          <Button
+            variant="default" size="sm" onClick={handleCreate} disabled={creating}
+            style={{ background: "var(--c-primary)", color: "#fff" }}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            {creating ? "作成中…" : "新規見積書を作成"}
+          </Button>
+        </div>
       }
     >
       <div className="toolbar">
@@ -136,9 +198,7 @@ export default function QuoteListPage() {
           <p style={{ fontSize: 14, fontWeight: 600 }}>見積書がありません</p>
           <p style={{ fontSize: 12 }}>「新規見積書を作成」ボタンで最初の見積書を作成してください</p>
           <Button
-            variant="default" size="sm"
-            onClick={handleCreate}
-            disabled={creating}
+            variant="default" size="sm" onClick={handleCreate} disabled={creating}
             style={{ background: "var(--c-primary)", color: "#fff", marginTop: 8 }}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -150,11 +210,16 @@ export default function QuoteListPage() {
           <table className="tbl">
             <thead>
               <tr>
+                <th style={{ width: 32 }}>
+                  <input type="checkbox" checked={selected.size === quotes.length && quotes.length > 0}
+                    onChange={toggleAll} style={{ cursor: "pointer" }} />
+                </th>
                 <th>見積番号</th>
                 <th>発行日</th>
                 <th className="num">税抜金額</th>
                 <th className="num">税込金額</th>
                 <th>ステータス</th>
+                <th style={{ width: 140 }}>操作</th>
                 <th>作成日</th>
               </tr>
             </thead>
@@ -163,8 +228,12 @@ export default function QuoteListPage() {
                 <tr
                   key={q.id}
                   onClick={() => router.push(`/projects/${projectId}/quote/${q.id}`)}
-                  style={{ cursor: "pointer" }}
+                  style={{ cursor: "pointer", background: selected.has(q.id) ? "color-mix(in oklab, var(--c-primary) 5%, var(--c-surface))" : "" }}
                 >
+                  <td onClick={e => toggleSelect(q.id, e)}>
+                    <input type="checkbox" checked={selected.has(q.id)} onChange={() => {}}
+                      style={{ cursor: "pointer" }} />
+                  </td>
                   <td style={{ fontWeight: 600, color: "var(--c-primary)" }}>
                     {q.quote_number || "（番号なし）"}
                   </td>
@@ -183,6 +252,42 @@ export default function QuoteListPage() {
                     }}>
                       {STATUS_LABEL[q.status] ?? q.status}
                     </span>
+                  </td>
+                  <td onClick={e => e.stopPropagation()}>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {q.status === "draft" && (
+                        <button
+                          onClick={e => handleStatusChange(q.id, "issued", e)}
+                          style={{
+                            fontSize: 10, padding: "2px 7px", borderRadius: "var(--r-sm)",
+                            background: "color-mix(in oklab, var(--c-primary) 12%, var(--c-surface))",
+                            color: "var(--c-primary)", border: "1px solid color-mix(in oklab, var(--c-primary) 25%, transparent)",
+                            cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap",
+                          }}
+                        >発行済みに</button>
+                      )}
+                      {q.status === "issued" && (
+                        <button
+                          onClick={e => handleStatusChange(q.id, "draft", e)}
+                          style={{
+                            fontSize: 10, padding: "2px 7px", borderRadius: "var(--r-sm)",
+                            background: "var(--c-surface-2)", color: "var(--c-text-muted)",
+                            border: "1px solid var(--c-border)", cursor: "pointer",
+                          }}
+                        >下書きに戻す</button>
+                      )}
+                      {(q.status === "issued" || q.status === "sent") && (
+                        <button
+                          onClick={e => handleStatusChange(q.id, "approved", e)}
+                          style={{
+                            fontSize: 10, padding: "2px 7px", borderRadius: "var(--r-sm)",
+                            background: "color-mix(in oklab, var(--c-success) 12%, var(--c-surface))",
+                            color: "var(--c-success)", border: "1px solid color-mix(in oklab, var(--c-success) 25%, transparent)",
+                            cursor: "pointer", fontWeight: 600,
+                          }}
+                        >承認済みに</button>
+                      )}
+                    </div>
                   </td>
                   <td style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
                     {fmtDate(q.created_at)}

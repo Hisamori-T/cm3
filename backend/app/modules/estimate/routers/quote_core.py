@@ -183,6 +183,7 @@ async def update_quote(
         "period_start", "period_end", "payment_condition",
         "remarks", "conditions_text", "discount_amount",
         "approver_id", "reviewer_id", "person_in_charge_id",
+        "status",
     ]:
         value = getattr(body, field_name)
         if value is not None:
@@ -402,3 +403,21 @@ async def generate_related_documents(
         "acknowledgment_id": str(ack_id),
         "invoice_id": str(invoice_id),
     }
+
+
+@router.delete("/projects/{project_id}/quotes/{quote_id}", status_code=204)
+async def delete_quote(
+    project_id: uuid.UUID,
+    quote_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> None:
+    """見積書を削除する（下書きのみ）。"""
+    project = await _get_project_or_404(project_id, db)
+    if not (current_user.role == UserRole.admin or project.created_by == current_user.id):
+        raise HTTPException(status_code=403, detail="削除権限がありません")
+    quote = await _get_quote_or_404(quote_id, project_id, db)
+    if quote.status.value not in ("draft", "issued"):
+        raise HTTPException(status_code=400, detail="承認済み・キャンセル以外は削除できません")
+    await db.delete(quote)
+    await db.commit()
