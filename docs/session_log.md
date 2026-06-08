@@ -4643,5 +4643,41 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
+## Session 2026-06-08（続き）— スキーマ型定義改訂（金額フィールド）
+
+### 作業内容（予定）
+- ひさんからの提案「金額フィールドは `float` ではなく `int` / `Decimal` に統一」を採用
+- 設計書 10.6 の Pydantic スキーマを修正版で上書き
+  - 金額フィールド（amount 等）: `float` → `int`
+  - 率フィールド（calculation_rate 等）: `float` → `Decimal`
+  - バリデーター・型エイリアス（Yen / Rate）追加
+  - 7点の不備（InvoiceDeductionUpdate 欠落 / ProgressSummaryResponse 欠落 等）も同時反映
+
+### 作業結果
+
+**設計書 10.6 を確定版スキーマで上書き完了**
+
+主な変更点：
+- 型方針を冒頭に明記（`float` 禁止・`int`/`Decimal` 理由付き）
+- `Yen = Annotated[int, Field(ge=0)]` / `Rate = Annotated[Decimal, ...]` 型エイリアス追加
+- `InvoiceDeductionCreate`: `float` → `int/Decimal` + `@model_validator` バリデーター追加
+- `InvoiceDeductionUpdate`: 新規追加（欠落していたクラス）
+- `InvoiceDeductionRead`: `float` → `int/Decimal` + `is_deleted`, `created_at` フィールド追加
+- `ProgressSummaryResponse`: 新規追加（欠落していたクラス）
+- `ProjectRoleUpdate`: 新規追加（欠落していたクラス）
+- 既存 `InvoiceCreate/Update/Read`, `Project*` への追加列をコメント形式で明記
+- `Decimal` の JSON シリアライズ注意事項を追記
+
+既存コードの `float` 残存は別スプリントで対応（R-1 スコープ外）。
+
+### 変更ファイル
+- `docs/specs/設計書_06_機能拡張仕様_2026-06.md`（10.6 上書き）
+
+### 次のアクション
+- 設計完了。バックエンド実装を開始する
+
+---
+
+
 
 
