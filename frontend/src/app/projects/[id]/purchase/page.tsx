@@ -66,14 +66,29 @@ interface Vendor {
   vendor_name: string;
 }
 
-interface PriceHistory {
+// 業者見積版の型（この案件の見積データ）
+interface EstimateVersion {
   id: string;
-  item_name: string;
-  item_spec: string | null;
+  version_no: number;
+  vendor_id: string | null;
+  vendor_name_snapshot: string | null;
+  markup_rate: number;
+  is_active: boolean;
+}
+interface EstimateItem {
+  id: string;
+  version_id: string | null;
+  row_no: number;
+  item_name: string | null;
+  spec: string | null;
   unit: string | null;
   quantity: number | null;
-  unit_price: number | null;
-  amount: number | null;
+  cost_price: number | null;  // 発注単価（業者へ支払う原価）
+}
+interface EstimateQuoteDetail {
+  id: string;
+  versions: EstimateVersion[];
+  items: EstimateItem[];
 }
 
 interface FormItem {
@@ -205,19 +220,37 @@ export default function PurchasePage() {
     setForm({ ...form, vendor_id: vendorId });
     if (!vendorId || formMode !== "new") return;
     try {
-      const res = await apiFetch<{ items: PriceHistory[] }>(`/api/v1/vendors/${vendorId}/price-history?limit=50`);
-      const history = res.items;
-      if (!history.length) return;
-      const ok = confirm(`業者の見積履歴が ${history.length} 件あります。明細に自動追加しますか？`);
+      // この案件の業者見積版を取得
+      const quoteList = await apiFetch<{ id: string }[]>(`/api/v1/projects/${id}/quotes`);
+      if (!quoteList.length) return;
+      const detail = await apiFetch<EstimateQuoteDetail>(`/api/v1/projects/${id}/quotes/${quoteList[0].id}`);
+
+      // 選択した業者に一致する版を探す
+      const matchVersions = detail.versions.filter(v =>
+        v.vendor_id === vendorId || vendors.find(vd => vd.id === vendorId && vd.vendor_name === v.vendor_name_snapshot)
+      );
+      if (!matchVersions.length) return;  // この案件に業者見積版なし → 何もしない
+
+      // 複数版ある場合は最新のアクティブ版、なければ最後の版
+      const targetVersion = matchVersions.find(v => v.is_active) ?? matchVersions[matchVersions.length - 1];
+      const versionItems = detail.items.filter(i => i.version_id === targetVersion.id && i.item_name);
+      if (!versionItems.length) return;
+
+      const ok = confirm(`業者見積（版${targetVersion.version_no}: ${targetVersion.vendor_name_snapshot}）の明細 ${versionItems.length} 件を取り込みますか？\n※ 業者への発注単価（原価）を使用します`);
       if (!ok) return;
-      const newItems: FormItem[] = history.map((h) => ({
-        item_name: h.item_name,
-        spec: h.item_spec || "",
-        unit: h.unit || "式",
-        quantity: String(h.quantity ?? 1),
-        unit_price: String(h.unit_price ?? 0),
-        amount: String(h.amount ?? Math.round((h.quantity ?? 1) * (h.unit_price ?? 0))),
-      }));
+
+      const newItems: FormItem[] = versionItems.map(i => {
+        const unitPrice = i.cost_price ?? 0;
+        const qty = i.quantity ?? 1;
+        return {
+          item_name: i.item_name || "",
+          spec: i.spec || "",
+          unit: i.unit || "式",
+          quantity: String(qty),
+          unit_price: String(unitPrice),
+          amount: String(Math.round(qty * unitPrice)),
+        };
+      });
       setItems((prev) => {
         const hasContent = prev.some((i) => i.item_name.trim() !== "");
         return hasContent ? [...prev, ...newItems] : newItems;
