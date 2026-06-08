@@ -121,6 +121,11 @@ export default function ProjectDetailPage() {
   const [requestSaving, setRequestSaving] = useState(false);
   // 精算見通表の支払開始月（デフォルト: 4月）
   const [payStartMonth, setPayStartMonth] = useState<number>(4);
+  // 税込/税抜 表示切替（実行予算・取決金額・取決差額に適用）
+  const [showTaxInclusive, setShowTaxInclusive] = useState<boolean>(false);
+  const TAX = 1.1;
+  const applyTax = (v: number | null | undefined) =>
+    v != null ? (showTaxInclusive ? Math.round(v * TAX) : v) : null;
   // 月別支払インライン編集
   const [editingPayCell, setEditingPayCell] = useState<{ workId: string; month: number } | null>(null);
   const [editingPayValue, setEditingPayValue] = useState("");
@@ -892,8 +897,8 @@ export default function ProjectDetailPage() {
             for (let i = 0; i < 12; i++) {
               months.push(((payStartMonth - 1 + i) % 12) + 1);
             }
-            const totalBudget = ledgerWorks.reduce((s, w) => s + (w.budget_amount ?? 0), 0);
-            const totalAgreed = ledgerWorks.reduce((s, w) => s + (w.agreed_amount ?? 0), 0);
+            const totalBudget = ledgerWorks.reduce((s, w) => s + (applyTax(w.budget_amount) ?? 0), 0);
+            const totalAgreed = ledgerWorks.reduce((s, w) => s + (applyTax(w.agreed_amount) ?? 0), 0);
             const monthTotals = months.map(m =>
               ledgerWorks.reduce((s, w) => s + (w.monthly_payments?.[String(m)] ?? 0), 0)
             );
@@ -902,6 +907,26 @@ export default function ProjectDetailPage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                   <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>実行予算 / 取決見通 / 精算(支払)見通</h3>
                   <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>※ 取決金額は発注書合計（発行済以降）と自動連動</span>
+                  {/* 税込/税抜 トグルスイッチ */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 4 }}>
+                    <span style={{ fontSize: 11, color: showTaxInclusive ? "var(--c-text-muted)" : "var(--c-primary)", fontWeight: showTaxInclusive ? 400 : 700 }}>税抜</span>
+                    <button
+                      onClick={() => setShowTaxInclusive(v => !v)}
+                      style={{
+                        width: 40, height: 20, borderRadius: 10, border: "none", cursor: "pointer",
+                        background: showTaxInclusive ? "var(--c-primary)" : "var(--c-border)",
+                        position: "relative", transition: "background 0.2s", padding: 0, flexShrink: 0,
+                      }}
+                      title={showTaxInclusive ? "税込表示（クリックで税抜に切替）" : "税抜表示（クリックで税込に切替）"}
+                    >
+                      <span style={{
+                        position: "absolute", top: 2, left: showTaxInclusive ? 22 : 2,
+                        width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                        transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,.3)",
+                      }} />
+                    </button>
+                    <span style={{ fontSize: 11, color: showTaxInclusive ? "var(--c-primary)" : "var(--c-text-muted)", fontWeight: showTaxInclusive ? 700 : 400 }}>税込</span>
+                  </div>
                   <button
                     onClick={async () => {
                       try {
@@ -930,8 +955,8 @@ export default function ProjectDetailPage() {
                         <th style={{ background: "var(--c-surface-2)", padding: "7px 8px", textAlign: "left", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 32, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>No</th>
                         <th style={{ background: "var(--c-surface-2)", padding: "7px 8px", textAlign: "left", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", minWidth: 120, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>支払先</th>
                         <th style={{ background: "var(--c-surface-2)", padding: "7px 8px", textAlign: "left", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 80, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>工種</th>
-                        <th style={{ background: "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 90, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>実行予算</th>
-                        <th style={{ background: "color-mix(in oklab, var(--c-warn) 10%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 90, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>取決金額</th>
+                        <th style={{ background: "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 90, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>実行予算{showTaxInclusive ? "（税込）" : ""}</th>
+                        <th style={{ background: "color-mix(in oklab, var(--c-warn) 10%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 90, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>取決金額{showTaxInclusive ? "（税込）" : ""}</th>
                         <th style={{ background: "color-mix(in oklab, var(--c-warn) 10%, var(--c-surface-2))", padding: "7px 8px", textAlign: "right", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", width: 80, color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>取決差額</th>
                         {/* 月列ヘッダー: 先頭に支払開始月ドロップダウン */}
                         <th colSpan={12} style={{ background: "color-mix(in oklab, var(--c-status-progress) 10%, var(--c-surface-2))", padding: "4px 8px", borderBottom: "1px solid var(--c-border)", borderRight: "1px solid var(--c-border)", color: "var(--c-text-muted)", fontWeight: 600, fontSize: 11 }}>
@@ -962,10 +987,12 @@ export default function ProjectDetailPage() {
                     </thead>
                     <tbody>
                       {ledgerWorks.map((w, idx) => {
-                        const diff = (w.budget_amount ?? 0) - (w.agreed_amount ?? 0);
+                        const dispBudget = applyTax(w.budget_amount);
+                        const dispAgreed = applyTax(w.agreed_amount);
+                        const diff = (dispBudget ?? 0) - (dispAgreed ?? 0);
                         const paySum = months.reduce((s, m) => s + (w.monthly_payments?.[String(m)] ?? 0), 0);
                         const remaining = (w.agreed_amount ?? 0) - paySum;
-                        // 取決金額が設定されている場合のみ「済」判定
+                        // 取決金額が設定されている場合のみ「済」判定（税抜ベースで判定）
                         const isDone = w.agreed_amount != null && w.agreed_amount > 0
                           && (w.payment_completed || (paySum > 0 && remaining <= 0));
                         return (
@@ -973,10 +1000,10 @@ export default function ProjectDetailPage() {
                             <td style={{ padding: "6px 8px", textAlign: "center", fontFamily: "var(--ff-mono)", color: "var(--c-text-muted)", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)" }}>{idx + 1}</td>
                             <td style={{ padding: "6px 8px", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", fontWeight: 500 }}>{w.vendor_name ?? "—"}</td>
                             <td style={{ padding: "6px 8px", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", color: "var(--c-text-muted)", fontSize: 11 }}>{w.work_type ?? "—"}</td>
-                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "color-mix(in oklab, var(--c-primary) 4%, var(--c-surface))" }}>{w.budget_amount != null ? fmtYen(w.budget_amount) : "—"}</td>
-                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "color-mix(in oklab, var(--c-warn) 4%, var(--c-surface))" }}>{w.agreed_amount != null ? fmtYen(w.agreed_amount) : "—"}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "color-mix(in oklab, var(--c-primary) 4%, var(--c-surface))" }}>{dispBudget != null ? fmtYen(dispBudget) : "—"}</td>
+                            <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "color-mix(in oklab, var(--c-warn) 4%, var(--c-surface))" }}>{dispAgreed != null ? fmtYen(dispAgreed) : "—"}</td>
                             <td style={{ padding: "6px 8px", textAlign: "right", fontFamily: "var(--ff-mono)", borderRight: "1px solid var(--c-border)", background: "var(--c-surface)", color: diff > 0 ? "var(--c-success)" : diff < 0 ? "var(--c-danger)" : "var(--c-text-muted)" }}>
-                              {w.budget_amount != null && w.agreed_amount != null ? fmtYen(diff) : "—"}
+                              {dispBudget != null && dispAgreed != null ? fmtYen(diff) : "—"}
                             </td>
                             {months.map(m => {
                               const val = w.monthly_payments?.[String(m)];
