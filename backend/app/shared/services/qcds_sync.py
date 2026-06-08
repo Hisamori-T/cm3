@@ -31,9 +31,9 @@ async def sync_agreed_amount_from_orders(
     - vendor_id または vendor_name_snapshot のどちらかでマッチング
     - 合計が 0 の場合も agreed_amount を 0 にリセットする（発注書削除時対応）
     """
-    # 発注書合計
+    # 発注書の税抜合計（subtotal）を集計 ← 実行予算(budget_amount)も税抜のため揃える
     total_result = await db.execute(
-        select(func.coalesce(func.sum(PurchaseOrder.total_amount), 0))
+        select(func.coalesce(func.sum(PurchaseOrder.subtotal), 0))
         .where(
             PurchaseOrder.project_id == project_id,
             PurchaseOrder.vendor_id == vendor_id,
