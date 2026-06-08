@@ -899,9 +899,29 @@ export default function ProjectDetailPage() {
             );
             return (
               <div style={{ marginTop: 16 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
                   <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>実行予算 / 取決見通 / 精算(支払)見通</h3>
-                  <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>※ 取決金額は発注書合計と自動連動</span>
+                  <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>※ 取決金額は発注書合計（発行済以降）と自動連動</span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await apiFetch<{ synced_vendors: number; message: string }>(
+                          `/api/v1/projects/${id}/qcds/sync-from-orders`,
+                          { method: "POST" }
+                        );
+                        await fetchLedger();
+                        alert(res.message);
+                      } catch { alert("再同期に失敗しました"); }
+                    }}
+                    style={{
+                      marginLeft: "auto", fontSize: 11, padding: "3px 10px",
+                      border: "1px solid var(--c-border)", borderRadius: "var(--r-md)",
+                      background: "var(--c-surface-2)", cursor: "pointer",
+                      color: "var(--c-primary)", display: "flex", alignItems: "center", gap: 4,
+                    }}
+                  >
+                    🔄 発注書から再同期
+                  </button>
                 </div>
                 <div style={{ overflowX: "auto", width: "100%" }}>
                   <table className="vtbl" style={{ width: "100%", minWidth: "unset", borderCollapse: "collapse", fontSize: 12 }}>

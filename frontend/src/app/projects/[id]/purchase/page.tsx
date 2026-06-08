@@ -128,6 +128,8 @@ export default function PurchasePage() {
   const [dragOver, setDragOver] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState("");
+  // 工事台帳連動フィードバック
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -341,22 +343,30 @@ export default function PurchasePage() {
     await load();
   }
 
+  const showSyncMsg = (msg: string) => {
+    setSyncMsg(msg);
+    setTimeout(() => setSyncMsg(null), 4000);
+  };
+
   async function handleIssue(orderId: string) {
-    if (!confirm("発注書を発行しますか？")) return;
+    if (!confirm("発注書を発行しますか？\n工事台帳の取決金額が自動更新されます。")) return;
     await apiFetch(`/api/v1/purchase-orders/${orderId}/issue`, { method: "POST" });
     await load();
+    showSyncMsg("✓ 発注済に変更しました。取決金額を工事台帳に反映しました。");
   }
 
   async function handleMarkDelivered(orderId: string) {
     if (!confirm("納品済にしますか？")) return;
     await apiFetch(`/api/v1/purchase-orders/${orderId}/mark-delivered`, { method: "POST" });
     await load();
+    showSyncMsg("✓ 納品済に変更しました。取決金額を工事台帳に反映しました。");
   }
 
   async function handleMarkPaid(orderId: string) {
     if (!confirm("支払済にしますか？")) return;
     await apiFetch(`/api/v1/purchase-orders/${orderId}/mark-paid`, { method: "POST" });
     await load();
+    showSyncMsg("✓ 支払済に変更しました。");
   }
 
   const subtotal = items.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0);
@@ -365,7 +375,16 @@ export default function PurchasePage() {
   const formTitle = formMode === "new" ? "新規発注書" : `発注書を編集${editingOrder?.order_number ? ` #${editingOrder.order_number}` : ""}`;
 
   return (
-    <AppShell breadcrumbs={[{ label: "案件", href: `/projects/${id}` }, { label: "発注書" }]}>
+    <AppShell
+      breadcrumbs={[{ label: "案件", href: `/projects/${id}` }, { label: "発注書" }]}
+      action={syncMsg ? (
+        <span style={{ fontSize: 12, color: "var(--c-success)", fontWeight: 600, padding: "4px 10px",
+          background: "color-mix(in oklab, var(--c-success) 10%, var(--c-surface))",
+          borderRadius: "var(--r-pill)", border: "1px solid color-mix(in oklab, var(--c-success) 25%, transparent)" }}>
+          {syncMsg}
+        </span>
+      ) : undefined}
+    >
       <div style={{ padding: "var(--sp-4)" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--sp-4)" }}>
           <h2 style={{ fontWeight: 700, fontSize: "var(--fs-lg)" }}>発注書</h2>

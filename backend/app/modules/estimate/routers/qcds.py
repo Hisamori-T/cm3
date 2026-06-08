@@ -490,3 +490,21 @@ async def delete_direct_work(
         raise HTTPException(status_code=404, detail="行が見つかりません")
     await db.delete(work)
     await db.commit()
+
+
+@router.post("/projects/{project_id}/qcds/sync-from-orders")
+async def sync_agreed_from_orders(
+    project_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """発注書の合計金額から QCDS 取決金額を一括再同期する。
+
+    案件内の全業者を対象に、発行済/納品済/完了ステータスの発注書合計を
+    QCDS 直接工事費の agreed_amount に反映する。
+    """
+    await _get_project_or_404(project_id, db)
+    from app.shared.services.qcds_sync import sync_all_vendors_from_orders
+    synced = await sync_all_vendors_from_orders(db, project_id)
+    await db.commit()
+    return {"synced_vendors": synced, "message": f"{synced}社の取決金額を更新しました"}
