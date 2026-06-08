@@ -158,6 +158,8 @@ export default function PurchasePage() {
   const [scanMsg, setScanMsg] = useState("");
   // 工事台帳連動フィードバック
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  // PDF生成中の発注書ID
+  const [pdfLoadingId, setPdfLoadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -628,7 +630,9 @@ export default function PurchasePage() {
                     )}
                     {/* PDF出力ボタン */}
                     <button
+                      disabled={pdfLoadingId === order.id}
                       onClick={async () => {
+                        setPdfLoadingId(order.id);
                         try {
                           const r = await fetch(`${API_URL}/api/v1/purchase-orders/${order.id}/export-pdf`, {
                             headers: { Authorization: `Bearer ${getToken()}` },
@@ -640,9 +644,17 @@ export default function PurchasePage() {
                           a.download = `発注書_${order.vendor_name || order.id}.pdf`;
                           document.body.appendChild(a); a.click(); document.body.removeChild(a);
                         } catch (e) { alert(`PDF生成エラー: ${(e as Error).message}`); }
+                        finally { setPdfLoadingId(null); }
                       }}
-                      style={{ background: "#C00000", color: "#fff", border: "none", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-xs)" }}
-                    >📄 PDF</button>
+                      style={{
+                        background: pdfLoadingId === order.id ? "#888" : "#C00000",
+                        color: "#fff", border: "none", borderRadius: "var(--radius-sm)",
+                        padding: "3px 10px", cursor: pdfLoadingId === order.id ? "default" : "pointer",
+                        fontSize: "var(--fs-xs)", minWidth: 60,
+                      }}
+                    >
+                      {pdfLoadingId === order.id ? "生成中…" : "📄 PDF"}
+                    </button>
                     {!formMode && (
                       <button onClick={() => handleDelete(order.id, order.status === "draft")} style={{ background: "none", border: "1px solid #fca5a5", borderRadius: "var(--radius-sm)", padding: "3px 10px", cursor: "pointer", fontSize: "var(--fs-xs)", color: "#dc2626" }}>🗑 削除</button>
                     )}
