@@ -108,6 +108,8 @@ export default function ProjectDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isChangingStatus, setIsChangingStatus] = useState(false);
+  const [ledgerExcelLoading, setLedgerExcelLoading] = useState(false);
+  const [ledgerPdfLoading, setLedgerPdfLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [summaryTab, setSummaryTab] = useState<"budget" | "agreed" | "settlement">("budget");
   const [form, setForm] = useState<ProjectUpdate>({});
@@ -377,33 +379,41 @@ export default function ProjectDetailPage() {
         !isEditing ? (
           <div style={{ display: "flex", gap: 8 }}>
             {/* Excel出力 */}
-            <Button variant="default" size="sm" onClick={() => {
+            <Button variant="default" size="sm" disabled={ledgerExcelLoading} onClick={async () => {
               const token = typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") : "";
               if (!token) return;
-              const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-              fetch(`${base}/api/v1/projects/${id}/export`, { headers: { Authorization: `Bearer ${token}` } })
-                .then(r => r.blob()).then(blob => {
-                  const a = document.createElement("a");
-                  a.href = URL.createObjectURL(blob);
-                  a.download = `工事台帳_${project?.project_number}_${project?.project_name}_${project?.client_name ?? ""}.xlsx`;
-                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                });
-            }}>Excel出力</Button>
+              setLedgerExcelLoading(true);
+              try {
+                const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                const r = await fetch(`${base}/api/v1/projects/${id}/export`, { headers: { Authorization: `Bearer ${token}` } });
+                if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                const blob = await r.blob();
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `工事台帳_${project?.project_number}_${project?.project_name}_${project?.client_name ?? ""}.xlsx`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+              } catch (e) { alert(`Excelエラー: ${(e as Error).message}`); }
+              finally { setLedgerExcelLoading(false); }
+            }}>{ledgerExcelLoading ? "生成中…" : "Excel出力"}</Button>
             {/* PDF出力 */}
-            <Button variant="default" size="sm"
-              style={{ background: "#C00000", color: "#fff" }}
-              onClick={() => {
+            <Button variant="default" size="sm" disabled={ledgerPdfLoading}
+              style={{ background: ledgerPdfLoading ? "#888" : "#C00000", color: "#fff" }}
+              onClick={async () => {
                 const token = typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") : "";
                 if (!token) return;
-                const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-                fetch(`${base}/api/v1/projects/${id}/export-pdf`, { headers: { Authorization: `Bearer ${token}` } })
-                  .then(r => r.blob()).then(blob => {
-                    const a = document.createElement("a");
-                    a.href = URL.createObjectURL(blob);
-                    a.download = `工事台帳_${project?.project_number}_${project?.project_name}.pdf`;
-                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                  });
-              }}>PDF出力</Button>
+                setLedgerPdfLoading(true);
+                try {
+                  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                  const r = await fetch(`${base}/api/v1/projects/${id}/export-pdf`, { headers: { Authorization: `Bearer ${token}` } });
+                  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                  const blob = await r.blob();
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = `工事台帳_${project?.project_number}_${project?.project_name}.pdf`;
+                  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                } catch (e) { alert(`PDFエラー: ${(e as Error).message}`); }
+                finally { setLedgerPdfLoading(false); }
+              }}>{ledgerPdfLoading ? "生成中…" : "PDF出力"}</Button>
           </div>
         ) : undefined
       }
@@ -707,7 +717,7 @@ export default function ProjectDetailPage() {
                     {ledgerApprovals.map((a, i) => {
                       const isStamped = !!a.approved_at;
                       const isPending = !isStamped && !!a.approver_user_id;
-                      const lastName = a.approver_name?.split(" ")[0] ?? "";
+                      const lastName = a.approver_name?.split(/[\s　]/)[0] ?? "";
                       return (
                         <div key={a.id} style={{ borderRight: i < ledgerApprovals.length - 1 ? "1px solid #999" : "none", display: "flex", flexDirection: "column", alignItems: "center" }}>
                           {/* ロール行 */}

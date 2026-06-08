@@ -267,20 +267,30 @@ export default function AcknowledgmentPage() {
         id: string; order_number: string | null; issue_date: string | null;
         client_company: string | null; client_person: string | null; client_address: string | null;
         construction_period_start: string | null; construction_period_end: string | null;
-        payment_condition: string | null; status: string;
+        payment_condition: string | null; terms_and_conditions: string | null; status: string;
       }[]>(`/api/v1/projects/${projectId}/orders`);
-      const issuedOrders = orders.filter(o => o.status === "sent" || o.status === "signed");
+      const issuedOrders = orders.filter(o => o.status === "sent" || o.status === "signed" || o.status === "acknowledged");
       const target = issuedOrders.length > 0 ? issuedOrders[issuedOrders.length - 1] : orders[orders.length - 1];
       if (!target) { showMsg("注文書がありません"); return; }
-      if (!confirm(`「${target.order_number || "注文書"}」のデータを注文請書に反映しますか？`)) return;
-      if (target.issue_date) setIssueDate(target.issue_date);
-      if (target.client_company) setClientCompany(target.client_company);
-      if (target.client_person) setClientPerson(target.client_person);
-      if (target.client_address) setClientAddress(target.client_address);
-      if (target.construction_period_start) setPeriodStart(target.construction_period_start);
-      if (target.construction_period_end) setPeriodEnd(target.construction_period_end);
-      if (target.payment_condition) setPaymentCondition(target.payment_condition);
-      showMsg(`✓ 注文書「${target.order_number || "注文書"}」のデータを反映しました。保存ボタンで確定してください。`);
+      if (!confirm(`「${target.order_number || "注文書"}」のデータを注文請書に反映しますか？\n\n【反映項目】発行日・受注者・担当者・住所・工期・支払条件・約款`)) return;
+      if (target.issue_date)                  setIssueDate(target.issue_date);
+      if (target.client_company)              setClientCompany(target.client_company);
+      if (target.client_person)               setClientPerson(target.client_person);
+      if (target.client_address)              setClientAddress(target.client_address);
+      if (target.construction_period_start)   setPeriodStart(target.construction_period_start);
+      if (target.construction_period_end)     setPeriodEnd(target.construction_period_end);
+      if (target.payment_condition)           setPaymentCondition(target.payment_condition);
+      if (target.terms_and_conditions)        setTerms(target.terms_and_conditions);
+      const imported = [
+        target.issue_date && "発行日",
+        target.client_company && "受注者",
+        target.client_person && "担当者",
+        target.client_address && "住所",
+        target.construction_period_start && "工期",
+        target.payment_condition && "支払条件",
+        target.terms_and_conditions && "約款",
+      ].filter(Boolean).join("・");
+      showMsg(`✓ 注文書「${target.order_number || "注文書"}」から反映: ${imported || "（対象データなし）"}。保存ボタンで確定してください。`);
     } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
   }
 

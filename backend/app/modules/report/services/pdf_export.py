@@ -1817,10 +1817,25 @@ def generate_photo_album_pdf(
     return weasyprint.HTML(string=html_str).write_pdf()
 
 
+# ── QCDS カテゴリ日本語マップ ─────────────────────────────────────────────────
+
+_QCDS_CATEGORY_JA: dict[str, str] = {
+    "subcontract": "外注",
+    "material": "資材",
+    "other": "その他",
+}
+
+
+def _category_ja(raw: Any) -> str:
+    """QCDSCategory enum値を日本語ラベルに変換する。"""
+    s = str(raw or "").replace("QCDSCategory.", "")
+    return _QCDS_CATEGORY_JA.get(s, s)
+
+
 # ── 工事台帳 PDF ──────────────────────────────────────────────────────────────
 
 def generate_ledger_pdf(project: Any, qcds_rows: list, direct_works: list, company: CompanyInfo) -> bytes:
-    """工事台帳（実行予算・取決見通）のPDFを生成する。"""
+    """工事台帳（実行予算・取決金額・精算見通し）をA3横PDFで生成する。"""
     import weasyprint
 
     logo_url = _logo_data_url()
@@ -1833,35 +1848,37 @@ def generate_ledger_pdf(project: Any, qcds_rows: list, direct_works: list, compa
     cstart = _fmt_date(getattr(project, "period_contract_start", None))
     cend   = _fmt_date(getattr(project, "period_contract_end", None))
 
-    total_budget = sum(float(getattr(w, "budget_amount", 0) or 0) for w in direct_works)
-    total_agreed = sum(float(getattr(w, "agreed_amount", 0) or 0) for w in direct_works)
+    total_budget     = sum(float(getattr(w, "budget_amount",     0) or 0) for w in direct_works)
+    total_agreed     = sum(float(getattr(w, "agreed_amount",     0) or 0) for w in direct_works)
+    total_settlement = sum(float(getattr(w, "settlement_amount", 0) or 0) for w in direct_works)
 
     rows_html = ""
     for i, w in enumerate(sorted(direct_works, key=lambda x: getattr(x, "row_no", 0)), 1):
-        budget  = getattr(w, "budget_amount", None)
-        agreed  = getattr(w, "agreed_amount", None)
-        diff    = (float(budget or 0) - float(agreed or 0)) if (budget is not None and agreed is not None) else None
+        budget     = getattr(w, "budget_amount",     None)
+        agreed     = getattr(w, "agreed_amount",     None)
+        settlement = getattr(w, "settlement_amount", None)
+        diff       = (float(budget or 0) - float(agreed or 0)) if (budget is not None and agreed is not None) else None
         diff_color = "#c00" if diff is not None and diff < 0 else "#000"
         rows_html += f"""<tr>
           <td class="center">{i}</td>
           <td>{_h(getattr(w, "vendor_name_snapshot", "") or "")}</td>
-          <td>{_h(getattr(w, "work_type", "") or "")}</td>
-          <td class="right">{_fmt_yen(budget) if budget is not None else "—"}</td>
-          <td class="right">{_fmt_yen(agreed) if agreed is not None else "—"}</td>
+          <td class="right">{_fmt_yen(budget)     if budget is not None else "—"}</td>
+          <td class="right">{_fmt_yen(agreed)     if agreed is not None else "—"}</td>
           <td class="right" style="color:{diff_color};">{_fmt_yen(diff) if diff is not None else "—"}</td>
+          <td class="right">{_fmt_yen(settlement) if settlement is not None else "—"}</td>
         </tr>"""
 
     css = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
-@page { size: A4 landscape; margin: 12mm 15mm; }
+@page { size: A3 landscape; margin: 12mm 18mm; }
 body { font-family: 'Noto Sans CJK JP','Noto Sans JP',sans-serif; font-size: 9pt; color:#111; }
 .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8mm; }
-.title { font-size:16pt; font-weight:bold; letter-spacing:.1em; margin-bottom:2mm; }
-.meta { font-size:8.5pt; color:#555; line-height:1.8; }
+.title { font-size:18pt; font-weight:bold; letter-spacing:.15em; margin-bottom:2mm; }
+.meta { font-size:9pt; color:#555; line-height:1.8; }
 .co { text-align:right; font-size:8pt; color:#555; }
-table.main { width:100%; border-collapse:collapse; font-size:8.5pt; }
-table.main th { background:#e8edf5; border:.8pt solid #888; padding:4pt 5pt; text-align:center; font-weight:600; }
-table.main td { border:.7pt solid #bbb; padding:3pt 5pt; }
+table.main { width:100%; border-collapse:collapse; font-size:9pt; }
+table.main th { background:#e8edf5; border:.8pt solid #888; padding:5pt 6pt; text-align:center; font-weight:600; }
+table.main td { border:.7pt solid #bbb; padding:4pt 6pt; }
 .center { text-align:center; }
 .right { text-align:right; font-family:monospace; }
 .total-row td { background:#d0e4f7; font-weight:bold; }
@@ -1887,19 +1904,20 @@ table.main td { border:.7pt solid #bbb; padding:3pt 5pt; }
 <table class="main">
   <thead><tr>
     <th style="width:4%">No</th>
-    <th style="width:22%">支払先</th>
-    <th style="width:15%">工種</th>
-    <th style="width:18%">実行予算</th>
-    <th style="width:18%">取決金額</th>
-    <th style="width:18%">取決差額</th>
+    <th style="width:28%">支払先</th>
+    <th style="width:17%">実行予算</th>
+    <th style="width:17%">取決金額</th>
+    <th style="width:17%">取決差額</th>
+    <th style="width:17%">精算（支払）見通し</th>
   </tr></thead>
   <tbody>
     {rows_html}
     <tr class="total-row">
-      <td colspan="3" style="text-align:center;">合　計</td>
+      <td colspan="2" style="text-align:center;">合　計</td>
       <td class="right">{_fmt_yen(total_budget)}</td>
       <td class="right">{_fmt_yen(total_agreed)}</td>
       <td class="right">{_fmt_yen(total_budget - total_agreed)}</td>
+      <td class="right">{_fmt_yen(total_settlement)}</td>
     </tr>
   </tbody>
 </table>
@@ -1927,10 +1945,10 @@ def generate_qcds_pdf(project: Any, qcds: Any, company: CompanyInfo) -> bytes:
         rows_html += f"""<tr>
           <td class="center">{i}</td>
           <td>{_h(getattr(w, "vendor_name_snapshot", "") or "")}</td>
-          <td>{_h(getattr(w, "work_type", "") or "")}</td>
-          <td class="center">{_h(str(getattr(w, "category", "") or ""))}</td>
+          <td class="center">{_h(_category_ja(getattr(w, "category", "")))}</td>
           <td class="right">{_fmt_yen(getattr(w, "budget_amount", None))}</td>
           <td class="right">{_fmt_yen(getattr(w, "agreed_amount", None))}</td>
+          <td class="right">{_fmt_yen(getattr(w, "settlement_amount", None))}</td>
         </tr>"""
 
     def _cr(label: str, value: Any) -> str:
@@ -1950,19 +1968,24 @@ def generate_qcds_pdf(project: Any, qcds: Any, company: CompanyInfo) -> bytes:
           </tbody>
         </table>"""
 
+    total_budget     = sum(float(getattr(w, "budget_amount",     0) or 0) for w in direct_works)
+    total_agreed     = sum(float(getattr(w, "agreed_amount",     0) or 0) for w in direct_works)
+    total_settlement = sum(float(getattr(w, "settlement_amount", 0) or 0) for w in direct_works)
+
     css = """
 * { box-sizing: border-box; margin: 0; padding: 0; }
-@page { size: A4 landscape; margin: 12mm 15mm; }
+@page { size: A3 landscape; margin: 12mm 18mm; }
 body { font-family: 'Noto Sans CJK JP','Noto Sans JP',sans-serif; font-size: 9pt; color:#111; }
 .header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6mm; }
-.title { font-size:14pt; font-weight:bold; letter-spacing:.1em; }
-.meta { font-size:8.5pt; color:#555; margin-top:2mm; }
+.title { font-size:16pt; font-weight:bold; letter-spacing:.1em; }
+.meta { font-size:9pt; color:#555; margin-top:2mm; }
 .co { text-align:right; font-size:8pt; color:#555; }
-table.main { width:100%; border-collapse:collapse; font-size:8.5pt; margin-bottom:4mm; }
-table.main th { background:#e8edf5; border:.8pt solid #888; padding:4pt 5pt; text-align:center; font-weight:600; }
-table.main td { border:.7pt solid #bbb; padding:3pt 5pt; }
+table.main { width:100%; border-collapse:collapse; font-size:9pt; margin-bottom:4mm; }
+table.main th { background:#e8edf5; border:.8pt solid #888; padding:5pt 6pt; text-align:center; font-weight:600; }
+table.main td { border:.7pt solid #bbb; padding:4pt 6pt; }
 .center { text-align:center; }
 .right { text-align:right; font-family:monospace; }
+.total-row td { background:#d0e4f7; font-weight:bold; }
 """
 
     html_str = f"""<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
@@ -1977,13 +2000,22 @@ table.main td { border:.7pt solid #bbb; padding:3pt 5pt; }
 <table class="main">
   <thead><tr>
     <th style="width:4%">No</th>
-    <th style="width:25%">支払先</th>
-    <th style="width:18%">工種</th>
-    <th style="width:10%">区分</th>
-    <th style="width:20%">実行予算</th>
-    <th style="width:20%">取決金額</th>
+    <th style="width:28%">支払先</th>
+    <th style="width:8%">区分</th>
+    <th style="width:18%">実行予算</th>
+    <th style="width:18%">取決金額</th>
+    <th style="width:18%">精算（支払）見通し</th>
   </tr></thead>
-  <tbody>{rows_html}</tbody>
+  <tbody>
+    {rows_html}
+    <tr class="total-row">
+      <td colspan="2" style="text-align:center;">合　計</td>
+      <td></td>
+      <td class="right">{_fmt_yen(total_budget)}</td>
+      <td class="right">{_fmt_yen(total_agreed)}</td>
+      <td class="right">{_fmt_yen(total_settlement)}</td>
+    </tr>
+  </tbody>
 </table>
 {calc_html}
 </body></html>"""

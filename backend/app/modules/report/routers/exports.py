@@ -165,7 +165,7 @@ async def export_project_all(
         select(Invoice).where(Invoice.project_id == project_id).order_by(Invoice.created_at)
     )).scalars().all()
 
-    data = excel_export.export_project_all_excel(project, qcds_rows, list(quotes), list(orders), list(invoices))
+    data = new_excel_export.export_project_all_excel(project, qcds_rows, list(quotes), list(orders), list(invoices))
     client = getattr(project, "client_name", "") or ""
     pname  = getattr(project, "project_name", "") or ""
     filename = f"工事台帳_{project.project_number}_{pname}_{client}.xlsx".replace("/", "_").replace("\\", "_")
