@@ -24,6 +24,7 @@ interface LedgerApproval {
   role_label: string;
   approver_id: string | null;
   approver_name: string | null;
+  approver_stamp_text: string | null;
   approved_at: string | null;
   approver_user_id: string | null;
   approver_user_name: string | null;
