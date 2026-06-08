@@ -4724,6 +4724,52 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
+## Session 2026-06-08（続き）— アーキテクチャルール準拠チェック → 設計書 10.11/10.12 修正
+
+### 作業内容（予定）
+アーキテクチャルールチェックで発見した4点の問題を設計書に反映する：
+- 🔴 Rule 2 違反: project + report モジュールを同時変更 → 実装フェーズを R-1a〜d に分割
+- 🔴 URL 不一致: `/{invoice_id}/deductions` → `/projects/{pid}/invoices/{iid}/deductions`
+- 🟡 `_DEDUCTION_LABEL_JA` 定数の重複 → `shared/constants/deduction.py` に一元化
+- 🟡 `_check_edit_permission` の存在未確認 → grep 結果を踏まえてインライン実装を明記
+
+### 作業結果
+
+`docs/specs/設計書_06_機能拡張仕様_2026-06.md` の 10.11・10.12 を全面修正：
+
+**10.11 修正内容**
+- タイトルに「【アーキテクチャルール修正済み】」を付記
+- 冒頭に適用ルール確認表を追加（Rule 2・URL一貫性・権限チェック・既存パターン）
+- **実装フェーズ分割テーブル追加（Rule 2 準拠）**
+  - R-1a: shared + models + schemas + alembic
+  - R-1b: `modules/project` のみ（PATCH role）
+  - R-1c: `modules/report` のみ（控除CRUD・summary・snapshot・PDF）
+  - R-1d: frontend のみ
+  - 「R-1b と R-1c は別コミット・別セッションで実施すること」を明記
+- 権限チェック: `_check_edit_permission`（存在しない）→ 既存パターンのインライン3行に修正
+- URL パターン修正: `/{invoice_id}/deductions` → `/projects/{pid}/invoices/{iid}/deductions`
+- 全エンドポイント関数シグネチャに `project_id: uuid.UUID` 引数を追加
+
+**10.12 修正内容**
+- タイトルに「【アーキテクチャルール修正済み】」を付記
+- **`backend/app/shared/constants/deduction.py` 新規ファイル設計を追加**（Rule 1 準拠）
+- `deduction_service.py` の `_DEDUCTION_LABEL` ローカル定義を削除
+- `from app.shared.constants.deduction import DEDUCTION_LABEL_JA` に変更
+- `_get_invoice_or_404` に `project_id` 引数を追加（URL の project_id と invoice.project_id を照合）
+- 全サービス関数シグネチャに `project_id: uuid.UUID` を追加
+- `_calc_amount` に税抜ベース計算の注釈を追加（「税込ベースにする場合は total_amount に変更」）
+- `pdf_export.py` 側の `shared` import 指示を末尾に追記
+
+### 変更ファイル
+- `docs/specs/設計書_06_機能拡張仕様_2026-06.md`（10.11・10.12 修正）
+
+### 次のアクション
+- 設計完了。実装開始の承認を得る
+
+---
+
+
+
 
 
 
