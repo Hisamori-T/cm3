@@ -20,6 +20,7 @@ export interface ProjectSubNavContextValue {
   projectName: string;
   status: ProjectStatus;
   counts: ProjectCounts;
+  refreshCounts?: () => void;  // 削除後などに呼ぶとカウントを再取得
 }
 
 export const ProjectSubNavContext = createContext<ProjectSubNavContextValue | null>(null);

@@ -4878,6 +4878,16 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
+## Session 2026-06-09 — 請求書 バグ修正2件
+
+### 作業内容（予定）
+- ① 請求書削除後もタブバッジ④が残る → `invoice_count` の集計条件を調査・修正
+- ② 請求書なし状態で「請求合計 ¥3,684,692」が残る → `project_invoice_summary` ビューの計算を調査・修正
+
+### 作業結果
+
+---
+
 ## Session 2026-06-08（続き）— VPS 反映 + Phase R-1 全実装（10.1〜10.14）
 
 ### 作業内容（予定）
@@ -4890,7 +4900,64 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ### 作業結果
 
+**VPS 反映（pdf_export.py `_terms_html`）**
+- `_render_acknowledgment_html` / `_render_order_html` の `{_ORDER_TERMS_HTML}` → `{terms_html}` 置換完了
+- `sudo docker cp` → `cmv3-api restart` → Up 確認
 
+**R-1a（基盤）**
+- `shared/constants/deduction.py` / `shared/models/enums.py` に3 Enum 追加（ProjectRole / InvoicePhase / DeductionType）
+- `models/invoice.py`: `InvoiceDeduction` + `Invoice` 5カラム追加
+- `models/project.py`: `project_role` カラム追加
+- スキーマ（schemas/invoice.py / project.py）に対応フィールド追加
+- Alembic `R1_invoice_role_phase_deductions` 作成
+
+**R-1b（modules/project のみ）**
+- `PATCH /projects/{id}/role` 追加（`can_edit_project()` 権限チェック）
+
+**R-1c（modules/report のみ）**
+- `deduction_service.py` 新規（add/update/remove/progress_summary）
+- `invoices.py`: 控除 CRUD + progress-summary + スナップショット転記 + deductions eager load
+- `exports.py`: 支払通知書 PDF エンドポイント追加
+- `pdf_export.py`: `generate_payment_notice_pdf()` 追加
+
+**R-1d（フロントエンド のみ）**
+- `types/invoice.ts` / `types/project.ts`: Phase R-1 型定義追加
+- `projects/page.tsx`: 立場バッジ列 + 役割絞り込みタブ
+- `invoice/[invoice_id]/page.tsx`: 出来高セクション（sub）+ 控除セクション（prime）+ PDF ボタン
+
+**VPS デプロイ**
+- tar.gz 転送 → API リビルド → Alembic migration `R1_invoice_role_phase_deductions` 適用確認
+- TypeScript エラー修正（fetchProjects 引数 3→4）→ Web リビルド
+- `cmv3-api: Up 6min` / `cmv3-web: Up 16sec` 全コンテナ正常
+
+### 変更ファイル
+- `backend/alembic/versions/R1_invoice_role_phase_deductions.py`（新規）
+- `backend/app/models/enums.py` / `invoice.py` / `project.py`
+- `backend/app/modules/project/router.py`
+- `backend/app/modules/report/routers/invoices.py` / `exports.py`
+- `backend/app/modules/report/services/deduction_service.py`（新規）/ `pdf_export.py`
+- `backend/app/schemas/invoice.py` / `project.py`
+- `backend/app/shared/constants/__init__.py` / `deduction.py`（新規）
+- `backend/app/shared/models/enums.py`
+- `frontend/src/types/invoice.ts` / `project.ts`
+- `frontend/src/app/projects/page.tsx`
+- `frontend/src/app/projects/[id]/invoice/[invoice_id]/page.tsx`
+
+### コミット
+- `6acc702`: feat: Phase R-1 全実装（20 files, 1097 insertions）
+- `6cdcd2f`: fix: fetchProjects 引数修正 + session_log
+
+### 次のアクション
+- https://cmv3.fact-ally.com で動作確認:
+  - 案件一覧 → 立場バッジ / 絞り込みタブ
+  - 案件詳細 → 立場変更（PATCH /role）
+  - 請求書詳細（prime 案件）→ 控除セクション表示・追加・削除・支払通知書 PDF
+  - 請求書詳細（sub 案件）→ 出来高セクション表示・% ⟺ 金額連動
+- 未確認事項（ひさんに質問）:
+  - 支払通知書の下請業者名フィールド: 現在 `work_description` 流用 → 専用フィールドが必要か
+  - 支払方法フィールド: `billing_note` 流用 or 新規追加か
+
+---
 
 
 

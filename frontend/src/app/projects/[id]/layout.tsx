@@ -29,22 +29,27 @@ export default function ProjectLayout({ children }: { children: ReactNode }) {
   const { id } = useParams<{ id: string }>();
   const [ctx, setCtx] = useState<ProjectSubNavContextValue | null>(null);
 
-  useEffect(() => {
-    if (!id) return;
-    apiFetch<ProjectDetailMin>(`/api/v1/projects/${id}`)
+  const loadCounts = (projectId: string) => {
+    apiFetch<ProjectDetailMin>(`/api/v1/projects/${projectId}`)
       .then((data) => {
-        setCtx({
-          projectId: id,
+        setCtx(prev => ({
+          projectId,
           projectNumber: data.project_number,
           projectName: data.project_name,
           status: data.status,
           counts: data.counts,
-        });
+          refreshCounts: () => loadCounts(projectId),
+        }));
       })
       .catch(() => {
         // 認証前など失敗しても subnav なしで続行
       });
-  }, [id]);
+  };
+
+  useEffect(() => {
+    if (!id) return;
+    loadCounts(id);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <ProjectSubNavContext.Provider value={ctx}>

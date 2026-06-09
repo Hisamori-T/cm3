@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useProjectSubNav } from "@/contexts/project-context";
 import Link from "next/link";
 import { ChevronDown, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -40,6 +41,7 @@ function billingMethodLabel(inv: InvoiceRead): string {
 export default function InvoiceListPage() {
   const { id: projectId } = useParams<{ id: string }>();
   const router = useRouter();
+  const subnav = useProjectSubNav();
 
   const [invoices, setInvoices] = useState<InvoiceRead[]>([]);
   const [summary, setSummary] = useState<InvoiceSummary | null>(null);
@@ -119,6 +121,7 @@ export default function InvoiceListPage() {
     }
     if (failCount > 0) setError(`${failCount} 件の削除に失敗しました`);
     await loadAll();
+    subnav?.refreshCounts?.();  // タブバッジを即時更新
     setDeleting(false);
   }
 

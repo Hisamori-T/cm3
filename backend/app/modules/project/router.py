@@ -226,7 +226,10 @@ async def get_project(
         select(func.count()).where(Acknowledgment.project_id == project_id)
     )).scalar_one()
     invoice_count = (await db.execute(
-        select(func.count()).where(Invoice.project_id == project_id)
+        select(func.count()).where(
+            Invoice.project_id == project_id,
+            Invoice.invoice_type != "split",  # split 子行はタブカウントから除外
+        )
     )).scalar_one()
     progress_log_count = (await db.execute(
         select(func.count()).where(ProgressLog.project_id == project_id)

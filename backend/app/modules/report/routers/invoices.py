@@ -462,6 +462,20 @@ async def delete_invoice(
     if inv.status == InvoiceStatus.paid:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="入金済みの請求書は削除できません")
 
+    # split 子行を先に削除（孤立防止）
+    split_children = (await db.execute(
+        select(Invoice)
+        .options(selectinload(Invoice.payments), selectinload(Invoice.items))
+        .where(Invoice.parent_invoice_id == invoice_id)
+    )).scalars().all()
+    for child in split_children:
+        for p in list(child.payments):
+            await db.delete(p)
+        for item in list(child.items):
+            await db.delete(item)
+        await db.delete(child)
+
+    # 親を削除
     for p in list(inv.payments):
         await db.delete(p)
     for item in list(inv.items):
