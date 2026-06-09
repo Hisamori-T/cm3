@@ -156,6 +156,7 @@ export interface ProjectUpdate {
   order_type?: OrderType | null;
   contract_type?: ContractType | null;
   awarding_type?: AwardingType | null;
+  project_role?: ProjectRole | null;
   payment_condition?: string | null;
   project_summary?: string | null;
   prev_construction_type?: PrevConstructionType | null;
