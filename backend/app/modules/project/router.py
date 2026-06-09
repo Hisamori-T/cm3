@@ -420,10 +420,13 @@ async def update_project_role(
     old_role = str(project.project_role) if project.project_role else None
     project.project_role = body.project_role
     await record_history(
-        db, entity_type="project", entity_id=project.id,
+        db,
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        changed_by=current_user.id,
         change_type=EditHistoryChangeType.update,
         field_changes={"project_role": {"before": old_role, "after": body.project_role.value}},
-        user_id=current_user.id,
     )
     await db.commit()
     return await get_project(project_id=project_id, db=db, current_user=current_user)
