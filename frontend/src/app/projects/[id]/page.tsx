@@ -103,7 +103,6 @@ export default function ProjectDetailPage() {
   const router = useRouter();
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
-  const [selectedRole, setSelectedRole] = useState<string>("");  // 案件立場オプティミスティック state
   const [qcds, setQcds] = useState<QCDSResponse | null>(null);
   const [quoteSubtotal, setQuoteSubtotal] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -141,7 +140,6 @@ export default function ProjectDetailPage() {
     try {
       const data = await apiFetch<ProjectDetail>(`/api/v1/projects/${id}`);
       setProject(data);
-      setSelectedRole(data.project_role ?? "");
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         router.replace("/projects");
@@ -265,6 +263,7 @@ export default function ProjectDetailPage() {
       order_type: project.order_type ?? undefined,
       contract_type: project.contract_type ?? undefined,
       awarding_type: project.awarding_type ?? undefined,
+      project_role: project.project_role ?? undefined,
       payment_condition: project.payment_condition ?? "",
       project_summary: project.project_summary ?? "",
       prev_construction_type: project.prev_construction_type ?? undefined,
@@ -287,22 +286,6 @@ export default function ProjectDetailPage() {
 
   const cancelEdit = () => { setIsEditing(false); setError(null); };
 
-  const handleRoleChange = async (role: string) => {
-    if (!project || !role) return;  // 未設定は送信しない
-    const prev = selectedRole;
-    setSelectedRole(role);  // オプティミスティック更新（API 応答前に即時反映）
-    try {
-      const updated = await apiFetch<ProjectDetail>(`/api/v1/projects/${id}/role`, {
-        method: "PATCH",
-        body: JSON.stringify({ project_role: role }),
-      });
-      setProject(updated);
-      setSelectedRole(updated.project_role ?? "");
-    } catch {
-      setSelectedRole(prev);  // 失敗時は元の値に戻す
-      setError("立場の変更に失敗しました");
-    }
-  };
 
   const saveEdit = async () => {
     if (!project) return;
@@ -546,6 +529,7 @@ export default function ProjectDetailPage() {
                       <EditSelect label="発注区分" value={f("order_type")} options={[{ value: "private", label: "民間" }, { value: "government", label: "官庁" }]} onChange={set("order_type")} />
                       <EditSelect label="請負区分" value={f("contract_type")} options={[{ value: "prime", label: "元請" }, { value: "sub", label: "下請" }]} onChange={set("contract_type")} />
                       <EditSelect label="受注区分" value={f("awarding_type")} options={[{ value: "special", label: "特命" }, { value: "competitive", label: "競争" }]} onChange={set("awarding_type")} />
+                      <EditSelect label="案件立場" value={f("project_role")} options={[{ value: "prime", label: "元請" }, { value: "sub", label: "下請" }]} onChange={set("project_role")} />
                       <EditField label="工事価格" value={f("project_price")} onChange={set("project_price")} type="number" />
                       <EditField label="工期(見積)開始" value={f("period_quote_start")} onChange={set("period_quote_start")} type="date" />
                       <EditField label="工期(見積)終了" value={f("period_quote_end")} onChange={set("period_quote_end")} type="date" />
@@ -609,30 +593,17 @@ export default function ProjectDetailPage() {
                       </div>
 
                       <div className="k">案件立場</div>
-                      <div className="v" style={{ alignItems: "center", gap: 8 }}>
-                        {selectedRole && (
+                      <div className="v">
+                        {project.project_role ? (
                           <span style={{
                             fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
-                            background: `color-mix(in oklab, ${PROJECT_ROLE_COLOR[selectedRole as ProjectRole]} 12%, var(--c-surface))`,
-                            color: PROJECT_ROLE_COLOR[selectedRole as ProjectRole],
-                            border: `1px solid color-mix(in oklab, ${PROJECT_ROLE_COLOR[selectedRole as ProjectRole]} 30%, var(--c-border))`,
+                            background: `color-mix(in oklab, ${PROJECT_ROLE_COLOR[project.project_role as ProjectRole]} 12%, var(--c-surface))`,
+                            color: PROJECT_ROLE_COLOR[project.project_role as ProjectRole],
+                            border: `1px solid color-mix(in oklab, ${PROJECT_ROLE_COLOR[project.project_role as ProjectRole]} 30%, var(--c-border))`,
                           }}>
-                            {PROJECT_ROLE_LABEL[selectedRole as ProjectRole]}
+                            {PROJECT_ROLE_LABEL[project.project_role as ProjectRole]}
                           </span>
-                        )}
-                        <select
-                          value={selectedRole}
-                          onChange={e => handleRoleChange(e.target.value)}
-                          style={{
-                            border: "1px solid var(--c-border)", borderRadius: 4,
-                            padding: "3px 8px", fontSize: 12, background: "var(--c-surface)",
-                            cursor: "pointer",
-                          }}
-                        >
-                          <option value="">— 未設定 —</option>
-                          <option value="prime">元請</option>
-                          <option value="sub">下請</option>
-                        </select>
+                        ) : <span style={{ color: "var(--c-text-muted)" }}>—</span>}
                       </div>
 
                       <div className="k">支払条件</div>
