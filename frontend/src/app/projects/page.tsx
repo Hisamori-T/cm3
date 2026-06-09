@@ -8,7 +8,7 @@ import type { ProjectListItem, ProjectListResponse, ProjectRole, ProjectStatus }
 import { PROJECT_ROLE_COLOR, PROJECT_ROLE_LABEL, PROJECT_STATUS_LABEL } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { CreateProjectModal } from "@/components/projects/create-project-modal";
-import { fmtYen } from "@/lib/format";
+import { fmtMoney, fmtYen } from "@/lib/format";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 function getToken() { return typeof window !== "undefined" ? localStorage.getItem("cmv3_access_token") || "" : ""; }
@@ -121,11 +121,6 @@ function iniChar(name: string | null) {
   return name ? name.charAt(0) : "?";
 }
 
-function fmtM(n: number) {
-  if (n >= 1_000_000) return `¥${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000)     return `¥${(n / 1_000).toFixed(0)}K`;
-  return `¥${n.toLocaleString()}`;
-}
 
 export default function ProjectsPage() {
   const router = useRouter();
@@ -282,7 +277,7 @@ export default function ProjectsPage() {
         </div>
         <div className="lkpi">
           <div className="k">合計受注額</div>
-          <div className="v">{pageTotal > 0 ? fmtM(pageTotal) : "—"}</div>
+          <div className="v">{pageTotal > 0 ? fmtMoney(pageTotal) : "—"}</div>
           <div className="sub">現在のページ</div>
         </div>
         <div className="lkpi">

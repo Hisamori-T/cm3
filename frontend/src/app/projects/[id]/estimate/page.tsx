@@ -6,7 +6,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import { fmtYen } from "@/lib/format";
+import { fmtNum, fmtYen } from "@/lib/format";
 import { ScanZone, type ScanJob } from "@/modules/estimate/ScanZone";
 import { VersionCard, type EstimateVersion } from "@/modules/estimate/VersionCard";
 
@@ -1024,7 +1024,7 @@ export default function EstimatePage() {
                             />
                           </td>
                           <td style={{ textAlign: "right", fontFamily: "var(--ff-mono)", fontSize: 13, paddingRight: 8 }}>
-                            {item.amount != null ? item.amount.toLocaleString() : "—"}
+                            {fmtNum(item.amount)}
                           </td>
                           <td>
                             <button
@@ -1053,17 +1053,17 @@ export default function EstimatePage() {
                   <div style={{ display: "flex", gap: 20, fontSize: 13 }}>
                     <span style={{ color: "var(--c-text-muted)" }}>
                       小計 <span style={{ fontFamily: "var(--ff-mono)", color: "var(--c-text)", fontWeight: 600 }}>
-                        {versionSubtotal.toLocaleString()}
+                        {fmtNum(versionSubtotal)}
                       </span>
                     </span>
                     <span style={{ color: "var(--c-text-muted)" }}>
                       消費税 <span style={{ fontFamily: "var(--ff-mono)", color: "var(--c-text)" }}>
-                        {versionTax.toLocaleString()}
+                        {fmtNum(versionTax)}
                       </span>
                     </span>
                     <span style={{ color: "var(--c-text-muted)" }}>
                       合計 <span style={{ fontFamily: "var(--ff-mono)", color: "var(--c-primary)", fontWeight: 700, fontSize: 15 }}>
-                        {versionTotal.toLocaleString()}
+                        {fmtNum(versionTotal)}
                       </span>
                     </span>
                   </div>

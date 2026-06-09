@@ -2976,6 +2976,17 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
+## Session 2026-06-09（続き）— docs 掃除・技術的負債解消
+
+### 作業内容（予定）
+- /docs 以外のセッションログファイルを削除
+- 不要 docs ファイル削除（旧設計書・Gemini作業ファイル・zip・一時ファイル・architecture/）
+- フロントエンドの `toLocaleString` → `fmtYen` 統一（dashboard / projects / kanban / estimate / vendors）
+
+### 作業結果
+
+
+
 
 
 

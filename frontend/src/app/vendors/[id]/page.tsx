@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import type { PriceHistoryListResponse, PriceHistoryRead, VendorDetail, VendorUpdate } from "@/types/vendor";
+import { fmtNum, fmtYen } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -67,7 +68,7 @@ function PriceLineChart({ histories }: { histories: PriceHistoryRead[] }) {
         <div className="meta">
           直近:{" "}
           <strong style={{ color: "var(--c-text)", fontFamily: "var(--ff-mono)", fontSize: 13, fontWeight: 700 }}>
-            ¥{(last.unit_price as number).toLocaleString()}
+            {fmtYen(last.unit_price as number)}
           </strong>
           {last.unit ?? ""}
         </div>
@@ -475,14 +476,11 @@ export default function VendorDetailPage() {
                           <td>{h.item_name}</td>
                           <td style={{ color: "var(--c-text-muted)" }}>{h.item_spec ?? "—"}</td>
                           <td className="num" style={{ color: "var(--c-text-muted)" }}>
-                            {h.quantity?.toLocaleString() ?? "—"}
+                            {fmtNum(h.quantity)}
                           </td>
                           <td style={{ color: "var(--c-text-muted)" }}>{h.unit ?? "—"}</td>
                           <td className="num">
-                            {h.unit_price != null
-                              ? <strong>¥{Math.round(h.unit_price).toLocaleString()}</strong>
-                              : "—"
-                            }
+                            {h.unit_price != null ? <strong>{fmtYen(h.unit_price)}</strong> : "—"}
                           </td>
                           <td>
                             {delta

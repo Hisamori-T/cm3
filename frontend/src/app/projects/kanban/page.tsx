@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
+import { fmtYen } from "@/lib/format";
 
 type ProjectStatus = "quote" | "ordered" | "started" | "in_progress" | "completed" | "billed" | "paid";
 
@@ -27,11 +28,6 @@ interface KanbanColumn {
   cards: KanbanCard[];
 }
 
-function fmtYen(v: number | null): string {
-  if (v == null) return "";
-  if (v >= 1_000_000) return `¥${(v / 1_000_000).toFixed(1)}M`;
-  return `¥${v.toLocaleString()}`;
-}
 
 const STATUS_COLOR: Record<ProjectStatus, string> = {
   quote: "#6366f1",

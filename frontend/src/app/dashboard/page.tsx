@@ -7,7 +7,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { CreateProjectModal } from "@/components/projects/create-project-modal";
-import { fmtMoney, fmtRelTime, fmtYen } from "@/lib/format";
+import { fmtMoney, fmtNum, fmtRelTime, fmtYen } from "@/lib/format";
 import type { ProjectListItem } from "@/types/project";
 
 interface KpiCard { label: string; value: number; unit: string; }
@@ -302,7 +302,7 @@ function MonthlyInvoicesCard({ groups }: { groups: MonthlyInvoiceGroup[] }) {
               </span>
             </span>
             <span style={{ fontFamily: "var(--ff-mono)", fontSize: 12, color: "var(--c-text-muted)", fontWeight: 400 }}>
-              ¥{Math.round(g.total_billed).toLocaleString()} / 入金 ¥{Math.round(g.total_paid).toLocaleString()}
+              {fmtYen(g.total_billed)} / 入金 {fmtYen(g.total_paid)}
             </span>
           </button>
           {open.has(g.year_month) && (
@@ -327,10 +327,10 @@ function MonthlyInvoicesCard({ groups }: { groups: MonthlyInvoiceGroup[] }) {
                       </td>
                       <td style={{ fontSize: 12, color: "var(--c-text-muted)" }}>{inv.client_name || "—"}</td>
                       <td className="num" style={{ fontFamily: "var(--ff-mono)", fontWeight: 600 }}>
-                        ¥{Math.round(inv.total_amount).toLocaleString()}
+                        {fmtYen(inv.total_amount)}
                       </td>
                       <td className="num" style={{ fontFamily: "var(--ff-mono)", color: fullyPaid ? "var(--c-success)" : "var(--c-danger)" }}>
-                        {inv.total_paid > 0 ? `¥${Math.round(inv.total_paid).toLocaleString()}` : "—"}
+                        {inv.total_paid > 0 ? fmtYen(inv.total_paid) : "—"}
                       </td>
                     </tr>
                   );
@@ -406,7 +406,7 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="value">
-                    {card.value.toLocaleString()}
+                    {fmtNum(card.value)}
                     <span className="yen" style={{ fontSize: 14, marginLeft: 4 }}>{card.unit}</span>
                   </div>
                 )}
