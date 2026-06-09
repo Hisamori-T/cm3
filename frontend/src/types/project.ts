@@ -46,18 +46,16 @@ export const PREV_CONSTRUCTION_LABEL: Record<PrevConstructionType, string> = {
 };
 
 // Phase R-1: 案件立場
-export type ProjectRole = "prime" | "sub" | "public";
+export type ProjectRole = "prime" | "sub";
 
 export const PROJECT_ROLE_LABEL: Record<ProjectRole, string> = {
   prime: "元請",
   sub: "下請",
-  public: "公共",
 };
 
 export const PROJECT_ROLE_COLOR: Record<ProjectRole, string> = {
   prime: "#1d4ed8",
   sub: "#ea580c",
-  public: "#16a34a",
 };
 
 export interface ProjectListItem {

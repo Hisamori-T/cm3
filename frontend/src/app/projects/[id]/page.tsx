@@ -604,8 +604,6 @@ export default function ProjectDetailPage() {
                       <div className="v" style={{ flexWrap: "wrap", gap: 4 }}>
                         <span className={`chip ${project.order_type === "private" ? "on" : ""}`}>民間</span>
                         <span className={`chip ${project.order_type === "government" ? "on" : ""}`}>官庁</span>
-                        <span className={`chip ${project.contract_type === "prime" ? "on" : ""}`}>元請</span>
-                        <span className={`chip ${project.contract_type === "sub" ? "on" : ""}`}>下請</span>
                         <span className={`chip ${project.awarding_type === "special" ? "on" : ""}`}>特命</span>
                         <span className={`chip ${project.awarding_type === "competitive" ? "on" : ""}`}>競争</span>
                       </div>
@@ -634,7 +632,6 @@ export default function ProjectDetailPage() {
                           <option value="">— 未設定 —</option>
                           <option value="prime">元請</option>
                           <option value="sub">下請</option>
-                          <option value="public">公共</option>
                         </select>
                       </div>
 

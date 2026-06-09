@@ -386,7 +386,7 @@ export default function ProjectsPage() {
 
       {/* 立場絞り込みタブ */}
       <div style={{ display: "flex", gap: 6, padding: "0 0 8px" }}>
-        {([["", "すべて"], ["prime", "元請"], ["sub", "下請"], ["public", "公共"]] as [string, string][]).map(([val, label]) => (
+        {([["", "すべて"], ["prime", "元請"], ["sub", "下請"]] as [string, string][]).map(([val, label]) => (
           <button
             key={val}
             onClick={() => { setFilterRole(val as ProjectRole | ""); setPage(1); }}
