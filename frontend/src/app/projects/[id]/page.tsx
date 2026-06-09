@@ -103,6 +103,7 @@ export default function ProjectDetailPage() {
   const router = useRouter();
 
   const [project, setProject] = useState<ProjectDetail | null>(null);
+  const [selectedRole, setSelectedRole] = useState<string>("");  // 案件立場オプティミスティック state
   const [qcds, setQcds] = useState<QCDSResponse | null>(null);
   const [quoteSubtotal, setQuoteSubtotal] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -140,6 +141,7 @@ export default function ProjectDetailPage() {
     try {
       const data = await apiFetch<ProjectDetail>(`/api/v1/projects/${id}`);
       setProject(data);
+      setSelectedRole(data.project_role ?? "");
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         router.replace("/projects");
@@ -287,13 +289,17 @@ export default function ProjectDetailPage() {
 
   const handleRoleChange = async (role: string) => {
     if (!project || !role) return;  // 未設定は送信しない
+    const prev = selectedRole;
+    setSelectedRole(role);  // オプティミスティック更新（API 応答前に即時反映）
     try {
       const updated = await apiFetch<ProjectDetail>(`/api/v1/projects/${id}/role`, {
         method: "PATCH",
         body: JSON.stringify({ project_role: role }),
       });
       setProject(updated);
+      setSelectedRole(updated.project_role ?? "");
     } catch {
+      setSelectedRole(prev);  // 失敗時は元の値に戻す
       setError("立場の変更に失敗しました");
     }
   };
@@ -606,18 +612,18 @@ export default function ProjectDetailPage() {
 
                       <div className="k">案件立場</div>
                       <div className="v" style={{ alignItems: "center", gap: 8 }}>
-                        {project.project_role && (
+                        {selectedRole && (
                           <span style={{
                             fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
-                            background: `color-mix(in oklab, ${PROJECT_ROLE_COLOR[project.project_role as ProjectRole]} 12%, var(--c-surface))`,
-                            color: PROJECT_ROLE_COLOR[project.project_role as ProjectRole],
-                            border: `1px solid color-mix(in oklab, ${PROJECT_ROLE_COLOR[project.project_role as ProjectRole]} 30%, var(--c-border))`,
+                            background: `color-mix(in oklab, ${PROJECT_ROLE_COLOR[selectedRole as ProjectRole]} 12%, var(--c-surface))`,
+                            color: PROJECT_ROLE_COLOR[selectedRole as ProjectRole],
+                            border: `1px solid color-mix(in oklab, ${PROJECT_ROLE_COLOR[selectedRole as ProjectRole]} 30%, var(--c-border))`,
                           }}>
-                            {PROJECT_ROLE_LABEL[project.project_role as ProjectRole]}
+                            {PROJECT_ROLE_LABEL[selectedRole as ProjectRole]}
                           </span>
                         )}
                         <select
-                          value={project.project_role ?? ""}
+                          value={selectedRole}
                           onChange={e => handleRoleChange(e.target.value)}
                           style={{
                             border: "1px solid var(--c-border)", borderRadius: 4,
