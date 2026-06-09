@@ -6,8 +6,8 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch, ApiError } from "@/lib/api-client";
-import type { ProjectDetail, ProjectStatus, ProjectUpdate } from "@/types/project";
-import { PREV_CONSTRUCTION_LABEL, PROJECT_STATUS_LABEL } from "@/types/project";
+import type { ProjectDetail, ProjectRole, ProjectStatus, ProjectUpdate } from "@/types/project";
+import { PREV_CONSTRUCTION_LABEL, PROJECT_ROLE_COLOR, PROJECT_ROLE_LABEL, PROJECT_STATUS_LABEL } from "@/types/project";
 import type { QCDSResponse } from "@/types/qcds";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -284,6 +284,19 @@ export default function ProjectDetailPage() {
   };
 
   const cancelEdit = () => { setIsEditing(false); setError(null); };
+
+  const handleRoleChange = async (role: string) => {
+    if (!project || !role) return;  // 未設定は送信しない
+    try {
+      const updated = await apiFetch<ProjectDetail>(`/api/v1/projects/${id}/role`, {
+        method: "PATCH",
+        body: JSON.stringify({ project_role: role }),
+      });
+      setProject(updated);
+    } catch {
+      setError("立場の変更に失敗しました");
+    }
+  };
 
   const saveEdit = async () => {
     if (!project) return;
@@ -589,6 +602,34 @@ export default function ProjectDetailPage() {
                         <span className={`chip ${project.contract_type === "sub" ? "on" : ""}`}>下請</span>
                         <span className={`chip ${project.awarding_type === "special" ? "on" : ""}`}>特命</span>
                         <span className={`chip ${project.awarding_type === "competitive" ? "on" : ""}`}>競争</span>
+                      </div>
+
+                      <div className="k">案件立場</div>
+                      <div className="v" style={{ alignItems: "center", gap: 8 }}>
+                        {project.project_role && (
+                          <span style={{
+                            fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+                            background: `color-mix(in oklab, ${PROJECT_ROLE_COLOR[project.project_role as ProjectRole]} 12%, var(--c-surface))`,
+                            color: PROJECT_ROLE_COLOR[project.project_role as ProjectRole],
+                            border: `1px solid color-mix(in oklab, ${PROJECT_ROLE_COLOR[project.project_role as ProjectRole]} 30%, var(--c-border))`,
+                          }}>
+                            {PROJECT_ROLE_LABEL[project.project_role as ProjectRole]}
+                          </span>
+                        )}
+                        <select
+                          value={project.project_role ?? ""}
+                          onChange={e => handleRoleChange(e.target.value)}
+                          style={{
+                            border: "1px solid var(--c-border)", borderRadius: 4,
+                            padding: "3px 8px", fontSize: 12, background: "var(--c-surface)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <option value="">— 未設定 —</option>
+                          <option value="prime">元請</option>
+                          <option value="sub">下請</option>
+                          <option value="public">公共</option>
+                        </select>
                       </div>
 
                       <div className="k">支払条件</div>
