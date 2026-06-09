@@ -527,9 +527,8 @@ export default function ProjectDetailPage() {
                       </div>
                       <EditField label="元発注者" value={f("original_client_name")} onChange={set("original_client_name")} />
                       <EditSelect label="発注区分" value={f("order_type")} options={[{ value: "private", label: "民間" }, { value: "government", label: "官庁" }]} onChange={set("order_type")} />
-                      <EditSelect label="請負区分" value={f("contract_type")} options={[{ value: "prime", label: "元請" }, { value: "sub", label: "下請" }]} onChange={set("contract_type")} />
                       <EditSelect label="受注区分" value={f("awarding_type")} options={[{ value: "special", label: "特命" }, { value: "competitive", label: "競争" }]} onChange={set("awarding_type")} />
-                      <EditSelect label="案件立場" value={f("project_role")} options={[{ value: "prime", label: "元請" }, { value: "sub", label: "下請" }]} onChange={set("project_role")} />
+                      <EditSelect label="案件立場" value={f("project_role")} options={[{ value: "prime", label: "元請" }, { value: "sub", label: "下請" }]} onChange={v => { set("project_role")(v); set("contract_type")(v); }} />
                       <EditField label="工事価格" value={f("project_price")} onChange={set("project_price")} type="number" />
                       <EditField label="工期(見積)開始" value={f("period_quote_start")} onChange={set("period_quote_start")} type="date" />
                       <EditField label="工期(見積)終了" value={f("period_quote_end")} onChange={set("period_quote_end")} type="date" />
