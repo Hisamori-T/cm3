@@ -2070,3 +2070,22 @@ Phase 1-A' の実装を進めていたが、ユーザー（ひささん）から
 
 ---
 
+## 翌月への引継ぎ（→ session_log.md / 2026-06）
+
+### 完了済み（5月末時点）
+- Phase 1〜7 のモジュール基盤構築完了（main.py が modules/* 直接 include_router 構造）
+- 認証・案件CRUD・QCDS・業者見積・顧客見積・稟議承認・スキャン・帳票PDF 実装済み
+- VPS（cmv3.fact-ally.com）に本番稼働済み
+
+### 未完了・引継ぎ事項
+- 工事台帳 G-4（PDF/Excel 出力）未着手
+- Phase R-1（出来高・控除・支払通知書）未着手
+- 見積書PDF P2/P3 レイアウト確認未完了
+- Phase 1-C（権限制御・請求管理・入金アラーム）未着手
+
+### 注意事項
+- VPS マイグレーション: `merge_heads_2026` が head（DB と alembic/versions/ の同期に注意）
+- `session_log.md` は6月分として新規継続
+
+---
+

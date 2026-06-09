@@ -25,6 +25,29 @@
 
 ---
 
+## 5月からの引継ぎ
+
+### 完了済み（Phase 1〜7）
+- **Phase 1**: Docker環境・FastAPI・Next.js・DB・認証・案件CRUD・QCDS・見積書
+- **Phase 2〜5**: スキャン機能・業者見積・顧客見積（版/大項目/稟議承認）
+- **Phase 6**: Estimate モジュール分割（qcds / quote_core / quote_versions / quote_sections）
+- **Phase 7**: Report / Customer / Vendor / Auth / Admin / Schedule / Site / Purchase モジュール集約
+  - `main.py` を `modules/*` 直接 include_router 構造に全面書き換え
+
+### 継続中・引継ぎ事項
+- PDF 出力（WeasyPrint + Noto CJK JP）: 見積書・請求書・注文書・注文請書・写真台帳 実装済み
+- 承認ワークフロー（approvals.py）実装済み・稟議ページ動作確認済み
+- 工事台帳（Phase G-1〜G-3）: DB・API・フロント実装済み、G-4（PDF/Excel 出力）は未着手
+- VPS: `cmv3.fact-ally.com` で稼働中、cmv3-api / cmv3-web / cmv3-worker / cmv3-nginx 全正常
+
+### 残課題（6月対応予定）
+- 工事台帳 G-4: PDF/Excel 出力
+- Phase R-1: 出来高・控除・支払通知書（案件立場 element、請求書フロー分岐）
+- 発注書ステータス管理・支払カレンダー（実装済みだが動作確認要）
+- ダッシュボード：未入金アラーム・担当者別稼働時間（実装済み）
+
+---
+
 ## Session 2026-06-01 — 各種バグ修正・機能追加デプロイ
 
 ### 作業内容（前セッション実装・今セッション冒頭でデプロイ）
