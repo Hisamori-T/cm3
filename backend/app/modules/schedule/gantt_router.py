@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,42 +37,6 @@ class WorkTypeMasterRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class TaskCreate(BaseModel):
-    """工程タスク作成。"""
-    task_name: str
-    work_type: str | None = None
-    work_type_master_id: uuid.UUID | None = None
-    planned_start: date | None = None
-    planned_end: date | None = None
-    task_no: int = 0
-    parent_task_id: uuid.UUID | None = None
-    assigned_user_id: uuid.UUID | None = None
-    assigned_vendor_id: uuid.UUID | None = None
-    color: str | None = None
-    note: str | None = None
-
-
-class TaskUpdate(BaseModel):
-    """工程タスク更新。"""
-    task_name: str | None = None
-    work_type: str | None = None
-    work_type_master_id: uuid.UUID | None = None
-    planned_start: date | None = None
-    planned_end: date | None = None
-    actual_start: date | None = None
-    actual_end: date | None = None
-    progress_pct: Decimal | None = None
-    task_no: int | None = None
-    parent_task_id: uuid.UUID | None = None
-    assigned_user_id: uuid.UUID | None = None
-    assigned_vendor_id: uuid.UUID | None = None
-    color: str | None = None
-    dependency_task_id: uuid.UUID | None = None
-    dependency_type: TaskDependencyType | None = None
-    status: TaskStatus | None = None
-    note: str | None = None
-
-
 class TaskRead(BaseModel):
     """工程タスク読み取り。"""
     id: uuid.UUID
@@ -98,15 +62,6 @@ class TaskRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ── ヘルパー ─────────────────────────────────────────────────
-
-async def _get_project_or_404(project_id: uuid.UUID, db: AsyncSession) -> Project:
-    p = await db.get(Project, project_id)
-    if p is None or p.deleted_at is not None:
-        raise HTTPException(status_code=404, detail="案件が見つかりません")
-    return p
-
-
 # ── 工種マスタ ──────────────────────────────────────────────
 
 @router.get("/work-types", response_model=list[WorkTypeMasterRead])
@@ -119,86 +74,6 @@ async def list_work_types(
         select(WorkTypeMaster).order_by(WorkTypeMaster.display_order)
     )
     return [WorkTypeMasterRead.model_validate(wt) for wt in result.scalars().all()]
-
-
-# ── 案件単位の工程タスク ────────────────────────────────────
-
-@router.get("/projects/{project_id}/tasks", response_model=list[TaskRead])
-async def list_tasks(
-    project_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> list[TaskRead]:
-    """案件の工程タスク一覧（task_no 昇順）。"""
-    await _get_project_or_404(project_id, db)
-    result = await db.execute(
-        select(ProjectTask)
-        .options(selectinload(ProjectTask.work_type_master))
-        .where(ProjectTask.project_id == project_id)
-        .order_by(ProjectTask.task_no)
-    )
-    return [TaskRead.model_validate(t) for t in result.scalars().all()]
-
-
-@router.post("/projects/{project_id}/tasks", response_model=TaskRead, status_code=status.HTTP_201_CREATED)
-async def create_task(
-    project_id: uuid.UUID,
-    body: TaskCreate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> TaskRead:
-    """工程タスク追加。"""
-    await _get_project_or_404(project_id, db)
-    task = ProjectTask(project_id=project_id, **body.model_dump())
-    db.add(task)
-    await db.commit()
-    await db.refresh(task)
-    result = await db.execute(
-        select(ProjectTask)
-        .options(selectinload(ProjectTask.work_type_master))
-        .where(ProjectTask.id == task.id)
-    )
-    return TaskRead.model_validate(result.scalar_one())
-
-
-@router.patch("/projects/{project_id}/tasks/{task_id}", response_model=TaskRead)
-async def update_task(
-    project_id: uuid.UUID,
-    task_id: uuid.UUID,
-    body: TaskUpdate,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> TaskRead:
-    """工程タスク更新。"""
-    await _get_project_or_404(project_id, db)
-    task = await db.get(ProjectTask, task_id)
-    if task is None or task.project_id != project_id:
-        raise HTTPException(status_code=404, detail="タスクが見つかりません")
-    for field, value in body.model_dump(exclude_unset=True).items():
-        setattr(task, field, value)
-    await db.commit()
-    result = await db.execute(
-        select(ProjectTask)
-        .options(selectinload(ProjectTask.work_type_master))
-        .where(ProjectTask.id == task_id)
-    )
-    return TaskRead.model_validate(result.scalar_one())
-
-
-@router.delete("/projects/{project_id}/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_task(
-    project_id: uuid.UUID,
-    task_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> None:
-    """工程タスク削除。"""
-    await _get_project_or_404(project_id, db)
-    task = await db.get(ProjectTask, task_id)
-    if task is None or task.project_id != project_id:
-        raise HTTPException(status_code=404, detail="タスクが見つかりません")
-    await db.delete(task)
-    await db.commit()
 
 
 # ── 全社工程表 ─────────────────────────────────────────────

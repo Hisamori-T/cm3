@@ -54,16 +54,6 @@ interface Project {
   project_name: string;
 }
 
-interface PaymentDue {
-  id: string;
-  payment_due_date: string;
-  vendor_name: string | null;
-  project_name: string | null;
-  project_number: string | null;
-  total_amount: number;
-  status: string;
-}
-
 // ── Constants ─────────────────────────────────────────────────
 
 const EVENT_COLORS: Record<EventType, string> = {
@@ -86,8 +76,7 @@ const WEATHER_ICON: Record<Weather, string> = {
   sunny: "☀", cloudy: "☁", rainy: "🌧", snowy: "❄",
 };
 
-const REPORT_COLOR  = "#16a34a";
-const PAYMENT_COLOR = "#7c3aed";
+const REPORT_COLOR     = "#16a34a";
 const DAY_LABELS   = ["日", "月", "火", "水", "木", "金", "土"];
 const MONTH_LABELS = ["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"];
 
@@ -103,7 +92,6 @@ function Legend() {
         { color: EVENT_COLORS.milestone,    label: "マイルストーン" },
         { color: EVENT_COLORS.vendor_visit, label: "業者訪問" },
         { color: EVENT_COLORS.personal,     label: "その他" },
-        { color: PAYMENT_COLOR,              label: "支払期日" },
       ].map(({ color, label }) => (
         <span key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <span style={{ width: 10, height: 10, borderRadius: 2, background: color, display: "inline-block", flexShrink: 0 }} />
@@ -126,7 +114,6 @@ export default function CalendarPage() {
   const [reports, setReports] = useState<DailyReport[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users,  setUsers]  = useState<{ id: string; full_name: string }[]>([]);
-  const [payments, setPayments] = useState<PaymentDue[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
@@ -168,18 +155,16 @@ export default function CalendarPage() {
     const fromDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
     const toDate   = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
     try {
-      const [evs, reps, projs, us, pays] = await Promise.all([
+      const [evs, reps, projs, us] = await Promise.all([
         apiFetch<ScheduleEvent[]>(`/api/v1/schedule?from_dt=${encodeURIComponent(from)}&to_dt=${encodeURIComponent(to)}`),
         apiFetch<DailyReport[]>(`/api/v1/daily-reports?from_date=${fromDate}&to_date=${toDate}`),
         apiFetch<{ items: Project[] }>("/api/v1/projects?limit=200").then((d) => d.items),
         apiFetch<{ id: string; full_name: string }[]>("/api/v1/auth/users").catch(() => []),
-        apiFetch<PaymentDue[]>("/api/v1/purchase-orders/upcoming-payments?days=90").catch(() => []),
       ]);
       setEvents(evs);
       setReports(reps);
       setProjects(projs);
       setUsers(us);
-      setPayments(pays);
     } finally {
       setLoading(false);
     }
@@ -202,10 +187,6 @@ export default function CalendarPage() {
     const d = ds(day);
     return reports.filter((r) => r.report_date === d || r.report_date.startsWith(d));
   }
-  function dayPayments(day: number) {
-    return payments.filter((p) => p.payment_due_date === ds(day));
-  }
-
   function selectDay(day: number) {
     const d = ds(day);
     setSelectedDay(d);
@@ -305,8 +286,6 @@ export default function CalendarPage() {
   const selReps = selectedDay
     ? reports.filter((r) => r.report_date === selectedDay || r.report_date.startsWith(selectedDay))
     : [];
-  const selPays = selectedDay ? payments.filter((p) => p.payment_due_date === selectedDay) : [];
-
   // ── render ────────────────────────────────────────────────────
 
   return (
@@ -352,9 +331,8 @@ export default function CalendarPage() {
                 const isSelected = ds(day) === selectedDay;
                 const evs  = dayEvents(day);
                 const reps = dayReports(day);
-                const pays = dayPayments(day);
 
-                // chip priority: site_visit → reports → payments → other events
+                // chip priority: site_visit → reports → other events
                 const siteChips = evs
                   .filter((e) => e.event_type === "site_visit")
                   .map((e) => ({ key: e.id, label: e.project_name ?? e.title, color: EVENT_COLORS.site_visit }));
@@ -363,15 +341,10 @@ export default function CalendarPage() {
                     ? r.entries.map((e) => ({ key: `r${r.id}${e.id}`, label: e.project_name ?? "日報", color: REPORT_COLOR }))
                     : [{ key: `r${r.id}`, label: "日報", color: REPORT_COLOR }]
                 );
-                const payChips = pays.map((p) => ({
-                  key: `pay${p.id}`,
-                  label: `💴${p.vendor_name ?? "支払"}`,
-                  color: PAYMENT_COLOR,
-                }));
                 const otherChips = evs
                   .filter((e) => e.event_type !== "site_visit")
                   .map((e) => ({ key: e.id, label: e.title, color: e.color ?? EVENT_COLORS[e.event_type] }));
-                const allChips = [...siteChips, ...repChips, ...payChips, ...otherChips];
+                const allChips = [...siteChips, ...repChips, ...otherChips];
                 const overflow = allChips.length - 3;
 
                 return (
@@ -486,25 +459,6 @@ export default function CalendarPage() {
                 </div>
 
                 <div style={{ height: 1, background: "var(--c-border)" }} />
-
-                {/* 支払期日 */}
-                {selPays.length > 0 && (
-                  <>
-                    <div style={{ padding: "10px 14px" }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: PAYMENT_COLOR, letterSpacing: "0.05em", marginBottom: 6 }}>💴 支払期日</div>
-                      {selPays.map((p) => (
-                        <div key={p.id} style={{ marginBottom: 6, padding: "6px 8px", background: "#f5f3ff", borderRadius: "var(--r-md)", border: `1px solid ${PAYMENT_COLOR}44`, fontSize: 12 }}>
-                          <div style={{ fontWeight: 600, color: PAYMENT_COLOR }}>{p.vendor_name ?? "業者不明"}</div>
-                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 2 }}>
-                            <span style={{ color: "var(--c-text-muted)" }}>{p.project_number} {p.project_name}</span>
-                            <span style={{ fontWeight: 700 }}>¥{p.total_amount.toLocaleString()}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ height: 1, background: "var(--c-border)" }} />
-                  </>
-                )}
 
                 {/* アクションボタン */}
                 {dayMode === "view" && (
@@ -634,9 +588,13 @@ export default function CalendarPage() {
                               key={w}
                               onClick={() => setReportForm({ ...reportForm, weather: w })}
                               style={{
-                                width: 28, height: 28, border: "1px solid var(--c-border)",
-                                borderRadius: "var(--r-md)", cursor: "pointer", fontSize: 14,
-                                background: reportForm.weather === w ? "var(--c-primary)" : "var(--c-surface)",
+                                width: 32, height: 32,
+                                border: reportForm.weather === w ? "2px solid var(--c-primary)" : "1px solid var(--c-border)",
+                                borderRadius: "var(--r-md)", cursor: "pointer", fontSize: 16,
+                                background: reportForm.weather === w
+                                  ? "color-mix(in oklab, var(--c-primary) 12%, var(--c-surface))"
+                                  : "var(--c-surface)",
+                                boxShadow: reportForm.weather === w ? "0 0 0 2px var(--c-primary)33" : "none",
                               }}
                             >{WEATHER_ICON[w]}</button>
                           ))}

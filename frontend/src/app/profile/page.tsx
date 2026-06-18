@@ -11,6 +11,9 @@ import type { User } from "@/types/auth";
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "システム管理者",
   admin: "管理者",
+  manager: "上長",
+  accounting: "経理",
+  staff: "スタッフ",
   member: "メンバー",
 };
 

@@ -22,7 +22,6 @@ const getToken = () => tokenStore.get() ?? "";
 interface VendorCandidate { id: string; vendor_name: string; kana: string | null; }
 interface EditableItem extends ScanResultItem { _edited: boolean; }
 interface ProjectOption { id: string; project_number: string; project_name: string; }
-interface QCDSOption { id: string; }
 
 
 /** スキャン結果レビュー画面 */
@@ -62,7 +61,6 @@ export default function ScanReviewPage() {
   // Transfer options
   const [linkedProject, setLinkedProject] = useState<ProjectOption | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
-  const [qcds, setQcds] = useState<QCDSOption | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [applyMsg, setApplyMsg] = useState<string | null>(null);
   const [transferring, setTransferring] = useState(false);
@@ -135,17 +133,6 @@ export default function ScanReviewPage() {
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
-
-  // Load project/QCDS for transfer
-  useEffect(() => {
-    if (!linkedProject) { setQcds(null); return; }
-    (async () => {
-      try {
-        const q = await apiFetch<{ id: string }>(`/api/v1/projects/${linkedProject.id}/qcds`).catch(() => null);
-        setQcds(q);
-      } catch { /* ignore */ }
-    })();
-  }, [linkedProject]);
 
   async function loadProjects() {
     try {
@@ -236,25 +223,6 @@ export default function ScanReviewPage() {
     }
   }
 
-  async function handleTransferToQcds() {
-    if (!job?.results[0] || !qcds || !linkedProject) return;
-    const resultId = job.results[0].id;
-    setTransferring(true); setApplyMsg(null);
-    try {
-      const r = await apiFetch<{ vendor_name: string | null; total_amount: number }>(`/api/v1/scan/results/${resultId}/transfer-to-qcds`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qcds_id: qcds.id }),
-      });
-      setApplyMsg(`QCDSに転記しました（${r.vendor_name ?? "業者名不明"} ¥${r.total_amount.toLocaleString("ja-JP")}）。3秒後に移動します…`);
-      await loadJob();
-      setTimeout(() => router.push(`/projects/${linkedProject.id}/qcds`), 3000);
-    } catch (e) {
-      setApplyMsg(`エラー: ${(e as Error).message}`);
-    } finally {
-      setTransferring(false);
-    }
-  }
-
   async function handleSaveAsVersion() {
     if (!job?.results[0] || !linkedProject) return;
     const resultId = job.results[0].id;
@@ -299,7 +267,6 @@ export default function ScanReviewPage() {
     </div>
   );
 
-  const canTransferToQcds = !!linkedProject && !!qcds;
   const canSaveAsVersion = !!linkedProject;
 
   return (
@@ -465,7 +432,7 @@ export default function ScanReviewPage() {
               linkedProject={linkedProject}
               candidates={projects}
               onSelect={(p) => setLinkedProject(p)}
-              onClear={() => { setLinkedProject(null); setQcds(null); }}
+              onClear={() => setLinkedProject(null)}
               onLoadCandidates={() => { if (projects.length === 0) loadProjects(); }}
             />
           </div>
@@ -562,7 +529,7 @@ export default function ScanReviewPage() {
               <div style={{ display: "flex", flexDirection: "column", gap: 4, color: "var(--c-text)", lineHeight: 1.6 }}>
                 <div><span style={{ fontFamily: "var(--ff-mono)", fontWeight: 700, color: "var(--c-primary)", marginRight: 8 }}>①</span>左のPDFと右の抽出内容を照合。黄背景・<span style={{ display:"inline-flex",width:14,height:14,borderRadius:"50%",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff",background:"var(--c-warn)",verticalAlign:"middle",margin:"0 2px"}}>!</span>マークの箇所を重点確認</div>
                 <div><span style={{ fontFamily: "var(--ff-mono)", fontWeight: 700, color: "var(--c-primary)", marginRight: 8 }}>②</span>数値を修正すると金額・小計・合計が自動計算されます。「編集を保存」で確定</div>
-                <div><span style={{ fontFamily: "var(--ff-mono)", fontWeight: 700, color: "var(--c-primary)", marginRight: 8 }}>③</span>下の「転記先」で転記したい案件・見積書・QCDSを選択して「選択先に転記する」を押す</div>
+                <div><span style={{ fontFamily: "var(--ff-mono)", fontWeight: 700, color: "var(--c-primary)", marginRight: 8 }}>③</span>下の「転記先」で転記したい案件を選択して「業者見積として保存」を押す</div>
               </div>
             </div>
           )}
@@ -840,46 +807,7 @@ export default function ScanReviewPage() {
               </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "16px 18px" }}>
-              {/* QCDS に転記 */}
-              <div style={{
-                border: `1.5px solid ${canTransferToQcds ? "var(--c-primary)" : "var(--c-border)"}`,
-                borderRadius: "var(--r-md)", padding: 14,
-                background: canTransferToQcds ? "color-mix(in oklab, var(--c-primary) 6%, var(--c-surface))" : "var(--c-surface-2)",
-                display: "flex", flexDirection: "column", gap: 8,
-              }}>
-                <div style={{ fontWeight: 700, fontSize: 13 }}>QCDSに転記</div>
-                <div style={{ fontSize: 11, color: "var(--c-text-muted)", lineHeight: 1.5 }}>
-                  業者名＋合計金額で 1 行追加<br />
-                  個別明細は業者見積版に保存されます
-                </div>
-                {linkedProject && (
-                  <span style={{ fontSize: 11, color: "var(--c-primary)", fontFamily: "var(--ff-mono)", background: "var(--c-surface)", padding: "1px 6px", borderRadius: 2, width: "fit-content" }}>
-                    {linkedProject.project_number} / QCDS
-                  </span>
-                )}
-                {!linkedProject && (
-                  <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>案件を選択してください</span>
-                )}
-                {linkedProject && !qcds && (
-                  <span style={{ fontSize: 11, color: "var(--c-warn)" }}>この案件にQCDSがありません</span>
-                )}
-                <button
-                  onClick={handleTransferToQcds}
-                  disabled={!canTransferToQcds || transferring}
-                  style={{
-                    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5,
-                    padding: "7px 14px", borderRadius: "var(--r-md)", fontSize: 13, fontWeight: 600,
-                    background: canTransferToQcds ? "var(--c-primary)" : "var(--c-surface-3)",
-                    color: canTransferToQcds ? "#fff" : "var(--c-text-muted)",
-                    border: "none", cursor: canTransferToQcds ? "pointer" : "not-allowed", marginTop: 4,
-                  }}
-                >
-                  {transferring ? <Loader2 size={13} style={{ animation: "spin 1s linear infinite" }} /> : null}
-                  QCDSに転記する
-                </button>
-              </div>
-
+            <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10, padding: "16px 18px" }}>
               {/* 業者見積として保存 */}
               <div style={{
                 border: `1.5px solid ${canSaveAsVersion ? "var(--c-accent)" : "var(--c-border)"}`,
@@ -889,8 +817,7 @@ export default function ScanReviewPage() {
               }}>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>業者見積として保存</div>
                 <div style={{ fontSize: 11, color: "var(--c-text-muted)", lineHeight: 1.5 }}>
-                  個別明細を業者見積版として保存<br />
-                  QCDSへの転記はしません
+                  個別明細を業者見積版として保存します
                 </div>
                 {linkedProject && (
                   <span style={{ fontSize: 11, color: "var(--c-accent)", fontFamily: "var(--ff-mono)", background: "var(--c-surface)", padding: "1px 6px", borderRadius: 2, width: "fit-content" }}>

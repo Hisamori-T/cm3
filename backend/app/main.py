@@ -22,24 +22,20 @@ from app.modules.vendor.router import router as vendor_router
 
 # ── project ───────────────────────────────────────────────────────────────────
 from app.modules.project.kanban_router import router as kanban_router
-from app.modules.project.ledger_router import router as ledger_router
 from app.modules.project.router import router as project_router
 from app.modules.project.comments_router import router as comments_router
 
 # ── estimate ──────────────────────────────────────────────────────────────────
-from app.modules.estimate.routers.qcds import router as qcds_router
 from app.modules.estimate.routers.quote_core import router as quote_core_router
 from app.modules.estimate.routers.quote_versions import router as quote_versions_router
 from app.modules.estimate.routers.quote_sections import router as quote_sections_router
-from app.modules.estimate.routers.acknowledgments import router as acknowledgments_router
 from app.api.v1.conditions import router as conditions_router
 from app.api.v1.approvals import router as approvals_router
 
 # ── report ────────────────────────────────────────────────────────────────────
-from app.modules.report.routers.orders import router as orders_router
-from app.modules.report.routers.invoices import router as invoices_router
 from app.modules.report.routers.exports import router as exports_router
 from app.modules.report.routers.dashboard import router as dashboard_router
+from app.modules.report.routers.csv_export import router as csv_export_router
 
 # ── admin ─────────────────────────────────────────────────────────────────────
 from app.modules.admin.router import router as admin_router
@@ -53,12 +49,9 @@ from app.modules.schedule.gantt_router import router as gantt_router
 from app.modules.schedule.schedule_router import router as schedule_router
 
 # ── site ──────────────────────────────────────────────────────────────────────
-from app.modules.site.progress_router import router as progress_router
 from app.modules.site.daily_reports_router import router as daily_reports_router
-from app.modules.site.attendance_router import router as attendance_router
 
 # ── purchase ──────────────────────────────────────────────────────────────────
-from app.modules.purchase.routers.orders import router as purchase_router
 from app.modules.purchase.routers.scan_upload import router as scan_upload_router
 from app.modules.purchase.routers.scan_review import router as scan_review_router
 from app.modules.purchase.routers.scan_transfer import router as scan_transfer_router
@@ -133,24 +126,20 @@ app.include_router(vendor_router, prefix=PREFIX)
 
 # project (kanban を先に登録)
 app.include_router(kanban_router, prefix=PREFIX)
-app.include_router(ledger_router, prefix=PREFIX)
 app.include_router(project_router, prefix=PREFIX)
 app.include_router(comments_router, prefix=PREFIX)
 
 # estimate
-app.include_router(qcds_router, prefix=PREFIX)
 app.include_router(quote_core_router, prefix=PREFIX)
 app.include_router(quote_versions_router, prefix=PREFIX)
 app.include_router(quote_sections_router, prefix=PREFIX)
-app.include_router(acknowledgments_router, prefix=PREFIX)
 app.include_router(conditions_router, prefix=PREFIX)
 app.include_router(approvals_router, prefix=PREFIX)
 
 # report
-app.include_router(orders_router, prefix=PREFIX)
-app.include_router(invoices_router, prefix=PREFIX)
 app.include_router(exports_router, prefix=PREFIX)
 app.include_router(dashboard_router, prefix=PREFIX)
+app.include_router(csv_export_router, prefix=PREFIX)
 
 # admin
 app.include_router(admin_router, prefix=PREFIX)
@@ -164,12 +153,9 @@ app.include_router(gantt_router, prefix=PREFIX)
 app.include_router(schedule_router, prefix=PREFIX)
 
 # site
-app.include_router(progress_router, prefix=PREFIX)
 app.include_router(daily_reports_router, prefix=PREFIX)
-app.include_router(attendance_router, prefix=PREFIX)
 
 # purchase
-app.include_router(purchase_router, prefix=PREFIX)
 app.include_router(scan_upload_router, prefix=PREFIX)
 app.include_router(scan_review_router, prefix=PREFIX)
 app.include_router(scan_transfer_router, prefix=PREFIX)

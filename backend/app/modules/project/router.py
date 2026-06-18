@@ -16,14 +16,9 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.enums import EditHistoryChangeType, ProjectStatus, UserRole
+from app.models.enums import EditHistoryChangeType, ProjectStatus
 from app.shared.services.permissions import can_edit_project
-from app.models.acknowledgment import Acknowledgment
-from app.models.invoice import Invoice
-from app.models.order import Order
-from app.models.progress import ProgressLog
 from app.models.project import Project
-from app.models.qcds import QCDS
 from app.models.quote import Quote, QuoteVersion
 from app.models.user import User
 from app.shared.services.quote_init import create_initial_quote
@@ -49,12 +44,15 @@ logger = structlog.get_logger(__name__)
 def _to_list_item(p: Project) -> ProjectListItem:
     # 受注額: project_price が未設定(0/None)の場合は発行済み見積の最大金額をフォールバック
     price = float(p.project_price) if p.project_price else None
-    if not price and hasattr(p, "quotes"):
-        issued = [q for q in p.quotes if getattr(q, "status", None) in ("issued", "approved")]
-        if issued:
-            amounts = [float(q.total_amount) for q in issued if q.total_amount]
-            if amounts:
-                price = max(amounts)
+    # quotes はeagerload済みの場合のみ参照（lazy load はMissingGreenletになる）
+    if not price:
+        quotes_loaded = p.__dict__.get("quotes")
+        if quotes_loaded:
+            issued = [q for q in quotes_loaded if getattr(q, "status", None) in ("issued", "approved")]
+            if issued:
+                amounts = [float(q.total_amount) for q in issued if q.total_amount]
+                if amounts:
+                    price = max(amounts)
 
     return ProjectListItem(
         id=p.id,
@@ -214,26 +212,8 @@ async def get_project(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
 
-    qcds_count = (await db.execute(
-        select(func.count()).where(QCDS.project_id == project_id)
-    )).scalar_one()
     quote_count = (await db.execute(
         select(func.count()).where(Quote.project_id == project_id)
-    )).scalar_one()
-    order_count = (await db.execute(
-        select(func.count()).where(Order.project_id == project_id)
-    )).scalar_one()
-    acknowledgment_count = (await db.execute(
-        select(func.count()).where(Acknowledgment.project_id == project_id)
-    )).scalar_one()
-    invoice_count = (await db.execute(
-        select(func.count()).where(
-            Invoice.project_id == project_id,
-            Invoice.invoice_type != "split",  # split 子行はタブカウントから除外
-        )
-    )).scalar_one()
-    progress_log_count = (await db.execute(
-        select(func.count()).where(ProgressLog.project_id == project_id)
     )).scalar_one()
     from app.models.history import EditHistory
     history_count = (await db.execute(
@@ -281,19 +261,10 @@ async def get_project(
         period_actual_end=project.period_actual_end,
         created_at=project.created_at,
         updated_at=project.updated_at,
-        qcds_count=qcds_count,
         quote_count=quote_count,
-        order_count=order_count,
-        invoice_count=invoice_count,
-        progress_log_count=progress_log_count,
         counts=ProjectCounts(
-            qcds=qcds_count,
             estimate=estimate_count,
             quote=quote_count,
-            order=order_count,
-            acknowledgment=acknowledgment_count,
-            invoice=invoice_count,
-            progress=progress_log_count,
             history=history_count,
         ),
     )
@@ -319,7 +290,7 @@ async def update_project(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
 
-    if not (current_user.role == UserRole.admin or project.created_by == current_user.id):
+    if not can_edit_project(current_user, project):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="編集権限がありません")
 
     if body.project_number is not None and body.project_number != project.project_number:
@@ -357,7 +328,7 @@ async def change_status(
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
 
-    if not (current_user.role == UserRole.admin or project.created_by == current_user.id):
+    if not can_edit_project(current_user, project):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="変更権限がありません")
 
     old_status = project.status
@@ -446,7 +417,7 @@ async def delete_project(
     )).scalar_one_or_none()
     if project is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="案件が見つかりません")
-    if not (current_user.role == UserRole.admin or project.created_by == current_user.id):
+    if not can_edit_project(current_user, project):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="削除権限がありません")
     project.deleted_at = datetime.now(timezone.utc)
     await db.commit()

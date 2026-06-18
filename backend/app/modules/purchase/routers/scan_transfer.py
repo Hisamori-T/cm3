@@ -1,7 +1,7 @@
 """スキャン解析結果の転記・一括操作エンドポイント。
 
 元: app.api.v1.scan の後半部（375〜1019行）
-分割: apply / transfer-to-qcds / save-as-version / bulk-*
+分割: apply / save-as-version / bulk-*
 """
 from __future__ import annotations
 
@@ -37,18 +37,6 @@ router = APIRouter(tags=["scan"])
 
 # ── ローカルスキーマ（Phase 1-A 追加エンドポイント） ─────────────────────────
 
-class TransferToQcdsRequest(BaseModel):
-    qcds_id: uuid.UUID
-    section_id: uuid.UUID | None = None
-
-
-class TransferToQcdsResponse(BaseModel):
-    qcds_id: uuid.UUID
-    vendor_name: str | None
-    total_amount: float
-    row_no: int
-
-
 class SaveAsVersionRequest(BaseModel):
     project_id: uuid.UUID
     markup_rate: float = 1.0
@@ -70,17 +58,16 @@ async def apply_scan_result(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ApplyScanResultResponse:
-    """スキャン解析結果を QCDS 直接工事費行または見積明細に転記する。"""
+    """スキャン解析結果を見積明細に転記する。"""
     from sqlalchemy import func as sa_func
     from app.models.enums import VendorPriceHistorySource
-    from app.models.qcds import QCDS, QCDSDirectWork
     from app.models.quote import Quote, QuoteItem, QuoteVersion
     from app.models.vendor import Vendor, VendorPriceHistory
 
-    if body.target not in ("qcds", "quote"):
+    if body.target != "quote":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="target は 'qcds' または 'quote' を指定してください",
+            detail="target は 'quote' を指定してください",
         )
 
     result = (await db.execute(
@@ -105,82 +92,58 @@ async def apply_scan_result(
     applied_count = 0
     price_histories_created = 0
 
-    if body.target == "qcds":
-        qcds = (await db.execute(
-            select(QCDS).where(QCDS.id == body.target_id)
-        )).scalar_one_or_none()
-        if qcds is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QCDS が見つかりません")
+    quote = (await db.execute(
+        select(Quote).where(Quote.id == body.target_id)
+    )).scalar_one_or_none()
+    if quote is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="見積書が見つかりません")
 
-        max_row = (await db.execute(
-            select(sa_func.coalesce(sa_func.max(QCDSDirectWork.row_no), 0))
-            .where(QCDSDirectWork.qcds_id == qcds.id)
-        )).scalar_one()
+    max_version_no = (await db.execute(
+        select(sa_func.coalesce(sa_func.max(QuoteVersion.version_no), 0))
+        .where(QuoteVersion.quote_id == quote.id)
+    )).scalar_one()
+    new_version = QuoteVersion(
+        id=uuid.uuid4(),
+        quote_id=quote.id,
+        version_no=max_version_no + 1,
+        vendor_id=result.vendor_id,
+        vendor_name_snapshot=result.vendor_name_detected or "スキャン取込",
+        markup_rate=1.0,
+    )
+    db.add(new_version)
+    await db.flush()
 
-        for i, item in enumerate(target_items):
-            db.add(QCDSDirectWork(
-                qcds_id=qcds.id,
-                row_no=max_row + i + 1,
-                work_type=item.item_name,
-                vendor_id=result.vendor_id,
-                vendor_name_snapshot=result.vendor_name_detected,
-                budget_amount=item.amount,
-            ))
-            item.applied_to_qcds = True
-            applied_count += 1
-    else:
-        quote = (await db.execute(
-            select(Quote).where(Quote.id == body.target_id)
-        )).scalar_one_or_none()
-        if quote is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="見積書が見つかりません")
+    max_row = (await db.execute(
+        select(sa_func.coalesce(sa_func.max(QuoteItem.row_no), 0))
+        .where(QuoteItem.quote_id == quote.id)
+    )).scalar_one()
 
-        max_version_no = (await db.execute(
-            select(sa_func.coalesce(sa_func.max(QuoteVersion.version_no), 0))
-            .where(QuoteVersion.quote_id == quote.id)
-        )).scalar_one()
-        new_version = QuoteVersion(
-            id=uuid.uuid4(),
+    for i, item in enumerate(target_items):
+        db.add(QuoteItem(
             quote_id=quote.id,
-            version_no=max_version_no + 1,
-            vendor_id=result.vendor_id,
-            vendor_name_snapshot=result.vendor_name_detected or "スキャン取込",
-            markup_rate=1.0,
-        )
-        db.add(new_version)
-        await db.flush()
+            version_id=new_version.id,
+            row_no=max_row + i + 1,
+            item_name=item.item_name,
+            spec=item.spec,
+            unit=item.unit,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            cost_price=item.unit_price,
+            amount=item.amount,
+            source_vendor_id=result.vendor_id,
+            source_scan_result_id=result.id,
+        ))
+        item.applied_to_quote = True
+        applied_count += 1
 
-        max_row = (await db.execute(
-            select(sa_func.coalesce(sa_func.max(QuoteItem.row_no), 0))
-            .where(QuoteItem.quote_id == quote.id)
-        )).scalar_one()
-
-        for i, item in enumerate(target_items):
-            db.add(QuoteItem(
-                quote_id=quote.id,
-                version_id=new_version.id,
-                row_no=max_row + i + 1,
-                item_name=item.item_name,
-                spec=item.spec,
-                unit=item.unit,
-                quantity=item.quantity,
-                unit_price=item.unit_price,
-                cost_price=item.unit_price,
-                amount=item.amount,
-                source_vendor_id=result.vendor_id,
-                source_scan_result_id=result.id,
-            ))
-            item.applied_to_quote = True
-            applied_count += 1
-
-        await db.flush()
-        all_items = (await db.execute(
-            select(QuoteItem).where(QuoteItem.quote_id == quote.id)
-        )).scalars().all()
-        subtotal = sum(float(i.amount or 0) for i in all_items)
-        quote.subtotal = subtotal
-        quote.tax_amount = floor(subtotal * 0.10)
-        quote.total_amount = subtotal + floor(subtotal * 0.10)
+    await db.flush()
+    all_items = (await db.execute(
+        select(QuoteItem).where(QuoteItem.quote_id == quote.id)
+    )).scalars().all()
+    subtotal = sum(float(i.amount or 0) for i in all_items)
+    quote.subtotal = subtotal
+    quote.tax_amount = floor(subtotal * 0.10)
+    quote.total_amount = subtotal + floor(subtotal * 0.10)
 
     vendor_id_for_history = result.vendor_id
     if vendor_id_for_history is None and result.vendor_name_detected:
@@ -220,61 +183,6 @@ async def apply_scan_result(
         price_histories_created=price_histories_created,
         target=body.target,
         target_id=body.target_id,
-    )
-
-
-@router.post("/scan/results/{result_id}/transfer-to-qcds", response_model=TransferToQcdsResponse)
-async def transfer_to_qcds(
-    result_id: uuid.UUID,
-    body: TransferToQcdsRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> TransferToQcdsResponse:
-    """スキャン結果を QCDS に業者名 + 合計金額で 1 行だけ追加する。"""
-    from sqlalchemy import func as sa_func
-    from app.models.qcds import QCDS, QCDSDirectWork
-    from app.models.enums import QCDSCategory
-
-    result = (await db.execute(
-        select(ScanResult)
-        .options(selectinload(ScanResult.items))
-        .where(ScanResult.id == result_id)
-    )).scalar_one_or_none()
-    if result is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="解析結果が見つかりません")
-
-    qcds = (await db.execute(
-        select(QCDS).where(QCDS.id == body.qcds_id)
-    )).scalar_one_or_none()
-    if qcds is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="QCDS が見つかりません")
-
-    total = float(result.total_detected or sum(float(i.amount or 0) for i in result.items))
-    max_row = (await db.execute(
-        select(sa_func.coalesce(sa_func.max(QCDSDirectWork.row_no), 0))
-        .where(QCDSDirectWork.qcds_id == qcds.id)
-    )).scalar_one()
-    new_row = max_row + 1
-
-    db.add(QCDSDirectWork(
-        qcds_id=qcds.id,
-        row_no=new_row,
-        work_type=result.vendor_name_detected or "スキャン取込",
-        vendor_id=result.vendor_id,
-        vendor_name_snapshot=result.vendor_name_detected,
-        budget_amount=total,
-        category=QCDSCategory.subcontract,
-    ))
-    for item in result.items:
-        item.applied_to_qcds = True
-
-    await db.commit()
-    logger.info("scan_transfer_to_qcds", result_id=str(result_id), qcds_id=str(body.qcds_id), total=total)
-    return TransferToQcdsResponse(
-        qcds_id=qcds.id,
-        vendor_name=result.vendor_name_detected,
-        total_amount=total,
-        row_no=new_row,
     )
 
 
@@ -399,10 +307,9 @@ async def bulk_apply_scan_results(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> BulkApplyResponse:
-    """複数スキャン解析結果を指定案件の QCDS・見積書に一括転記する。"""
+    """複数スキャン解析結果を指定案件の見積書に一括転記する。"""
     from sqlalchemy import func as sa_func
     from app.models.enums import VendorPriceHistorySource
-    from app.models.qcds import QCDS as QCDSModel, QCDSDirectWork
     from app.models.quote import Quote as QuoteModel, QuoteItem as QuoteItemModel, QuoteVersion
     from app.models.vendor import Vendor, VendorPriceHistory
 
@@ -420,36 +327,6 @@ async def bulk_apply_scan_results(
 
     qcds_affected = 0
     quote_affected = 0
-
-    if "qcds" in body.targets:
-        qcds = (await db.execute(
-            select(QCDSModel)
-            .where(QCDSModel.project_id == body.project_id)
-            .order_by(QCDSModel.revision.desc())
-        )).scalars().first()
-        if qcds is None:
-            qcds = QCDSModel(project_id=body.project_id)
-            db.add(qcds)
-            await db.flush()
-
-        max_row = (await db.execute(
-            select(sa_func.coalesce(sa_func.max(QCDSDirectWork.row_no), 0))
-            .where(QCDSDirectWork.qcds_id == qcds.id)
-        )).scalar_one()
-
-        for r in results:
-            total = float(r.total_detected or r.subtotal_detected or 0)
-            max_row += 1
-            db.add(QCDSDirectWork(
-                qcds_id=qcds.id,
-                row_no=max_row,
-                work_type=None,
-                vendor_id=r.vendor_id,
-                vendor_name_snapshot=r.vendor_name_detected,
-                budget_amount=total,
-                source_scan_result_id=r.id,
-            ))
-            qcds_affected += 1
 
     if "quote" in body.targets:
         quote = (await db.execute(

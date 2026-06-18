@@ -104,17 +104,6 @@ const NAV_WORK: NavItem[] = [
     ),
   },
   {
-    href: "/purchases",
-    label: "発注管理",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-        <rect x="9" y="3" width="6" height="4" rx="1" />
-        <path d="M9 12h6M9 16h4" />
-      </svg>
-    ),
-  },
-  {
     href: "/vendors",
     label: "業者マスタ",
     icon: (
@@ -293,6 +282,22 @@ export function AppShell({ children, breadcrumbs, action }: AppShellProps) {
             <NavLink key={item.href} item={item} pathname={pathname} />
           ))}
         </div>
+
+        {(["admin", "super_admin", "accounting", "manager"].some(r => user.roles?.includes(r as never) || user.role === r)) && (
+          <div className="sidebar-section">
+            <div className="sidebar-section-title">データ</div>
+            <NavLink
+              item={{ href: "/admin/csv-export", label: "CSV出力", icon: (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+              )}}
+              pathname={pathname}
+            />
+          </div>
+        )}
 
         {(["admin", "super_admin"].some(r => user.roles?.includes(r as never) || user.role === r)) && (
           <div className="sidebar-section">

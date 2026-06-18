@@ -128,11 +128,7 @@ export interface ProjectDetail {
   period_actual_end: string | null;
   created_at: string;
   updated_at: string;
-  qcds_count: number;
   quote_count: number;
-  order_count: number;
-  invoice_count: number;
-  progress_log_count: number;
 }
 
 /** 案件サブナビ・ProjectPickerCard で使う軽量ヘッダ型。 */

@@ -79,14 +79,6 @@ interface SectionTemplate {
   items: { section_code: string; section_name: string; display_order: number }[];
 }
 
-interface QCDSCalc {
-  total_cost: number;
-}
-interface QCDSSummary {
-  id: string;
-  calc: QCDSCalc;
-}
-
 // ---------------------------------------------------------------------------
 // ユーティリティ
 // ---------------------------------------------------------------------------
@@ -108,7 +100,6 @@ export default function QuoteDetailPage() {
 
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
   const [project, setProject] = useState<ProjectHeader | null>(null);
-  const [qcds, setQcds] = useState<QCDSSummary | null | "none">(null);
   const [templates, setTemplates] = useState<SectionTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -222,10 +213,6 @@ export default function QuoteDetailPage() {
       apiFetch<typeof approvalRequests>(`/api/v1/projects/${projectId}/quotes/${quoteId}/approval-requests`)
         .then(setApprovalRequests)
         .catch(() => {});
-      // QCDSから原価を取得（404なら未作成）
-      apiFetch<QCDSSummary>(`/api/v1/projects/${projectId}/qcds`)
-        .then(q => setQcds(q))
-        .catch(() => setQcds("none"));
     } catch {
       setMsg("読み込みに失敗しました");
     } finally {
@@ -564,11 +551,6 @@ export default function QuoteDetailPage() {
   const taxBase = subtotal - discount;
   const tax = Math.floor(taxBase * 0.1);
   const total = taxBase + tax;
-  // 粗利計算（原価 = QCDSのtotal_cost。QCDSなければ未設定）
-  const qcdsCost = qcds !== null && qcds !== "none" ? qcds.calc.total_cost : null;
-  const grossProfit = qcdsCost != null ? total - qcdsCost : null;
-  const grossMarginRate = grossProfit != null && total > 0 ? (grossProfit / total) * 100 : null;
-  const grossProfitMsg = qcds === "none" ? "QCDSを作成してください" : qcds === null ? null : total === 0 ? "顧客見積を作成してください" : null;
 
   const sectionItems = (sectionId: string) =>
     customerItems.filter(i => i.section_id === sectionId).sort((a, b) => a.row_no - b.row_no);
@@ -1295,10 +1277,6 @@ export default function QuoteDetailPage() {
             discount={discount}
             tax={tax}
             total={total}
-            grossMarginRate={grossMarginRate}
-            grossProfit={grossProfit}
-            grossProfitMsg={grossProfitMsg}
-            qcdsCost={qcdsCost}
             editingDiscount={editingDiscount}
             setEditingDiscount={setEditingDiscount}
             discountInput={discountInput}

@@ -19,7 +19,6 @@ export interface ScanResultItem {
   unit_price: number | null;
   amount: number | null;
   confidence: number | null;
-  applied_to_qcds: boolean;
   applied_to_quote: boolean;
 }
 
@@ -79,4 +78,4 @@ export interface ScanResultUpdate {
 }
 
 /** BulkActionBar の転記先識別子。 */
-export type TransferTarget = "qcds-direct" | "agreement-table" | "customer-quote" | "vendor-estimate";
+export type TransferTarget = "agreement-table" | "customer-quote" | "vendor-estimate";

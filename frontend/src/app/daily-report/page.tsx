@@ -216,13 +216,15 @@ export default function DailyReportPage() {
                       key={w}
                       onClick={() => setForm({ ...form, weather: w })}
                       style={{
-                        padding: "6px 12px",
-                        border: "1px solid var(--c-border)",
+                        width: 36, height: 36,
+                        border: form.weather === w ? "2px solid var(--c-primary)" : "1px solid var(--c-border)",
                         borderRadius: "var(--radius-sm)",
-                        background: form.weather === w ? "var(--c-primary)" : "var(--c-surface)",
-                        color: form.weather === w ? "#fff" : "var(--c-text)",
+                        background: form.weather === w
+                          ? "color-mix(in oklab, var(--c-primary) 12%, var(--c-surface))"
+                          : "var(--c-surface)",
+                        boxShadow: form.weather === w ? "0 0 0 2px var(--c-primary)33" : "none",
                         cursor: "pointer",
-                        fontSize: "var(--fs-sm)",
+                        fontSize: 18,
                       }}
                     >
                       {WEATHER_ICON[w]}
@@ -453,10 +455,13 @@ export default function DailyReportPage() {
                     onClick={() => setForm({ ...form, weather: w })}
                     style={{
                       padding: "4px 10px", borderRadius: "var(--radius-sm)",
-                      border: `1px solid ${form.weather === w ? "var(--c-primary)" : "var(--c-border)"}`,
-                      background: form.weather === w ? "var(--c-primary)" : "var(--c-surface)",
-                      color: form.weather === w ? "#fff" : "var(--c-text-muted)",
-                      cursor: "pointer", fontSize: 13,
+                      border: form.weather === w ? "2px solid var(--c-primary)" : "1px solid var(--c-border)",
+                      background: form.weather === w
+                        ? "color-mix(in oklab, var(--c-primary) 12%, var(--c-surface))"
+                        : "var(--c-surface)",
+                      color: form.weather === w ? "var(--c-primary)" : "var(--c-text-muted)",
+                      boxShadow: form.weather === w ? "0 0 0 2px var(--c-primary)33" : "none",
+                      cursor: "pointer", fontSize: 13, fontWeight: form.weather === w ? 700 : 400,
                     }}
                   >
                     {WEATHER_ICON[w]} {WEATHER_LABEL[w]}

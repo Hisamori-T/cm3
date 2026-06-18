@@ -13,13 +13,8 @@ interface ProjectDetailMin {
   project_name: string;
   status: ProjectStatus;
   counts: {
-    qcds: number;
     estimate: number;
     quote: number;
-    order: number;
-    acknowledgment: number;
-    invoice: number;
-    progress: number;
     history: number;
   };
 }

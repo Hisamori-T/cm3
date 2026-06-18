@@ -4,13 +4,8 @@ import { createContext, useContext } from "react";
 import type { ProjectStatus } from "@/types/project";
 
 export interface ProjectCounts {
-  qcds: number;
   estimate: number;
   quote: number;
-  order: number;
-  acknowledgment: number;
-  invoice: number;
-  progress: number;
   history: number;
 }
 

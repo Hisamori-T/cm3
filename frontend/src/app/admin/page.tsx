@@ -573,8 +573,6 @@ function ClausesSection() {
   );
 }
 
-// ─── QCDSテンプレートセクション ────────────────────────────────────────────────
-
 // ─── 監査ログセクション ────────────────────────────────────────────────────────
 
 interface AuditItem { id: string; entity_type: string; change_type: string; changed_by_name: string | null; changed_at: string; }
@@ -601,7 +599,7 @@ function AuditLogSection() {
     URL.revokeObjectURL(url);
   };
 
-  const ENTITY_LABEL: Record<string, string> = { project: "案件", quote: "見積", order: "注文", invoice: "請求", user: "ユーザー" };
+  const ENTITY_LABEL: Record<string, string> = { project: "案件", quote: "見積", user: "ユーザー" };
   const CHANGE_LABEL: Record<string, string> = { create: "作成", update: "更新", delete: "削除", status_change: "ステータス変更" };
 
   return (

@@ -20,7 +20,6 @@ export interface VersionCardProps {
   version: EstimateVersion;
   isSelected: boolean;
   onClick: () => void;
-  onQcdsReflect: () => void;
   onQuoteReflect: () => void;
   onToggleActive: () => void;
   onDelete: () => void;
@@ -34,7 +33,6 @@ export function VersionCard({
   version: v,
   isSelected,
   onClick,
-  onQcdsReflect,
   onQuoteReflect,
   onToggleActive,
   onDelete,
@@ -72,10 +70,6 @@ export function VersionCard({
         掛率: ×{Number(v.markup_rate).toFixed(2)}
       </div>
       <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }} onClick={e => e.stopPropagation()}>
-        <button
-          onClick={onQcdsReflect}
-          style={{ fontSize: 10, padding: "2px 6px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer", background: "var(--c-surface)", color: "var(--c-primary)" }}
-        >QCDSに反映</button>
         <button
           onClick={onQuoteReflect}
           style={{ fontSize: 10, padding: "2px 6px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer", background: "var(--c-surface)", color: "var(--c-accent)" }}

@@ -73,7 +73,7 @@ function BulkTransferModal({
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<ProjectOption | null>(null);
-  const [targets, setTargets] = useState({ qcds: true, quote: true });
+  const [targets, setTargets] = useState({ quote: true });
   const [saveVendor, setSaveVendor] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -89,7 +89,7 @@ function BulkTransferModal({
 
   const handleTransfer = async () => {
     if (!selected) return;
-    const tgts = [targets.qcds && "qcds", targets.quote && "quote"].filter(Boolean) as string[];
+    const tgts = [targets.quote && "quote"].filter(Boolean) as string[];
     if (!tgts.length) return;
     setLoading(true);
     await onTransfer(selected.id, tgts, saveVendor);
@@ -158,24 +158,11 @@ function BulkTransferModal({
 
           {/* 転記先 */}
           <div>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>転記先を選択 *</div>
-            {[
-              { key: "qcds", label: "QCDS 直接工事費（取決見通表）", desc: "業者ごとのグロス行として追加" },
-              { key: "quote", label: "業者見積（版を新規作成）", desc: "業者名で版を自動作成して明細を追加します" },
-            ].map(({ key, label, desc }) => (
-              <label key={key} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 0", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={targets[key as keyof typeof targets]}
-                  onChange={e => setTargets(t => ({ ...t, [key]: e.target.checked }))}
-                  style={{ marginTop: 2, accentColor: "var(--c-primary)" }}
-                />
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{label}</div>
-                  <div style={{ fontSize: 11, color: "var(--c-text-muted)" }}>{desc}</div>
-                </div>
-              </label>
-            ))}
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>転記先</div>
+            <div style={{ padding: "8px 12px", background: "var(--c-surface-2)", borderRadius: "var(--r-md)", fontSize: 13 }}>
+              業者見積（版を新規作成）
+              <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 2 }}>業者名で版を自動作成して明細を追加します</div>
+            </div>
           </div>
 
           {/* 業者マスタ */}
@@ -203,11 +190,11 @@ function BulkTransferModal({
           </button>
           <button
             onClick={handleTransfer}
-            disabled={!selected || (!targets.qcds && !targets.quote) || loading}
+            disabled={!selected || loading}
             style={{
               padding: "6px 20px", fontSize: 13, fontWeight: 600,
-              background: (!selected || (!targets.qcds && !targets.quote)) ? "var(--c-surface-2)" : "var(--c-primary)",
-              color: (!selected || (!targets.qcds && !targets.quote)) ? "var(--c-text-muted)" : "#fff",
+              background: !selected ? "var(--c-surface-2)" : "var(--c-primary)",
+              color: !selected ? "var(--c-text-muted)" : "#fff",
               border: "none", borderRadius: "var(--r-md)", cursor: "pointer",
               display: "flex", alignItems: "center", gap: 6,
             }}
@@ -429,7 +416,7 @@ export default function ScanListPage() {
     }
 
     try {
-      const res = await apiFetch<{ applied_count: number; qcds_affected: number; quote_affected: number; qcds_url?: string; quote_url?: string }>(
+      const res = await apiFetch<{ applied_count: number; quote_affected: number; quote_url?: string }>(
         "/api/v1/scan/bulk-apply",
         {
           method: "POST",
@@ -443,7 +430,6 @@ export default function ScanListPage() {
       );
       setSelectedIds(new Set());
       const links: { label: string; href: string }[] = [];
-      if (res.qcds_url) links.push({ label: "QCDSを見る", href: res.qcds_url });
       if (res.quote_url) links.push({ label: "見積書を見る", href: res.quote_url });
       setToast({ text: `${res.applied_count}件を転記しました`, error: false, links });
       await loadJobs();
@@ -542,7 +528,7 @@ export default function ScanListPage() {
             {uploading ? "アップロード中…" : isDragging ? "ここに離してください" : "業者見積をここにドロップ"}
           </p>
           <p style={{ margin: "4px 0 0", color: "var(--c-text-muted)", fontSize: 12 }}>
-            PDF / 画像 / Excel を AI が読み取り、台帳・QCDS・見積書へ転記します
+            PDF / 画像 / Excel を AI が読み取り、業者見積として転記します
           </p>
           <p style={{ margin: "2px 0 0", color: "var(--c-text-muted)", fontSize: 11 }}>
             ※ 工事台帳ExcelのインポートはこちらではなくExcelインポートページをご利用ください

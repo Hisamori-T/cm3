@@ -419,8 +419,8 @@ export default function ProjectsPage() {
                 </th>
                 <th style={{ width: 106 }}>工事番号</th>
                 <th>工事名 / 発注者</th>
-                <th style={{ width: 56 }}>立場</th>
-                <th style={{ width: 110 }}>ステータス</th>
+                <th style={{ width: 80 }}>立場</th>
+                <th style={{ width: 120 }}>ステータス</th>
                 <th className="num" style={{ width: 120 }}>受注額</th>
                 <th style={{ width: 120 }}>担当</th>
                 <th style={{ width: 80 }}>更新日</th>
@@ -478,7 +478,7 @@ export default function ProjectsPage() {
                         <span style={{ color: "var(--c-text-muted)", fontSize: 11 }}>—</span>
                       )}
                     </td>
-                    <td>
+                    <td style={{ whiteSpace: "nowrap" }}>
                       <span className={`badge ${STATUS_CLASS[p.status]}`}>
                         <span className="dot" />
                         {PROJECT_STATUS_LABEL[p.status]}

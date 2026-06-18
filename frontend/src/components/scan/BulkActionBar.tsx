@@ -64,15 +64,8 @@ export function BulkActionBar({ count, onClear, onDelete, onExportCsv, onBulkTra
             転記先を選択
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => onBulkTransfer(["qcds-direct"])}>
-            QCDS 直接工事費へ転記
-          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onBulkTransfer(["vendor-estimate"])}>
             業者見積へ転記
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => onBulkTransfer(["qcds-direct", "vendor-estimate"])}>
-            すべての転記先へ
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -1,7 +1,6 @@
 """Excel工事台帳インポート API。
 
-1案件 = 1ブック（工事台帳シート + QCDS/表紙/内訳書/注文書・請書/請求書）。
-新規インポート時に関連レコード（QCDS・見積書・注文書・注文請書・請求書）を一括作成する。
+1案件 = 1ブック。新規インポート時に関連レコード（見積書）を一括作成する。
 既存案件の上書き時は案件基本情報のみ更新し関連レコードは変更しない。
 """
 from __future__ import annotations
@@ -18,11 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.acknowledgment import Acknowledgment
-from app.models.invoice import Invoice, InvoiceItem
-from app.models.order import Order
 from app.models.project import Project
-from app.models.qcds import QCDS, QCDSDirectWork, QCDSExpenseItem
 from app.models.quote import Quote, QuoteItem, QuoteSection
 from app.models.user import User
 from app.services.excel_import import ExcelImportRow, parse_excel
@@ -32,20 +27,6 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 MAX_UPLOAD_MB = 20
-
-# インポート時に作成する標準経費項目（qcds.py の _DEFAULT_EXPENSE_ITEMS と同一）
-_IMPORT_EXPENSE_ITEMS: list[tuple[str, int, str, str, str]] = [
-    ("B_site", 1, "labor_insurance",            "労災保険料",                   "工事価格 × 料率"),
-    ("B_site", 2, "construction_insurance",     "工事保険・賠償責任保険",        "請負金(税込) × 料率"),
-    ("B_site", 3, "stamp_cost",                 "請負に関する契約印紙代",         "契約金額(税込)→第2号文書 自動計算"),
-    ("B_site", 4, "receipt_cost",               "売り上げの領収書",               "受取金額(税込)→第17号文書 自動計算"),
-    ("B_site", 5, "special_insurance",          "特殊保険",                       "工事価格 × 料率"),
-    ("B_site", 6, "fixed_overhead",             "事務用品・通信交通費・雑費",      "固定費計"),
-    ("B_dept", 7, "site_personnel_cost",        "現場担当者給与",                  "工事価格 × 給与率"),
-    ("B_dept", 8, "construction_dept_overhead", "工事部経費（共通）",              "工事価格 × 工事部経費率"),
-    ("B_dept", 9, "shared_overhead",            "共通経費",                        "工事価格 × 共通経費率"),
-    ("C",      10, "general_admin_cost",        "一般管理費",                      "工事価格 × 一般管理費率"),
-]
 MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024
 
 
@@ -66,11 +47,8 @@ class ImportPreviewRow(BaseModel):
     existing_id: str | None
     deleted_existing_id: str | None = None  # 削除済み案件が一致する場合のID
     # 関連シートデータ件数
-    qcds_direct_work_count: int
     quote_section_count: int
     quote_item_count: int
-    has_order: bool
-    has_invoice: bool
 
 
 class ImportConfirmRow(BaseModel):
@@ -107,8 +85,12 @@ async def preview_import(
     """Excelファイルをアップロードして案件データのプレビューを返す。
     セッションIDを X-Import-Session レスポンスヘッダに返す。
     """
-    if current_user.role not in ("admin", "manager"):
-        raise HTTPException(status_code=403, detail="インポートは管理者またはマネージャーのみ実行可能です")
+    _allowed = {"admin", "super_admin", "manager", "legacy"}
+    # roles 配列（複数ロール）優先、なければ role（主ロール）を使用
+    # str() は Python 3.11 で "UserRole.xxx" を返すため使わず直接比較
+    _user_roles: set = set(current_user.roles) if current_user.roles else {current_user.role}
+    if not _user_roles & _allowed:
+        raise HTTPException(status_code=403, detail="インポートは管理者・マネージャー・Excel専用ロールのみ実行可能です")
 
     content = await file.read()
     if len(content) > MAX_UPLOAD_BYTES:
@@ -184,11 +166,8 @@ async def preview_import(
             conflict=conflict,
             existing_id=existing_id,
             deleted_existing_id=deleted_existing_id,
-            qcds_direct_work_count=len(row.qcds_direct_works),
             quote_section_count=len(q.sections) if q else 0,
             quote_item_count=sum(len(s.items) for s in q.sections) + len(q.unsectioned_items) if q else 0,
-            has_order=row.order is not None and row.order.total_amount is not None,
-            has_invoice=row.invoice is not None and row.invoice.total_amount is not None,
         ))
 
     session_id = str(uuid.uuid4())
@@ -213,11 +192,15 @@ async def confirm_import(
     current_user: User = Depends(get_current_user),
 ) -> ImportResult:
     """プレビュー確認後、実際にインポートを実行する。
-    新規案件: Project + QCDS + Quote(大項目・明細) + Order + Acknowledgment + Invoice を一括作成。
+    新規案件: Project + Quote(大項目・明細) を一括作成。
     既存上書き: 案件基本情報のみ更新（関連レコードは保持）。
     """
-    if current_user.role not in ("admin", "manager"):
-        raise HTTPException(status_code=403, detail="インポートは管理者またはマネージャーのみ実行可能です")
+    _allowed = {"admin", "super_admin", "manager", "legacy"}
+    # roles 配列（複数ロール）優先、なければ role（主ロール）を使用
+    # str() は Python 3.11 で "UserRole.xxx" を返すため使わず直接比較
+    _user_roles: set = set(current_user.roles) if current_user.roles else {current_user.role}
+    if not _user_roles & _allowed:
+        raise HTTPException(status_code=403, detail="インポートは管理者・マネージャー・Excel専用ロールのみ実行可能です")
 
     rows = _import_sessions.get(session_id)
     if rows is None:
@@ -318,48 +301,9 @@ async def confirm_import(
 
 
 async def _create_related_records(proj: Project, row: ExcelImportRow, db: AsyncSession) -> None:
-    """新規案件に対してQCDS・見積書・注文書・注文請書・請求書を一括作成する。"""
+    """新規案件に対して見積書を一括作成する。"""
     project_id = proj.id
     project_number = proj.project_number
-
-    # QCDS + 直接工事費 + 経費項目（既存があればスキップ）
-    existing_qcds = (await db.execute(
-        select(QCDS)
-        .where(QCDS.project_id == project_id, QCDS.revision == 0)
-        .limit(1)
-    )).scalar_one_or_none()
-    if existing_qcds is None:
-        qcds = QCDS(project_id=project_id)
-        db.add(qcds)
-        await db.flush()
-
-        # A セクション: 直接工事費
-        if row.qcds_direct_works:
-            from app.models.enums import QCDSCategory
-            for dw in row.qcds_direct_works:
-                db.add(QCDSDirectWork(
-                    qcds_id=qcds.id,
-                    row_no=dw.row_no,
-                    vendor_name_snapshot=dw.vendor_name,
-                    budget_amount=dw.budget_amount,
-                    category=QCDSCategory(dw.category) if dw.category else QCDSCategory.subcontract,
-                ))
-
-        # B/C セクション: 経費項目（Excel値を amount_override として保存）
-        # overrides に値があれば Excel の金額（0 含む）、なければ None（自動計算）
-        overrides = row.qcds_expense_overrides
-        for section, row_no, key, item_name, formula in _IMPORT_EXPENSE_ITEMS:
-            db.add(QCDSExpenseItem(
-                id=uuid.uuid4(),
-                qcds_id=qcds.id,
-                section=section,
-                row_no=row_no,
-                system_key=key,
-                item_name=item_name,
-                formula_description=formula,
-                amount_override=overrides.get(key),
-                is_custom=False,
-            ))
 
     # 顧客見積書（表紙 + 内訳書）
     quote_id: uuid.UUID | None = None
@@ -422,56 +366,6 @@ async def _create_related_records(proj: Project, row: ExcelImportRow, db: AsyncS
                 remarks=item.remarks,
             ))
             global_item_row += 1
-
-    # 注文書 + 注文請書
-    if row.order and row.order.total_amount is not None:
-        od = row.order
-        order = Order(
-            project_id=project_id,
-            order_number=f"{project_number}-注1",
-            amount_excl_tax=od.amount_excl_tax,
-            tax_amount=od.tax_amount,
-            total_amount=od.total_amount,
-            payment_condition=od.payment_condition,
-            client_company=od.client_company,
-            quote_id=quote_id,
-            linked_to_quote=quote_id is not None,
-        )
-        db.add(order)
-        await db.flush()
-
-        ack = Acknowledgment(
-            order_id=order.id,
-            project_id=project_id,
-            acknowledgment_number=f"{project_number}-請書1",
-            amount_excl_tax=od.amount_excl_tax,
-            tax_amount=od.tax_amount,
-            total_amount=od.total_amount,
-            payment_condition=od.payment_condition,
-        )
-        db.add(ack)
-
-    # 請求書 + 明細
-    if row.invoice and row.invoice.total_amount is not None:
-        inv_data = row.invoice
-        invoice = Invoice(
-            project_id=project_id,
-            invoice_number=f"{project_number}-請1",
-            current_purchase=inv_data.current_purchase,
-            tax_amount=inv_data.tax_amount,
-            total_amount=inv_data.total_amount,
-            quote_id=quote_id,
-            linked_to_quote=quote_id is not None,
-        )
-        db.add(invoice)
-        await db.flush()
-        for item in inv_data.items:
-            db.add(InvoiceItem(
-                invoice_id=invoice.id,
-                row_no=item.row_no,
-                item_name=item.item_name,
-                amount=item.amount,
-            ))
 
 
 def _apply_row(proj: Project, row: ExcelImportRow) -> None:

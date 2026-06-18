@@ -1,4 +1,4 @@
-"""業者見積版 CRUD・import・QCDS/顧客見積反映・業者マスタからの版作成ルーター。"""
+"""業者見積版 CRUD・import・顧客見積反映・業者マスタからの版作成ルーター。"""
 from __future__ import annotations
 
 import uuid
@@ -136,21 +136,6 @@ async def delete_version(
     if v is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="版が見つかりません")
 
-    from app.models.qcds import QCDS, QCDSDirectWork
-    qcds = (await db.execute(
-        select(QCDS).where(QCDS.project_id == project_id)
-        .order_by(QCDS.revision.desc()).limit(1)
-    )).scalar_one_or_none()
-    if qcds and v.vendor_id is not None:
-        qcds_works = (await db.execute(
-            select(QCDSDirectWork).where(
-                QCDSDirectWork.qcds_id == qcds.id,
-                QCDSDirectWork.vendor_id == v.vendor_id,
-            )
-        )).scalars().all()
-        for w in qcds_works:
-            await db.delete(w)
-
     await db.delete(v)
     await db.commit()
 
@@ -223,70 +208,6 @@ async def import_items_to_version(
 # ---------------------------------------------------------------------------
 # Phase 1-A': 業者見積版からの反映エンドポイント
 # ---------------------------------------------------------------------------
-
-class ReflectToQcdsRequest(BaseModel):
-    """QCDSへの反映リクエスト。"""
-    version_id: uuid.UUID
-    category: str  # "subcontract" | "material" | "other"
-
-
-class ReflectToQcdsResponse(BaseModel):
-    """QCDSへの反映レスポンス。"""
-    qcds_id: uuid.UUID
-    row_no: int
-    vendor_name: str | None
-    budget_amount: float
-    category: str
-
-
-@router.post("/projects/{project_id}/qcds/reflect-from-version", response_model=ReflectToQcdsResponse)
-async def reflect_version_to_qcds(
-    project_id: uuid.UUID,
-    body: ReflectToQcdsRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> ReflectToQcdsResponse:
-    """業者見積版の合計をQCDS直接工事費に1行追加する。"""
-    from sqlalchemy import func as sa_func
-    from app.models.enums import QCDSCategory
-    from app.models.qcds import QCDS, QCDSDirectWork
-
-    await _get_project_or_404(project_id, db)
-    version = (await db.execute(
-        select(QuoteVersion).options(selectinload(QuoteVersion.items))
-        .where(QuoteVersion.id == body.version_id)
-    )).scalar_one_or_none()
-    if version is None:
-        raise HTTPException(status_code=404, detail="版が見つかりません")
-    qcds = (await db.execute(
-        select(QCDS).where(QCDS.project_id == project_id)
-        .order_by(QCDS.revision.desc()).limit(1)
-    )).scalar_one_or_none()
-    if qcds is None:
-        raise HTTPException(status_code=404, detail="QCDSが見つかりません")
-    try:
-        cat = QCDSCategory(body.category)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="category は subcontract / material / other のいずれか")
-    total = sum(float(i.amount or 0) for i in version.items)
-    max_row = (await db.execute(
-        select(sa_func.coalesce(sa_func.max(QCDSDirectWork.row_no), 0))
-        .where(QCDSDirectWork.qcds_id == qcds.id)
-    )).scalar_one()
-    db.add(QCDSDirectWork(
-        qcds_id=qcds.id, row_no=max_row + 1,
-        work_type=version.vendor_name_snapshot or "スキャン取込",
-        vendor_id=version.vendor_id, vendor_name_snapshot=version.vendor_name_snapshot,
-        budget_amount=total, category=cat,
-    ))
-    await db.commit()
-    logger.info("version_reflected_to_qcds", version_id=str(body.version_id), total=total)
-    return ReflectToQcdsResponse(
-        qcds_id=qcds.id, row_no=max_row + 1,
-        vendor_name=version.vendor_name_snapshot,
-        budget_amount=total, category=body.category,
-    )
-
 
 class ReflectToQuoteRequest(BaseModel):
     """顧客見積への反映リクエスト。"""

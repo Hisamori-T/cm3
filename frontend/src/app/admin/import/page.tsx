@@ -23,11 +23,8 @@ interface PreviewRow {
   conflict: Conflict;
   existing_id: string | null;
   deleted_existing_id: string | null;
-  qcds_direct_work_count: number;
   quote_section_count: number;
   quote_item_count: number;
-  has_order: boolean;
-  has_invoice: boolean;
 }
 
 interface ImportResult {
@@ -237,8 +234,8 @@ export default function ImportPage() {
           </h2>
           <p style={{ fontSize: 12, color: "var(--c-text-muted)", marginBottom: 16 }}>
             既存の工事台帳Excel（.xlsx）をアップロードします。工事台帳シートが1案件として読み込まれます。<br />
-            同一ブック内の <strong>QCDS</strong>・<strong>表紙</strong>・<strong>内訳書</strong>・<strong>注文書・請書</strong>・<strong>請求書</strong> シートも自動取込されます。<br />
-            「記入例」シートおよびQCDS等の帳票シートは案件としては除外されます。
+            同一ブック内の <strong>表紙</strong>・<strong>内訳書</strong> シートも自動取込されます。<br />
+            「記入例」シートおよび帳票シートは案件としては除外されます。
           </p>
           <div
             style={{
@@ -329,27 +326,12 @@ export default function ImportPage() {
                       <td className="num" style={{ color: "var(--c-text-muted)" }}>{fmtPrice(row.project_price)}</td>
                       <td style={{ textAlign: "center" }}>
                         <div style={{ display: "flex", gap: 3, flexWrap: "wrap", justifyContent: "center" }}>
-                          {row.qcds_direct_work_count > 0 && (
-                            <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: "color-mix(in oklab, var(--c-primary) 10%, var(--c-surface))", color: "var(--c-primary)", fontWeight: 600 }}>
-                              QCDS×{row.qcds_direct_work_count}
-                            </span>
-                          )}
                           {row.quote_section_count > 0 && (
                             <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: "color-mix(in oklab, var(--c-success) 10%, var(--c-surface))", color: "var(--c-success)", fontWeight: 600 }}>
                               見積{row.quote_section_count}項×{row.quote_item_count}行
                             </span>
                           )}
-                          {row.has_order && (
-                            <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: "color-mix(in oklab, #f59e0b 10%, var(--c-surface))", color: "#b45309", fontWeight: 600 }}>
-                              注文書
-                            </span>
-                          )}
-                          {row.has_invoice && (
-                            <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 3, background: "color-mix(in oklab, var(--c-danger) 10%, var(--c-surface))", color: "var(--c-danger)", fontWeight: 600 }}>
-                              請求書
-                            </span>
-                          )}
-                          {row.qcds_direct_work_count === 0 && row.quote_section_count === 0 && !row.has_order && !row.has_invoice && (
+                          {row.quote_section_count === 0 && (
                             <span style={{ fontSize: 10, color: "var(--c-text-muted)" }}>案件のみ</span>
                           )}
                         </div>

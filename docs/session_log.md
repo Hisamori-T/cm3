@@ -2985,6 +2985,373 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ### 作業結果
 
+**削除完了**
+- `/docs` 以外の session_log.md 3件: `backend/app/api/v1/docs/`・`backend/app/docs/`・`frontend/docs/`
+- 旧設計書: `docs/FINAL_DESIGN_V3.md` / `docs/ADDITIONAL_CHANGES_V1.md`
+- アーキテクチャ分析: `docs/architecture_analysis.md` / `docs/architecture/module-plan.md`
+- zip: `docs/base/Construction_Manager_v3.zip`
+- Gemini 作業ファイル: `docs/PDFレイアウト/見積書/gemini-code-*`（3件）
+- Excel 一時ファイル `~$フレンドマート...xlsx` は OS がロック中で削除不可（次回削除予定）
+
+**技術的負債解消（toLocaleString → fmtYen/fmtNum/fmtMoney）**
+- `dashboard/page.tsx`: `fmtNum` import 追加、inline `toLocaleString` × 4 → `fmtYen` / `fmtNum`
+- `projects/page.tsx`: ローカル `fmtM` 削除、`fmtMoney` import 追加・使用
+- `kanban/page.tsx`: ローカル `fmtYen` 削除、`lib/format` から import に統一
+- `estimate/page.tsx`: `fmtNum` import 追加、`toLocaleString` × 4 → `fmtNum`
+- `vendors/[id]/page.tsx`: `fmtYen` / `fmtNum` import 追加、`toLocaleString` × 3 → 統一
+
+**VPS デプロイ**
+- cmv3-web リビルド → `Up 14sec` 確認
+
+### 変更ファイル
+- 削除: 上記 9件
+- `frontend/src/app/dashboard/page.tsx`
+- `frontend/src/app/projects/page.tsx`
+- `frontend/src/app/projects/kanban/page.tsx`
+- `frontend/src/app/projects/[id]/estimate/page.tsx`
+- `frontend/src/app/vendors/[id]/page.tsx`
+
+### コミット
+- `8b436ec`: chore: docs 掃除・技術的負債解消
+
+### 次のアクション
+- 案件詳細ページに立場変更ドロップダウン（PATCH /projects/{id}/role）を追加
+- Phase R-1 の動作確認（立場設定後に控除/出来高セクションが表示されることを確認）
+
+---
+
+## Session 2026-06-09（続き）— Phase R-1 動作確認・立場変更 UI 追加
+
+### 作業内容（予定）
+- 案件詳細ページ（`projects/[id]/page.tsx`）に立場変更ドロップダウンを追加
+  - 「元請 / 下請 / 公共 / 未設定」ドロップダウン → 変更時に `PATCH /api/v1/projects/{id}/role` を呼ぶ
+  - 変更後に案件一覧の立場バッジ・請求書の控除/出来高セクションが動作することを確認
+- VPS デプロイ後に https://cmv3.fact-ally.com で動作確認
+
+### 作業結果
+
+**案件立場 UI 完成（試行錯誤含む）**
+- `router.py`: `record_history` の引数名 `user_id` → `changed_by` + `project_id` 追加（500エラー修正）
+- `router.py`: `ProjectDetail` / `ProjectListItem` に `project_role` を追加（200だが常に null だったバグ修正）
+- `project_role` を通常の編集フォームに統合（編集ボタン経由に変更）
+- 編集フォームから「請負区分」を削除し「案件立場」に一本化（`contract_type` は自動同期）
+- 発受注区分の表示: 民間・官庁・特命・競争の4区分に整理（元請/下請チップ削除）
+- `ProjectRole` 型から `public` を削除（公共 = 官庁 + 元請/下請 の組み合わせで表現）
+
+### コミット
+- `92cd8de`: fix: record_history 引数修正
+- `a4d0829`: fix: ProjectDetail / ProjectListItem に project_role 追加
+- `ddaf525`: fix: selectedRole オプティミスティック更新
+- `5ac7519`: fix: 案件立場と発受注区分の矛盾を解消
+- `1398ae1`: fix: 案件立場を EditSelect に統合
+- `621953f`: fix: ProjectUpdate 型に project_role 追加
+- `818d051`: fix: 編集フォームから請負区分を削除
+
+### 次のアクション
+- G-4: 工事台帳 PDF/Excel 出力
+
+---
+
+## Session 2026-06-09（続き）— G-4 工事台帳 PDF/Excel 出力
+
+### 作業内容（予定）
+- `docs/PDFレイアウト/工事台帳テンプレート.xlsx` のレイアウトを確認
+- WeasyPrint で PDF 出力（A3横）を実装
+- openpyxl で Excel 出力を実装
+- `exports.py` にエンドポイント追加
+- フロントエンドに PDF/Excel ボタンを追加
+
+### 作業結果（コンテキスト上限で途中中断→今セッションで継続）
+
+**バックエンド実装済み**
+- `pdf_export.py`: `generate_ledger_pdf()` 追加（A3横 WeasyPrint、承認スタンプ対応）
+- `excel_export.py`: `export_ledger_excel()` 追加（openpyxl テンプレート方式）
+- `exports.py`:
+  - `GET /api/v1/projects/{id}/export-pdf` エンドポイント追加
+  - `GET /api/v1/projects/{id}/ledger/export-xlsx` エンドポイント追加
+  
+**フロントエンド未対応**（→ 次セッションで追加）
+- `ledger/page.tsx` に PDF/Excel ダウンロードボタン未追加
+
+### 変更ファイル
+- `backend/app/modules/report/services/pdf_export.py`
+- `backend/app/modules/report/services/excel_export.py`
+- `backend/app/modules/report/routers/exports.py`
+
+---
+
+## Session 2026-06-09（続き）— G-4 フロントエンドボタン追加
+
+### 作業内容（予定）
+- `frontend/src/app/projects/[id]/ledger/page.tsx` の AppShell action エリアに「PDF出力」「Excel出力」ボタンを追加
+
+### 作業結果
+- `API_URL` / `getToken` 定数を追加（既存ページと同パターン）
+- `pdfLoading` / `xlsxLoading` state 追加
+- `downloadFile()` ヘルパー追加（fetch → blob → anchorクリック方式）
+- AppShell action に「PDF出力」（赤）「Excel出力」（緑）ボタン追加
+  - PDF: `GET /api/v1/projects/{id}/export-pdf`
+  - Excel: `GET /api/v1/projects/{id}/ledger/export-xlsx`
+
+### 変更ファイル
+- `frontend/src/app/projects/[id]/ledger/page.tsx`
+
+### デプロイ
+- base64転送 → `/root/cmv3/frontend/src/app/projects/[id]/ledger/page.tsx` に配置
+- `docker compose build cmv3-web` → ビルド成功
+- `docker compose up -d --force-recreate cmv3-web` → `✅ Ready in 658ms`
+
+### 動作確認結果
+- PDF出力ボタン・Excel出力ボタン：正常動作（ダウンロード確認済み）
+- ファイル中身のレイアウト：後回し（繰り返し問題があるため、次フェーズ完了後に改めて対応）
+
+### 次のアクション
+- 次フェーズへ移行
+
+---
+
+## Session 2026-06-09（続き）— Phase H：出面台帳強化
+
+### 作業内容（予定）
+- **H-1 DB**: Alembicマイグレーション（`weather`, `safety_check`, `purchase_order_id` を `vendor_attendances` に追加）
+- **H-1 モデル**: `attendance.py` に3カラム + `purchase_order` リレーション追加
+- **H-1 スキーマ**: `attendance_router.py` の Create/Update/Read スキーマを拡張
+- **H-2 バックエンド**: `GET /api/v1/attendance/calendar?month=YYYY-MM` 新規エンドポイント（カレンダー用・全案件横断）
+- **H-2/H-3 フロントエンド（attendance/page.tsx）**:
+  - 追加フォームに天候・KYチェック・発注書業者優先表示を追加
+  - 明細行に「🔗日報」リンクボタン追加
+  - 業者別集計にQCDS連動バッジ追加
+- **H-2 フロントエンド（calendar/page.tsx）**: 出面チップ（紫）追加
+
+### 作業結果
+
+**H-1 バックエンド**
+- Alembicマイグレーション `phase_h_attend` 作成・適用（down_revision調査で `R1_invoice_role_phase_deductions` が真のHEADと判明）
+- `attendance.py` モデル: `weather`/`safety_check`/`purchase_order_id` カラム + `purchase_order` relationship 追加
+- `attendance_router.py`:
+  - Create/Update/Read スキーマ拡張
+  - `CalendarAttendanceDay` スキーマ追加
+  - `GET /api/v1/attendance/calendar?month=` エンドポイント追加
+
+**H-2/H-3 フロントエンド**
+- `attendance/page.tsx`: 天候・KY・QCDS連動バッジ・🔗日報リンク・発注書業者優先表示
+- `calendar/page.tsx`: 出面チップ（紫）・日詳細パネルに出面セクション追加
+
+**デプロイ**
+- cmv3-api: `✅ Running upgrade R1 → phase_h_attend / Application startup complete`
+- cmv3-web: `✅ Ready`
+
+### 変更ファイル
+- `backend/alembic/versions/a1b2c3d4e5f6_phase_h_attendance.py`
+- `backend/app/models/attendance.py`
+- `backend/app/modules/site/attendance_router.py`
+- `frontend/src/app/projects/[id]/attendance/page.tsx`
+- `frontend/src/app/calendar/page.tsx`
+
+### 動作確認結果（ひささん確認済み）
+- カレンダーに「🔨文化シャッター 3.0人工」紫チップ表示 ✅
+- 日詳細パネルの「出面」セクション表示 ✅
+- 天気ボタン選択UI（薄青背景＋青枠）✅
+- **Phase H 完了**
+
+---
+
+## Session 2026-06-10 — 日報天気ボタンバグ修正
+
+### 作業内容（予定）
+- `calendar/page.tsx` と `daily-report/page.tsx` の天気ボタン選択時の表示修正
+
+### 作業結果
+- 選択時 `background: var(--c-primary)`（真っ黒）→ 薄青背景（12% mix）＋青ボーダー＋外周グロウに変更
+- `daily-report/page.tsx` の2箇所（新規作成フォーム・編集フォーム）も同様に修正
+- ひささん確認済み ✅
+
+### 変更ファイル
+- `frontend/src/app/calendar/page.tsx`
+- `frontend/src/app/daily-report/page.tsx`
+
+### 次のアクション
+- Phase J（セキュリティ・権限制御強化）→ Phase I（CSV出力）
+
+---
+
+## Session 2026-06-10 — 全機能 E2E テスト
+
+### 作業内容（予定）
+- API 全エンドポイントを自動テストスクリプト（Python + httpx）で検証
+- ダミーデータを作成・確認・削除するフローを全機能で実施
+
+### 作業結果
+**最終結果: ✅ 38件成功 / ❌ 0件失敗**
+
+| # | テスト項目 | 件数 |
+|---|---|---|
+| 1 | 認証 | 2 |
+| 2 | 顧客マスタ（顧客・現場・担当者） | 3 |
+| 3 | 業者マスタ | 1 |
+| 4 | 案件（作成・詳細・更新・ステータス変更） | 4 |
+| 5 | QCDS（取得・直接工事費追加） | 2 |
+| 6 | 見積書（作成・明細追加） | 2 |
+| 7 | 注文書 | 1 |
+| 8 | 請求書（作成・入金記録） | 2 |
+| 9 | 発注書 | 1 |
+| 10 | 出面台帳（記録・集計・カレンダー） | 3 |
+| 11 | 日報 | 1 |
+| 12 | カレンダーイベント | 2 |
+| 13 | 工事台帳（取得・手動入力保存） | 2 |
+| 14 | PDF出力（見積書・工事台帳） | 2 |
+| 15 | CSV出力（5種別） | 5 |
+| 16 | ダッシュボード | 2 |
+| 17 | テストデータ削除 | 3 |
+
+**テスト中に発見・修正したバグ:**
+- `_to_list_item` で `p.quotes` を lazy load → `p.__dict__.get("quotes")` に修正（MissingGreenlet バグ）
+- `order_type` の値が日本語だった（`"民間"` → `"private"`）
+- QCDS `category` が `"direct"` → `"subcontract"` が正しい enum 値
+- 入金記録エンドポイントのパス修正（`/invoices/{id}/payments` → `/projects/{id}/invoices/{id}/payments`）
+
+### 変更ファイル
+- `backend/app/modules/project/router.py` — lazy load バグ修正
+- `backend/tests/e2e_full_test.py` — テストスクリプト新規作成
+
+### 次のアクション
+- テストスクリプトを定期実行（CI/CD）するか検討
+- 業者削除エンドポイントの未実装を確認（405 Method Not Allowed）
+
+---
+
+---
+
+## Session 2026-06-10 — Phase J：セキュリティ・権限制御強化
+
+### 作業内容（予定）
+- 案件編集 API（PATCH /projects/{id}）にバックエンド権限チェック追加
+  - `admin` / `super_admin` または `created_by == current_user.id` のみ許可
+  - それ以外は 403 Forbidden を返す
+- 案件ステータス変更 API にも同様のチェック追加（現状チェックがあるか確認）
+
+### 作業結果
+- **発見**: `update_project` / `change_status` / `delete_project` の3エンドポイントは既にバックエンドチェックが実装済み。ただし `UserRole.admin` のみで `super_admin` が漏れていた
+- **修正**: 3箇所の手動チェック `current_user.role == UserRole.admin or project.created_by == current_user.id` を既存ヘルパー `can_edit_project()` に統一（`super_admin` も自動で許可される）
+- `UserRole` import が不要になったため削除
+- `update_project_role` は既に `can_edit_project()` 使用済みだったため変更なし
+- デプロイ: `✅ Application startup complete`
+
+### 変更ファイル
+- `backend/app/modules/project/router.py`
+
+### **Phase J 完了**
+
+---
+
+## Session 2026-06-10 — Phase I：CSV出力・会計ソフト連携
+
+### 作業内容（予定）
+- `backend/app/modules/report/routers/csv_export.py` 新規作成
+  - `GET /api/v1/export/csv/projects`
+  - `GET /api/v1/export/csv/invoices`
+  - `GET /api/v1/export/csv/purchase-orders`
+  - `GET /api/v1/export/csv/attendance`
+  - `GET /api/v1/export/csv/payments`
+  - アクセス制御: `admin` / `super_admin` / `accounting` ロールのみ
+- `frontend/src/app/admin/csv-export/page.tsx` 新規作成
+  - 管理画面に「データ出力」メニュー追加
+
+### 作業結果
+- `csv_export.py` 新規作成（5エンドポイント + `is_accounting_or_above` 権限チェック）
+- `main.py` に `csv_export_router` 登録
+- `AppShell.tsx`: サイドバーに「データ」セクション追加（admin/super_admin/accounting/manager に表示）
+- `admin/csv-export/page.tsx` 新規作成
+  - 期間フィルター（開始日〜終了日）
+  - 5種別のダウンロードボタン（案件/請求/発注/出面/入金）
+  - UTF-8 BOM付きCSV（Excel直接開ける）
+- デプロイ: `✅ Application startup complete / Ready in 629ms`
+
+### 変更ファイル
+- `backend/app/modules/report/routers/csv_export.py`（新規）
+- `backend/app/main.py`
+- `frontend/src/components/layout/AppShell.tsx`
+- `frontend/src/app/admin/csv-export/page.tsx`（新規）
+
+### **Phase I 完了**
+
+### 次のアクション
+- サイドバーに「CSV出力」リンクが表示されることを確認
+- 各種CSVをダウンロードして内容を確認
+
+---
+
+## Session 2026-06-10 — 各種バグ修正・UI改善
+
+### 作業内容（予定）
+- 案件一覧の立場列幅拡大・ステータス1行化
+- プロフィールページの権限表示バグ修正
+- Excelインポートの権限バグ修正（Excel専用ロールを許可）
+
+### 作業結果
+
+**案件一覧テーブル**
+- 立場列: `56px` → `80px`
+- ステータス列: `110px` → `120px` + `white-space: nowrap`
+
+**プロフィールページ 権限表示**
+- `ROLE_LABEL` に `manager`・`staff`・`accounting` が未定義 → 表示空白
+- `manager: "上長"`, `accounting: "経理"`, `staff: "スタッフ"` を追加
+
+**Excel インポート 403 修正**
+- 原因: `legacy`（Excel専用）ロールが権限チェックに未含
+- `current_user.role not in ("admin", "manager")` → `roles` 配列対応の intersection チェックに変更
+- 許可ロール: `admin`, `super_admin`, `manager`, `legacy`（Excel専用）
+
+### 変更ファイル
+- `frontend/src/app/projects/page.tsx` — 立場列幅・ステータス nowrap
+- `frontend/src/app/profile/page.tsx` — ROLE_LABEL 全ロール追加
+- `backend/app/modules/admin/excel_import_router.py` — roles 配列対応の権限チェック
+
+### デプロイ
+- `✅ Application startup complete / Ready in 654ms`
+
+### 追加修正（Excel インポート権限）
+- 前回修正で `str(UserRole.legacy)` → `"UserRole.legacy"` を返す Python 3.11 の挙動変更が原因で依然 403
+- `{str(r) for r in roles}` → `set(roles)` に変更（str() を介さず直接比較）
+- 中山さんのアカウントでインポート成功を確認 ✅
+
+### 動作確認結果
+- Excelインポート（中山さん / Excel専用ロール）: ✅
+- プロフィール権限表示: ✅
+- 案件一覧 立場列・ステータス: ✅
+
+---
+
+## Session 2026-06-11 — 使用マニュアル全面更新
+
+### 作業内容（予定）
+- `docs/MANUAL.md` を Phase H・I・J で追加した機能に合わせて全面更新
+- 初めて使う人でも見やすい構成に改善
+
+### 作業結果
+- `docs/MANUAL.md` を全面書き直し（17章 → 23章、最終更新日 2026年6月11日）
+- 主な追加・更新内容：
+  - **サイドバー構成図** に「データ」セクション（CSV出力）を追記
+  - **案件詳細タブ** の「詳細」→「工事台帳」への名称変更を反映
+  - **4章「工事台帳」** 新設（Phase G: 承認スタンプ・PDF/Excel出力・月別精算入力）
+  - **10章「発注書管理」** 新設（AIスキャン取込・取決連動）
+  - **13章「カレンダー」** に出面チップ（紫）の説明を追加
+  - **15章「出面台帳」** を全面改訂（天候・KY実施・発注書連携を追記）
+  - **16章「承認ワークフロー」** 新設（4セクション構成・工事台帳押印依頼）
+  - **19章「CSV出力」** 新設（Phase I: 5種類のCSV・手順・注意事項）
+  - **20章「管理者専用機能」** を更新（印影設定・見積条件文・Slack通知を追記）
+  - **21章「権限一覧」** を更新（全7ロール・機能別マトリクス表）
+  - **22章「マイプロフィール」** 新設（変更可否の明記）
+  - **23章「困ったときは」** にCSV関連・出面カレンダー表示のFAQを追加
+
+### 変更ファイル
+- `docs/MANUAL.md` — 全面書き直し
+
+### 次のアクション
+- 特になし（全Phase完了済み）
+
+---
 
 
 
@@ -2993,3 +3360,76 @@ GET    /invoices/{id}/payment-notice-pdf
 
 
 
+
+## Session 2026-06-16 — スコープ縮小（QCDS/Ledger/Order/Invoice/Progress/Attendance/Purchase等の削除）
+
+### 作業内容（予定）
+- cm3を「業者見積（AIスキャン）・顧客見積（マークアップ）・編集履歴」のみに機能を絞り込む大規模スコープ縮小
+- 削除対象: QCDS、工事台帳（押印・支払管理機能のみ。基本案件情報は残す）、注文書、注文請書、請求書、進捗、案件単位ガントチャート（全社ガントチャートとProjectTaskモデルは残す）、出面、購買（発注書CRUDのみ。AIスキャン取込基盤は残す）
+- 削除対象モジュールはコードごと `https://github.com/Hisamori-T/parts` に隔離保存後、cm3本体から削除
+- バックエンド: 削除対象ルーター/モデル削除、main.pyのルーター登録��除、quote_core.py等からQCDS/Order/Invoice依存除去、project/router.pyのProjectCounts縮小、csv_export.py/dashboard.py/excel_import_router.py/exports.pyのトリム、Alembicマイグレーションでテーブルdrop
+- フロントエンド: 削除対象ページ・タブ・ナビリンク削除、projects/[id]/page.tsxからQCDS/ledgerパネル削除、ProjectSubNav/dashboard/calendarのトリム
+- 本番VPSのデータは現状テストデータのみのため、DB物理バックアップは不要と確認済み
+
+### 作業結果
+
+**バックエンド（前セッション完了分）**
+- 削除モデル: `acknowledgment.py` / `attendance.py` / `invoice.py` / `ledger.py` / `order.py` / `progress.py` / `purchase.py` / `qcds.py`
+- 削除ルーター: `acknowledgments.py` / `qcds.py`（estimate）/ `ledger_router.py` / `orders.py`（purchase）/ `invoices.py` / `orders.py`（report）/ `attendance_router.py` / `progress_router.py`
+- 削除サービス: `deduction_service.py` / `excel_export.py`（report）/ `qcds_calculator.py` / `qcds_sync.py` / `quote_reflect.py`
+- 削除定数: `deduction.py`（shared/constants）
+- `main.py`: 上記ルーターの登録解除
+- `models/__init__.py`: 削除モデルの re-export 解除
+- `quote_core.py` / `quote_versions.py`: QCDS/Order/Invoice 依存を除去
+- `project/router.py`: `ProjectCounts` を `{ estimate, quote, history }` のみに縮小
+- `scan_transfer.py`: `/transfer-to-qcds` エンドポイントを削除
+- `dashboard.py`: `monthly_stats` を `project_count` のみに縮小、invoice/purchase 集計を削除
+- `excel_import_router.py`: QCDS/Order/Invoice フィールドを除去
+- `exports.py`: QCDS/Ledger/Order/Invoice/Purchase 関連エンドポイントを削除
+- `csv_export.py`: `projects` のみ残し、invoices/purchase-orders/attendance/payments エンドポイントを削除
+- `gantt_router.py`: `period_alert` 計算から invoice 集計を削除
+- `schemas/project.py`: 削除フィールドを除去
+
+**フロントエンド（今セッション完了分）**
+- 削除ページ: `acknowledgment/` / `attendance/` / `invoice/` / `invoice/[invoice_id]/` / `ledger/` / `order/` / `photo-album/` / `progress/` / `purchase/` / `qcds/` （projects/[id] 配下）
+- 削除ページ: `purchases/` / `gantt/`（全社）
+- 削除コンポーネント: `QCDSExpensePanel.tsx` / `QCDSDirectWorkTable.tsx`
+- 削除型定義: `types/qcds.ts` / `types/invoice.ts` / `types/ledger.ts`
+- 修正: `approvals/page.tsx` — ledger-approval セクション削除
+- 修正: `VersionCard.tsx` — `onQcdsReflect` prop 削除・QCDSに反映ボタン削除
+- 修正: `estimate/page.tsx` — QCDS reflect state/handler/modal 削除
+- 修正: `QuoteTotals.tsx` — 粗利ゲージパネル削除
+- 修正: `quote/[quote_id]/page.tsx` — QCDS cost fetch 削除
+- 修正: `scan/[job_id]/page.tsx` — QCDS転記カード削除・1カラムレイアウトに変更
+- 修正: `dashboard/page.tsx` — 全面書き換え（invoice/purchase 集計削除・DashboardResponse に合わせた型定義）
+- 修正: `AppShell.tsx` — `/purchases` ナビリンク削除
+- 修正: `calendar/page.tsx` — purchase-orders/attendance チップ削除
+- 修正: `BulkActionBar.tsx` — `qcds-direct` 転記先削除・`vendor-estimate` のみ残す
+- 修正: `scan/page.tsx` — QCDS ターゲット UI 削除・転記先を業者見積のみに
+- 修正: `types/scan.ts` — `applied_to_qcds` フィールド削除・TransferTarget から `qcds-direct`/`agreement-table` 削除
+- 修正: `types/project.ts` — `qcds_count` / `invoice_count` / `progress_log_count` / `order_count` 削除
+- 修正: `admin/csv-export/page.tsx` — invoices/purchase-orders/attendance/payments エントリ削除・projects のみ残す
+- 修正: `admin/page.tsx` — QCDSテンプレートセクションコメント削除・ENTITY_LABEL から order/invoice 削除
+- 修正: `admin/import/page.tsx` — `qcds_direct_work_count`/`has_order`/`has_invoice` フィールド・表示 UI 削除
+- 修正: `projects/[id]/layout.tsx` — `ProjectDetailMin.counts` を `{ estimate, quote, history }` のみに
+- 修正: `projects/[id]/history/page.tsx` — ENTITY_TYPE_LABEL から dead エントリ削除
+
+### 変更ファイル（今セッション）
+- `frontend/src/components/scan/BulkActionBar.tsx`
+- `frontend/src/types/scan.ts`
+- `frontend/src/types/project.ts`
+- `frontend/src/app/admin/csv-export/page.tsx`
+- `frontend/src/app/admin/page.tsx`
+- `frontend/src/app/admin/import/page.tsx`
+- `frontend/src/app/scan/page.tsx`
+- `frontend/src/app/projects/[id]/layout.tsx`
+- `frontend/src/app/projects/[id]/history/page.tsx`
+- 削除: `frontend/src/types/invoice.ts` / `frontend/src/types/ledger.ts`
+
+### 次のアクション
+- npm install 完了後に `next build` でビルドエラー確認
+- バックエンド起動確認（`python -m uvicorn app.main:app`）
+- フロントエンド起動確認（`npm run dev`）
+- VPS デプロイ（git push → 本番反映）
+
+---

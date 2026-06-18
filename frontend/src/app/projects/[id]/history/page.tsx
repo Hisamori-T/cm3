@@ -28,8 +28,7 @@ interface EditHistoryResponse {
 }
 
 const ENTITY_TYPE_LABEL: Record<string, string> = {
-  project: "案件", qcds: "QCDS", quote: "見積書",
-  order: "注文書", invoice: "請求書", progress: "進捗",
+  project: "案件", quote: "見積書",
 };
 
 const CHANGE_TYPE_LABEL: Record<string, string> = {

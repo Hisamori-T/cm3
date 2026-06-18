@@ -33,11 +33,6 @@ if TYPE_CHECKING:
     from app.models.comment import ProjectComment
     from app.models.gantt import ProjectTask
     from app.models.history import EditHistory
-    from app.models.invoice import Invoice
-    from app.models.ledger import LedgerApproval, ProjectLedgerMeta
-    from app.models.order import Order
-    from app.models.progress import ProgressLog
-    from app.models.qcds import QCDS
     from app.models.quote import Quote
     from app.models.scan import ScanJob
     from app.models.user import User
@@ -139,13 +134,7 @@ class Project(Base, TimestampMixin):
     creator: Mapped["User"] = relationship(
         "User", foreign_keys=[created_by], back_populates="created_projects"
     )
-    qcds: Mapped[list["QCDS"]] = relationship("QCDS", back_populates="project")
     quotes: Mapped[list["Quote"]] = relationship("Quote", back_populates="project")
-    orders: Mapped[list["Order"]] = relationship("Order", back_populates="project")
-    invoices: Mapped[list["Invoice"]] = relationship("Invoice", back_populates="project")
-    progress_logs: Mapped[list["ProgressLog"]] = relationship(
-        "ProgressLog", back_populates="project"
-    )
     scan_jobs: Mapped[list["ScanJob"]] = relationship("ScanJob", back_populates="project")
     edit_histories: Mapped[list["EditHistory"]] = relationship(
         "EditHistory", back_populates="project"
@@ -153,10 +142,4 @@ class Project(Base, TimestampMixin):
     tasks: Mapped[list["ProjectTask"]] = relationship("ProjectTask", back_populates="project")
     comments: Mapped[list["ProjectComment"]] = relationship(
         "ProjectComment", back_populates="project"
-    )
-    ledger_meta: Mapped["ProjectLedgerMeta | None"] = relationship(
-        "ProjectLedgerMeta", back_populates="project", uselist=False
-    )
-    ledger_approvals: Mapped[list["LedgerApproval"]] = relationship(
-        "LedgerApproval", back_populates="project", order_by="LedgerApproval.display_order"
     )

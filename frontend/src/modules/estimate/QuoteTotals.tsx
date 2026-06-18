@@ -12,10 +12,6 @@ export interface QuoteTotalsProps {
   discount: number;
   tax: number;
   total: number;
-  grossMarginRate: number | null;
-  grossProfit: number | null;
-  grossProfitMsg: string | null;
-  qcdsCost: number | null;
   editingDiscount: boolean;
   setEditingDiscount: (v: boolean) => void;
   discountInput: string;
@@ -51,10 +47,6 @@ export function QuoteTotals({
   discount,
   tax,
   total,
-  grossMarginRate,
-  grossProfit,
-  grossProfitMsg,
-  qcdsCost,
   editingDiscount,
   setEditingDiscount,
   discountInput,
@@ -62,9 +54,6 @@ export function QuoteTotals({
   handleSaveDiscount,
   sectionItems,
 }: QuoteTotalsProps) {
-  const gmr = grossMarginRate ?? 0;
-  const gmColor = gmr >= 25 ? "var(--c-success)" : gmr >= 15 ? "var(--c-warn)" : "var(--c-danger)";
-
   return (
     <>
       {/* 合計カード — totals (quote.html 準拠) */}
@@ -136,44 +125,6 @@ export function QuoteTotals({
 
         {/* 合計 major */}
         <TotalsRow label="合計（税込）" value={fmt(total)} major />
-
-        {/* 粗利ゲージ — accent（ティール）背景 */}
-        <div style={{
-          padding: "12px 14px", borderBottom: "1px solid var(--c-border)",
-          background: "color-mix(in oklab, var(--c-accent, #0E7C7B) 6%, var(--c-surface))",
-        }}>
-          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, color: "var(--c-text-muted)", fontWeight: 600, letterSpacing: "0.04em" }}>
-              予想営業利益率
-            </span>
-            {grossMarginRate !== null ? (
-              <span style={{ fontFamily: "var(--ff-mono)", fontWeight: 700, fontSize: 18, color: gmColor }}>
-                {grossMarginRate.toFixed(1)}%
-              </span>
-            ) : (
-              <span style={{ fontFamily: "var(--ff-mono)", fontSize: 18, fontWeight: 700, color: "var(--c-text-muted)" }}>—</span>
-            )}
-          </div>
-          {grossMarginRate !== null ? (
-            <>
-              <div style={{ height: 6, background: "var(--c-surface-3)", borderRadius: "var(--r-pill)", marginTop: 6, position: "relative", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, gmr / 30 * 100))}%`, background: gmColor, borderRadius: "var(--r-pill)", transition: "width 0.4s ease" }} />
-                {/* 目標ライン @ 10% */}
-                <div style={{ position: "absolute", top: -3, bottom: -3, width: 2, left: "33.3%", background: "var(--c-text)", opacity: 0.4 }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--c-text-subtle)", fontFamily: "var(--ff-mono)", marginTop: 3 }}>
-                <span>0%</span>
-                <span>目標 10%</span>
-                <span>30%</span>
-              </div>
-              <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 6 }}>
-                原価（QCDS） <strong>{fmt(qcdsCost)}</strong> &nbsp;·&nbsp; 粗利 <strong>{fmt(grossProfit)}</strong>
-              </div>
-            </>
-          ) : grossProfitMsg ? (
-            <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 4 }}>{grossProfitMsg}</div>
-          ) : null}
-        </div>
 
         {/* 大項目別内訳 */}
         {sections.length > 0 && (

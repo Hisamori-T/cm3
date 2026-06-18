@@ -124,13 +124,8 @@ class EditHistoryResponse(BaseModel):
 class ProjectCounts(BaseModel):
     """案件サブナビ用の関連データ件数。"""
 
-    qcds: int = 0
     estimate: int = 0
     quote: int = 0
-    order: int = 0
-    acknowledgment: int = 0
-    invoice: int = 0
-    progress: int = 0
     history: int = 0
 
 
@@ -172,11 +167,6 @@ class ProjectDetail(BaseModel):
     period_actual_end: date | None
     created_at: datetime
     updated_at: datetime
-    # 関連件数（後方互換）
-    qcds_count: int
     quote_count: int
-    order_count: int
-    invoice_count: int
-    progress_log_count: int
     # サブナビ用集計オブジェクト
     counts: ProjectCounts

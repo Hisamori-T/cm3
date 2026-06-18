@@ -40,16 +40,6 @@ interface MySummary {
   completed: ApprovalRequest[];
 }
 
-interface LedgerApprovalPending {
-  approval_id: string;
-  project_id: string;
-  project_number: string;
-  project_name: string;
-  role_label: string;
-  requested_by_name: string | null;
-  requested_at: string | null;
-}
-
 /** ステップ進捗チップ */
 function StepChips({ steps, myUserId }: { steps: ApprovalStep[]; myUserId?: string }) {
   return (
@@ -271,9 +261,7 @@ function Section({
 /** 承認待ち一覧ページ。 */
 export default function ApprovalsPage() {
   const { user } = useAuth();
-  const router = useRouter();
   const [data, setData] = useState<MySummary | null>(null);
-  const [ledgerPending, setLedgerPending] = useState<LedgerApprovalPending[]>([]);
   const [loading, setLoading] = useState(true);
   const [rejectTarget, setRejectTarget] = useState<ApprovalRequest | null>(null);
   const [rejectComment, setRejectComment] = useState("");
@@ -281,12 +269,8 @@ export default function ApprovalsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [d, lp] = await Promise.all([
-        apiFetch<MySummary>("/api/v1/approvals/my"),
-        apiFetch<LedgerApprovalPending[]>("/api/v1/ledger-approvals/pending-for-me").catch(() => []),
-      ]);
+      const d = await apiFetch<MySummary>("/api/v1/approvals/my");
       setData(d);
-      setLedgerPending(lp);
     } catch { /* ignore */ }
     finally { setLoading(false); }
   }, []);
@@ -335,51 +319,6 @@ export default function ApprovalsPage() {
         <div style={{ textAlign: "center", padding: "40px 0", color: "var(--c-text-muted)" }}>読み込み中...</div>
       ) : (
         <>
-          {/* ── 工事台帳 押印依頼 ── */}
-          <Section
-            title="工事台帳 押印依頼"
-            subtitle="押印を依頼されています · タップで案件を開きます"
-            count={ledgerPending.length}
-            colorVar="var(--c-status-progress)"
-            items={
-              <div>
-                {ledgerPending.map(lp => (
-                  <div key={lp.approval_id}
-                    onClick={() => router.push(`/projects/${lp.project_id}`)}
-                    style={{
-                      display: "grid", gridTemplateColumns: "auto 1fr auto",
-                      gap: 14, alignItems: "center",
-                      padding: "12px 16px",
-                      background: "var(--c-surface)",
-                      border: "1px solid var(--c-border)",
-                      borderLeft: "3px solid var(--c-status-progress)",
-                      borderRadius: "var(--r-lg)", marginBottom: 8,
-                      cursor: "pointer",
-                    }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.boxShadow = "var(--sh-2)"; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
-                  >
-                    <div style={{ width: 36, height: 36, borderRadius: "var(--r-md)", background: "color-mix(in oklab,var(--c-status-progress) 14%,var(--c-surface))", color: "var(--c-status-progress)", display: "grid", placeItems: "center" }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M3 21h18M5 21V7l8-4 8 4v14M9 9h6M9 13h6M9 17h6"/>
-                      </svg>
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{lp.project_name}</div>
-                      <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginTop: 2 }}>
-                        {lp.project_number} · 【{lp.role_label}】の押印依頼
-                        {lp.requested_by_name && ` · 依頼者: ${lp.requested_by_name}`}
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 11, color: "var(--c-text-muted)" }}>
-                      {lp.requested_at ? new Date(lp.requested_at).toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" }) : ""}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            }
-          />
-
           {/* ── あなたの承認待ち ── */}
           <Section
             title="あなたの承認待ち"

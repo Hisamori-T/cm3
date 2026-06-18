@@ -12,10 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.acknowledgment import Acknowledgment
-from app.models.enums import AcknowledgmentStatus, OrderStatus, UserRole
-from app.models.invoice import Invoice
-from app.models.order import Order
+from app.models.enums import UserRole
 from app.models.quote import Quote, QuoteItem
 from app.models.user import User
 from app.schemas.quote import (
@@ -25,7 +22,6 @@ from app.schemas.quote import (
     QuoteListItem,
     QuoteUpdate,
 )
-from app.services.document_sync_service import sync_dependent_documents_on_quote_change
 from app.modules.estimate.routers._helpers import (
     _get_project_or_404,
     _get_quote_or_404,
@@ -230,8 +226,6 @@ async def update_quote(
         quote.total_amount = total_amount
 
     await db.commit()
-    await sync_dependent_documents_on_quote_change(quote_id, db)
-    await db.commit()
     db.expunge_all()
     result = (await db.execute(
         select(Quote)
@@ -296,121 +290,6 @@ async def stamp_approval(
     )).scalar_one()
     logger.info("quote_stamped", quote_id=str(quote_id), stamp_type=body.stamp_type, stamp=body.stamp)
     return _build_detail(result)
-
-
-# ---------------------------------------------------------------------------
-# 関連帳票一括生成
-# ---------------------------------------------------------------------------
-
-@router.post(
-    "/projects/{project_id}/quotes/{quote_id}/generate-related-documents",
-    status_code=status.HTTP_201_CREATED,
-)
-async def generate_related_documents(
-    project_id: uuid.UUID,
-    quote_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """見積書から注文書・注文請書・請求書のドラフトを一括生成する。"""
-    project = await _get_project_or_404(project_id, db)
-    quote = await _get_quote_or_404(quote_id, project_id, db)
-
-    existing_order = (await db.execute(
-        select(Order).where(Order.project_id == project_id, Order.quote_id == quote_id)
-    )).scalar_one_or_none()
-
-    existing_invoice = (await db.execute(
-        select(Invoice).where(Invoice.project_id == project_id, Invoice.quote_id == quote_id)
-    )).scalar_one_or_none()
-
-    order_id: uuid.UUID
-    invoice_id: uuid.UUID
-    ack_id: uuid.UUID | None = None
-
-    if existing_order is not None:
-        order_id = existing_order.id
-    else:
-        order_count = len((await db.execute(
-            select(Order).where(Order.project_id == project_id)
-        )).scalars().all())
-        order = Order(
-            project_id=project_id,
-            order_number=f"ORD-{order_count + 1:03d}",
-            client_company=project.client_name,
-            amount_excl_tax=quote.subtotal,
-            tax_amount=quote.tax_amount,
-            total_amount=quote.total_amount,
-            construction_period_start=quote.period_start,
-            construction_period_end=quote.period_end,
-            payment_condition=quote.payment_condition,
-            quote_id=quote_id,
-            linked_to_quote=True,
-            status=OrderStatus.draft,
-        )
-        db.add(order)
-        await db.flush()
-        order_id = order.id
-
-    if existing_invoice is not None:
-        invoice_id = existing_invoice.id
-    else:
-        inv_count = len((await db.execute(
-            select(Invoice).where(Invoice.project_id == project_id)
-        )).scalars().all())
-        invoice = Invoice(
-            project_id=project_id,
-            invoice_number=f"INV-{inv_count + 1:03d}",
-            current_purchase=quote.subtotal,
-            tax_amount=quote.tax_amount,
-            total_amount=quote.total_amount,
-            quote_id=quote_id,
-            linked_to_quote=True,
-        )
-        db.add(invoice)
-        await db.flush()
-        invoice_id = invoice.id
-
-    existing_ack = (await db.execute(
-        select(Acknowledgment).where(Acknowledgment.project_id == project_id, Acknowledgment.order_id == order_id)
-    )).scalar_one_or_none()
-
-    if existing_ack is not None:
-        ack_id = existing_ack.id
-    else:
-        ack_count = len((await db.execute(
-            select(Acknowledgment).where(Acknowledgment.project_id == project_id)
-        )).scalars().all())
-        ack = Acknowledgment(
-            order_id=order_id,
-            project_id=project_id,
-            acknowledgment_number=f"ACK-{ack_count + 1:03d}",
-            client_company=project.client_name,
-            amount_excl_tax=quote.subtotal,
-            tax_amount=quote.tax_amount,
-            total_amount=quote.total_amount,
-            construction_period_start=quote.period_start,
-            construction_period_end=quote.period_end,
-            payment_condition=quote.payment_condition,
-            status=AcknowledgmentStatus.draft,
-        )
-        db.add(ack)
-        await db.flush()
-        ack_id = ack.id
-
-    await db.commit()
-    logger.info(
-        "generated_related_documents",
-        project_id=str(project_id),
-        quote_id=str(quote_id),
-        order_id=str(order_id),
-        invoice_id=str(invoice_id),
-    )
-    return {
-        "order_id": str(order_id),
-        "acknowledgment_id": str(ack_id),
-        "invoice_id": str(invoice_id),
-    }
 
 
 @router.delete("/projects/{project_id}/quotes/{quote_id}", status_code=204)

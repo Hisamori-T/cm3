@@ -104,11 +104,6 @@ export default function EstimatePage() {
   const [scanJobs, setScanJobs] = useState<ScanJob[]>([]);
   const [scanMsg, setScanMsg] = useState<string | null>(null);
 
-  // QCDSに反映ダイアログ
-  const [qcdsReflectVer, setQcdsReflectVer] = useState<QuoteVersion | null>(null);
-  const [qcdsCategory, setQcdsCategory] = useState<"subcontract" | "material" | "other">("subcontract");
-  const [qcdsReflecting, setQcdsReflecting] = useState(false);
-
   // 顧客見積に反映ダイアログ
   const [quoteReflectVer, setQuoteReflectVer] = useState<QuoteVersion | null>(null);
   const [reflectMarkup, setReflectMarkup] = useState("1.0");
@@ -411,24 +406,6 @@ export default function EstimatePage() {
     }
   };
 
-
-  const handleQcdsReflect = async () => {
-    if (!qcdsReflectVer) return;
-    setQcdsReflecting(true);
-    try {
-      await apiFetch(`/api/v1/projects/${projectId}/qcds/reflect-from-version`, {
-        method: "POST",
-        body: JSON.stringify({ version_id: qcdsReflectVer.id, category: qcdsCategory }),
-      });
-      setQcdsReflectVer(null);
-      setScanMsg(`「${qcdsReflectVer.vendor_name_snapshot || ""}」をQCDSに反映しました`);
-      setTimeout(() => setScanMsg(null), 3000);
-    } catch (e) {
-      setScanMsg(`QCDS反映失敗: ${(e as Error).message}`);
-    } finally {
-      setQcdsReflecting(false);
-    }
-  };
 
   const handleQuoteReflect = async () => {
     if (!quoteReflectVer || !customerQuoteId) return;
@@ -806,7 +783,6 @@ export default function EstimatePage() {
               version={v}
               isSelected={selectedVersionId === v.id}
               onClick={() => setSelectedVersionId(v.id)}
-              onQcdsReflect={() => { setQcdsReflectVer(v); setQcdsCategory("subcontract"); }}
               onQuoteReflect={() => { setQuoteReflectVer(v); setReflectMarkup(String(v.markup_rate)); setReflectSectionType("new"); setReflectSectionName(""); setReflectSectionId(""); }}
               onToggleActive={() => handleToggleActive(v.id, v.is_active)}
               onDelete={() => handleDeleteVersion(v.id)}
@@ -1077,34 +1053,6 @@ export default function EstimatePage() {
           )}
         </div>
       </div>
-      {/* ── QCDSに反映ダイアログ ── */}
-      {qcdsReflectVer && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setQcdsReflectVer(null)}>
-          <div style={{ background: "var(--c-surface)", borderRadius: "var(--r-lg)", boxShadow: "0 20px 60px rgba(0,0,0,.3)", width: 380, padding: "20px 24px" }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 16 }}>QCDSに反映</div>
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginBottom: 4 }}>業者名</div>
-              <div style={{ fontSize: 13, fontWeight: 600 }}>{qcdsReflectVer.vendor_name_snapshot || "（未設定）"}</div>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, color: "var(--c-text-muted)", marginBottom: 6 }}>カテゴリー</div>
-              {(["subcontract", "material", "other"] as const).map(cat => (
-                <label key={cat} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", cursor: "pointer", fontSize: 13 }}>
-                  <input type="radio" name="qcds-cat" checked={qcdsCategory === cat} onChange={() => setQcdsCategory(cat)} />
-                  {cat === "subcontract" ? "外注業者" : cat === "material" ? "資材業者" : "その他"}
-                </label>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button onClick={() => setQcdsReflectVer(null)} style={{ padding: "6px 16px", fontSize: 13, background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer" }}>キャンセル</button>
-              <button onClick={handleQcdsReflect} disabled={qcdsReflecting} style={{ padding: "6px 20px", fontSize: 13, fontWeight: 600, background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-md)", cursor: "pointer" }}>
-                {qcdsReflecting ? "反映中…" : "反映する"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* ── 顧客見積に反映ダイアログ ── */}
       {quoteReflectVer && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(0,0,0,.4)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setQuoteReflectVer(null)}>
