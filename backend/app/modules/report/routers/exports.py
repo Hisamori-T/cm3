@@ -158,15 +158,15 @@ async def export_condition_pdf(
     )).scalars().all()
 
     condition_text = "\n\n".join(item.content for item in items)
-    period_start = str(getattr(quote, "period_start", None) or project.period_contract_start or "") or None
-    period_end   = str(getattr(quote, "period_end",   None) or project.period_contract_end   or "") or None
+    period_start = str(getattr(quote, "period_start", None) or "") or None
+    period_end   = str(getattr(quote, "period_end",   None) or "") or None
 
     co = await _get_company(db)
     data = pdf_export.generate_condition_pdf(
         project_name=getattr(quote, "project_name_snapshot", None) or project.project_name or "",
         period_start=period_start,
         period_end=period_end,
-        payment_condition=getattr(quote, "payment_condition", None) or project.payment_condition,
+        payment_condition=getattr(quote, "payment_condition", None),
         condition_text=condition_text,
         company=co,
     )

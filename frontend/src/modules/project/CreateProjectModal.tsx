@@ -1,7 +1,7 @@
 /**
- * 新規案件作成モーダル。工事名 + 顧客マスタ連携 + 発注区分/請負区分/工事番号。
+ * 新規案件作成モーダル。件名 + 顧客マスタ連携 + 工事番号。
  *
- * Phase C-4-4: 発注者フィールドを顧客マスタ検索に変更し、client_id を送信する。
+ * 発注者フィールドを顧客マスタ検索に変更し、client_id を送信する。
  * 顧客マスタにない場合はフリーテキスト入力も許可（client_name のみ送信）。
  */
 
@@ -34,8 +34,6 @@ interface Props {
 
 export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const [projectName, setProjectName]     = useState("");
-  const [orderType, setOrderType]         = useState<"private" | "government" | "">("");
-  const [contractType, setContractType]   = useState<"prime" | "sub" | "">("");
   const [projectNumber, setProjectNumber] = useState("");
   const [error, setError]                 = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting]   = useState(false);
@@ -76,8 +74,6 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
   const reset = () => {
     setProjectName("");
     clearClient();
-    setOrderType("");
-    setContractType("");
     setProjectNumber("");
     setError(null);
   };
@@ -86,7 +82,7 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!projectName.trim()) { setError("工事名は必須です"); return; }
+    if (!projectName.trim()) { setError("件名は必須です"); return; }
     setError(null);
     setIsSubmitting(true);
 
@@ -94,8 +90,6 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
       project_name: projectName.trim(),
       ...(clientId && { client_id: clientId }),
       ...(clientQuery.trim() && !clientId && { client_name: clientQuery.trim() }),
-      ...(orderType    && { order_type: orderType }),
-      ...(contractType && { contract_type: contractType }),
       ...(projectNumber.trim() && { project_number: projectNumber.trim() }),
     };
 
@@ -125,23 +119,23 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
-          {/* 工事名 */}
+          {/* 件名 */}
           <div className="space-y-1">
             <label className="block text-sm font-medium text-[var(--color-text-primary)]">
-              工事名 <span className="text-[var(--color-error)]">*</span>
+              件名 <span className="text-[var(--color-error)]">*</span>
             </label>
             <Input
               value={projectName}
               onChange={(e) => setProjectName(e.target.value)}
-              placeholder="○○ビル内装改修工事"
+              placeholder="例: ○○ビル内装改修"
               autoFocus
             />
           </div>
 
-          {/* 発注者（顧客マスタ検索） */}
+          {/* 顧客（顧客マスタ検索） */}
           <div className="space-y-1" style={{ position: "relative" }}>
             <label className="block text-sm font-medium text-[var(--color-text-primary)]">
-              発注者
+              顧客
               {clientId && (
                 <span style={{ marginLeft: 6, fontSize: 11, color: "var(--c-success)", fontWeight: 600 }}>
                   ✓ マスタ連携済
@@ -214,34 +208,6 @@ export function CreateProjectModal({ open, onClose, onCreated }: Props) {
                 ⚠ マスタ未連携。顧客マスタに登録する場合は顧客マスタページから先に登録してください。
               </p>
             )}
-          </div>
-
-          {/* 発注区分・請負区分 */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-[var(--color-text-primary)]">発注区分</label>
-              <select
-                value={orderType}
-                onChange={(e) => setOrderType(e.target.value as typeof orderType)}
-                className="w-full h-9 rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              >
-                <option value="">選択なし</option>
-                <option value="private">民間</option>
-                <option value="government">官庁</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-[var(--color-text-primary)]">請負区分</label>
-              <select
-                value={contractType}
-                onChange={(e) => setContractType(e.target.value as typeof contractType)}
-                className="w-full h-9 rounded border border-[var(--color-border)] bg-[var(--color-bg-primary)] px-3 text-sm text-[var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-              >
-                <option value="">選択なし</option>
-                <option value="prime">元請</option>
-                <option value="sub">下請</option>
-              </select>
-            </div>
           </div>
 
           {/* 工事番号 */}

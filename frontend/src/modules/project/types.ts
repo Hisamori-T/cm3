@@ -15,5 +15,4 @@ export type {
 
 export {
   PROJECT_STATUS_LABEL,
-  PREV_CONSTRUCTION_LABEL,
 } from "@/types/project";

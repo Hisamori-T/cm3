@@ -30,7 +30,7 @@ interface Tab {
 
 function getTabs(projectId: string): Tab[] {
   return [
-    { href: `/projects/${projectId}`,               label: "工事台帳", countKey: null },
+    { href: `/projects/${projectId}`,               label: "案件情報", countKey: null },
     { href: `/projects/${projectId}/estimate`,       label: "業者見積", countKey: "estimate" },
     { href: `/projects/${projectId}/quote`,          label: "顧客見積", countKey: "quote" },
     { href: `/projects/${projectId}/history`,        label: "編集履歴", countKey: "history" },
@@ -61,7 +61,7 @@ export function ProjectSubNav({ projectId, projectNumber, projectName, status, c
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
             <path d="M15 18l-6-6 6-6" />
           </svg>
-          案件一覧
+          見積案件
         </Link>
         <span className="pn">{projectNumber}</span>
         <h1>{projectName}</h1>

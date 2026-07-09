@@ -8,7 +8,6 @@ from sqlalchemy import (
     DateTime,
     Enum as SAEnum,
     ForeignKey,
-    Integer,
     Numeric,
     String,
     Text,
@@ -20,10 +19,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.models.base import TimestampMixin
 from app.models.enums import (
-    AwardingType,
-    ContractType,
-    OrderType,
-    PrevConstructionType,
     ProjectRole,
     ProjectStatus,
 )
@@ -48,35 +43,13 @@ class Project(Base, TimestampMixin):
     project_name: Mapped[str] = mapped_column(String(255), nullable=False)
     project_location: Mapped[str | None] = mapped_column(Text, nullable=True)
     client_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    original_client_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
-    # 工期
+    # 工期（見積）
     period_quote_start: Mapped[date | None] = mapped_column(Date, nullable=True)
     period_quote_end: Mapped[date | None] = mapped_column(Date, nullable=True)
-    period_contract_start: Mapped[date | None] = mapped_column(Date, nullable=True)
-    period_contract_end: Mapped[date | None] = mapped_column(Date, nullable=True)
-    period_actual_start: Mapped[date | None] = mapped_column(Date, nullable=True)
-    period_actual_end: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    # 案件属性
-    order_type: Mapped[OrderType | None] = mapped_column(
-        SAEnum(OrderType, name="ordertype"), nullable=True
-    )
-    contract_type: Mapped[ContractType | None] = mapped_column(
-        SAEnum(ContractType, name="contracttype"), nullable=True
-    )
-    awarding_type: Mapped[AwardingType | None] = mapped_column(
-        SAEnum(AwardingType, name="awardingtype"), nullable=True
-    )
-    payment_condition: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 案件概要
     project_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    # 前回施工
-    prev_construction_type: Mapped[PrevConstructionType | None] = mapped_column(
-        SAEnum(PrevConstructionType, name="prevconstructiontype"), nullable=True
-    )
-    prev_construction_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    prev_construction_other: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # 客先担当
     client_contact_company: Mapped[str | None] = mapped_column(String(255), nullable=True)

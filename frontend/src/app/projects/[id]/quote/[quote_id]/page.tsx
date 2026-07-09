@@ -66,9 +66,8 @@ interface ProjectHeader {
   project_name: string | null;
   client_name: string | null;
   project_location: string | null;
-  period_contract_start: string | null;
-  period_contract_end: string | null;
-  payment_condition: string | null;
+  period_quote_start: string | null;
+  period_quote_end: string | null;
   sales_person_name: string | null;
   sales_person_id: string | null;
 }
@@ -202,9 +201,9 @@ export default function QuoteDetailPage() {
       setHdrIssueDate(detail.issue_date || "");
       setHdrValidityDays(String(detail.validity_days ?? 30));
       setHdrLocation(detail.project_location_snapshot || proj.project_location || "");
-      setHdrPeriodStart(detail.period_start || proj.period_contract_start || "");
-      setHdrPeriodEnd(detail.period_end || proj.period_contract_end || "");
-      setHdrPayment(detail.payment_condition || proj.payment_condition || "");
+      setHdrPeriodStart(detail.period_start || proj.period_quote_start || "");
+      setHdrPeriodEnd(detail.period_end || proj.period_quote_end || "");
+      setHdrPayment(detail.payment_condition || "");
       setHdrRemarks(detail.remarks || "");
       setConditionItems(condItems);
       setConditionTemplates(condTmpls);
@@ -275,9 +274,6 @@ export default function QuoteDetailPage() {
           method: "PATCH",
           body: JSON.stringify({
             project_location: hdrLocation || null,
-            period_contract_start: hdrPeriodStart || null,
-            period_contract_end: hdrPeriodEnd || null,
-            payment_condition: hdrPayment || null,
           }),
         }),
       ]);

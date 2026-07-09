@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import type { ProjectDetail, ProjectRole, ProjectStatus, ProjectUpdate } from "@/types/project";
-import { PREV_CONSTRUCTION_LABEL, PROJECT_ROLE_COLOR, PROJECT_ROLE_LABEL, PROJECT_STATUS_LABEL } from "@/types/project";
+import { PROJECT_ROLE_COLOR, PROJECT_ROLE_LABEL, PROJECT_STATUS_LABEL } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SiteSearch } from "@/components/client/SiteSearch";
@@ -128,25 +128,15 @@ export default function ProjectDetailPage() {
       client_name: project.client_name ?? "",
       client_id: project.client_id,
       client_site_id: project.client_site_id,
-      original_client_name: project.original_client_name ?? "",
       project_location: project.project_location ?? "",
-      order_type: project.order_type ?? undefined,
-      contract_type: project.contract_type ?? undefined,
-      awarding_type: project.awarding_type ?? undefined,
       project_role: project.project_role ?? undefined,
-      payment_condition: project.payment_condition ?? "",
       project_summary: project.project_summary ?? "",
-      prev_construction_type: project.prev_construction_type ?? undefined,
       client_contact_company: project.client_contact_company ?? "",
       client_contact_person: project.client_contact_person ?? "",
       client_contact_phone: project.client_contact_phone ?? "",
       project_price: project.project_price ?? undefined,
       period_quote_start: project.period_quote_start ?? "",
       period_quote_end: project.period_quote_end ?? "",
-      period_contract_start: project.period_contract_start ?? "",
-      period_contract_end: project.period_contract_end ?? "",
-      period_actual_start: project.period_actual_start ?? "",
-      period_actual_end: project.period_actual_end ?? "",
       sales_person_id: project.sales_person_id ?? null,
       construction_person_id: project.construction_person_id ?? null,
     });
@@ -288,10 +278,10 @@ export default function ProjectDetailPage() {
                 <div className="field-grid">
                   {isEditing ? (
                     <>
-                      <EditField label="工事名" value={f("project_name")} onChange={set("project_name")} />
+                      <EditField label="件名" value={f("project_name")} onChange={set("project_name")} />
                       <EditField label="工事番号" value={f("project_number")} onChange={set("project_number")} />
-                      <EditField label="工事場所" value={f("project_location")} onChange={set("project_location")} />
-                      <div className="k" style={{ alignSelf: "flex-start", paddingTop: 8 }}>発注者</div>
+                      <EditField label="案件場所" value={f("project_location")} onChange={set("project_location")} />
+                      <div className="k" style={{ alignSelf: "flex-start", paddingTop: 8 }}>顧客</div>
                       <div className="v" style={{ flexDirection: "column", alignItems: "stretch", padding: "4px 0" }}>
                         <SiteSearch
                           value={siteSearch}
@@ -317,30 +307,21 @@ export default function ProjectDetailPage() {
                           </div>
                         )}
                       </div>
-                      <EditField label="元発注者" value={f("original_client_name")} onChange={set("original_client_name")} />
-                      <EditSelect label="発注区分" value={f("order_type")} options={[{ value: "private", label: "民間" }, { value: "government", label: "官庁" }]} onChange={set("order_type")} />
-                      <EditSelect label="受注区分" value={f("awarding_type")} options={[{ value: "special", label: "特命" }, { value: "competitive", label: "競争" }]} onChange={set("awarding_type")} />
-                      <EditSelect label="案件立場" value={f("project_role")} options={[{ value: "prime", label: "元請" }, { value: "sub", label: "下請" }]} onChange={v => { set("project_role")(v); set("contract_type")(v); }} />
+                      <EditSelect label="案件立場" value={f("project_role")} options={[{ value: "prime", label: "元請" }, { value: "sub", label: "下請" }]} onChange={set("project_role")} />
                       <EditField label="工事価格" value={f("project_price")} onChange={set("project_price")} type="number" />
-                      <EditField label="工期(見積)開始" value={f("period_quote_start")} onChange={set("period_quote_start")} type="date" />
-                      <EditField label="工期(見積)終了" value={f("period_quote_end")} onChange={set("period_quote_end")} type="date" />
-                      <EditField label="工期(契約)開始" value={f("period_contract_start")} onChange={set("period_contract_start")} type="date" />
-                      <EditField label="工期(契約)終了" value={f("period_contract_end")} onChange={set("period_contract_end")} type="date" />
-                      <EditField label="工期(実施)開始" value={f("period_actual_start")} onChange={set("period_actual_start")} type="date" />
-                      <EditField label="工期(実施)終了" value={f("period_actual_end")} onChange={set("period_actual_end")} type="date" />
-                      <EditField label="支払条件" value={f("payment_condition")} onChange={set("payment_condition")} />
-                      <EditField label="工事概要" value={f("project_summary")} onChange={set("project_summary")} />
-                      <EditSelect label="前回施工" value={f("prev_construction_type")} options={[{ value: "own", label: "当社" }, { value: "other", label: "他社" }, { value: "none", label: "なし" }]} onChange={set("prev_construction_type")} />
+                      <EditField label="予定工期 開始" value={f("period_quote_start")} onChange={set("period_quote_start")} type="date" />
+                      <EditField label="予定工期 終了" value={f("period_quote_end")} onChange={set("period_quote_end")} type="date" />
+                      <EditField label="案件概要" value={f("project_summary")} onChange={set("project_summary")} />
                     </>
                   ) : (
                     <>
-                      <div className="k">工事名</div>
+                      <div className="k">件名</div>
                       <div className="v">{project.project_name}</div>
 
-                      <div className="k">工事場所</div>
+                      <div className="k">案件場所</div>
                       <div className="v">{project.project_location ?? "—"}</div>
 
-                      <div className="k">発注者</div>
+                      <div className="k">顧客</div>
                       <div className="v">
                         {project.client_id ? (
                           <Link href={`/clients/${project.client_id}`} style={{ color: "var(--c-primary)", textDecoration: "none", fontWeight: 500 }}>
@@ -349,38 +330,11 @@ export default function ProjectDetailPage() {
                         ) : (project.client_name ?? "—")}
                       </div>
 
-                      <div className="k">元発注者</div>
-                      <div className="v" style={{ color: project.original_client_name ? undefined : "var(--c-text-muted)" }}>
-                        {project.original_client_name ?? "— （元請）"}
-                      </div>
-
-                      <div className="k">工期（見積）</div>
+                      <div className="k">予定工期</div>
                       <div className="v">
                         {(project.period_quote_start || project.period_quote_end)
                           ? <><span className="num">{project.period_quote_start ?? "—"}</span> 〜 <span className="num">{project.period_quote_end ?? "—"}</span></>
                           : "—"}
-                      </div>
-
-                      <div className="k">工期（契約）</div>
-                      <div className="v">
-                        {(project.period_contract_start || project.period_contract_end)
-                          ? <><span className="num">{project.period_contract_start ?? "—"}</span> 〜 <span className="num">{project.period_contract_end ?? "—"}</span></>
-                          : "—"}
-                      </div>
-
-                      <div className="k">工期（実施）</div>
-                      <div className="v">
-                        {project.period_actual_start
-                          ? <><span className="num">{project.period_actual_start}</span> 〜 <span className="num">{project.period_actual_end ?? "進行中"}</span></>
-                          : "—"}
-                      </div>
-
-                      <div className="k">発受注区分</div>
-                      <div className="v" style={{ flexWrap: "wrap", gap: 4 }}>
-                        <span className={`chip ${project.order_type === "private" ? "on" : ""}`}>民間</span>
-                        <span className={`chip ${project.order_type === "government" ? "on" : ""}`}>官庁</span>
-                        <span className={`chip ${project.awarding_type === "special" ? "on" : ""}`}>特命</span>
-                        <span className={`chip ${project.awarding_type === "competitive" ? "on" : ""}`}>競争</span>
                       </div>
 
                       <div className="k">案件立場</div>
@@ -397,16 +351,7 @@ export default function ProjectDetailPage() {
                         ) : <span style={{ color: "var(--c-text-muted)" }}>—</span>}
                       </div>
 
-                      <div className="k">支払条件</div>
-                      <div className="v">{project.payment_condition ?? "—"}</div>
-
-                      <div className="k">前施工区分</div>
-                      <div className="v">
-                        {project.prev_construction_type ? PREV_CONSTRUCTION_LABEL[project.prev_construction_type] : "—"}
-                        {project.prev_construction_year ? ` (${project.prev_construction_year}年)` : ""}
-                      </div>
-
-                      <div className="k">工事概要</div>
+                      <div className="k">案件概要</div>
                       <div className="v" style={{ display: "block", lineHeight: 1.6, padding: "10px 12px", whiteSpace: "pre-wrap", alignSelf: "start" }}>
                         {project.project_summary ?? "—"}
                       </div>

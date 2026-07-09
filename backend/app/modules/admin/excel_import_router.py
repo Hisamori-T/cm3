@@ -41,8 +41,6 @@ class ImportPreviewRow(BaseModel):
     project_number: str | None
     client_name: str | None
     project_price: float | None
-    period_contract_start: str | None
-    period_contract_end: str | None
     conflict: Literal["none", "number_exists", "name_exists", "deleted_exists"]
     existing_id: str | None
     deleted_existing_id: str | None = None  # 削除済み案件が一致する場合のID
@@ -161,8 +159,6 @@ async def preview_import(
             project_number=row.project_number,
             client_name=row.client_name,
             project_price=row.project_price,
-            period_contract_start=str(row.period_contract_start) if row.period_contract_start else None,
-            period_contract_end=str(row.period_contract_end) if row.period_contract_end else None,
             conflict=conflict,
             existing_id=existing_id,
             deleted_existing_id=deleted_existing_id,
@@ -316,7 +312,7 @@ async def _create_related_records(proj: Project, row: ExcelImportRow, db: AsyncS
             validity_days=q.validity_days,
             project_name_snapshot=q.project_name_snapshot or proj.project_name,
             project_location_snapshot=q.project_location_snapshot or proj.project_location,
-            payment_condition=q.payment_condition or proj.payment_condition,
+            payment_condition=q.payment_condition,
             remarks=q.remarks,
             subtotal=q.subtotal,
             tax_amount=q.tax_amount,
@@ -376,31 +372,15 @@ def _apply_row(proj: Project, row: ExcelImportRow) -> None:
         proj.project_number = row.project_number
     if row.client_name is not None:
         proj.client_name = row.client_name
-    if row.original_client_name is not None:
-        proj.original_client_name = row.original_client_name
     if row.project_location is not None:
         proj.project_location = row.project_location
     if row.project_price is not None:
         proj.project_price = row.project_price
-    if row.payment_condition is not None:
-        proj.payment_condition = row.payment_condition
     if row.client_contact_company is not None:
         proj.client_contact_company = row.client_contact_company
     if row.client_contact_person is not None:
         proj.client_contact_person = row.client_contact_person
-    if row.order_type is not None:
-        proj.order_type = row.order_type
-    if row.contract_type is not None:
-        proj.contract_type = row.contract_type
     if row.period_quote_start is not None:
         proj.period_quote_start = row.period_quote_start
     if row.period_quote_end is not None:
         proj.period_quote_end = row.period_quote_end
-    if row.period_contract_start is not None:
-        proj.period_contract_start = row.period_contract_start
-    if row.period_contract_end is not None:
-        proj.period_contract_end = row.period_contract_end
-    if row.period_actual_start is not None:
-        proj.period_actual_start = row.period_actual_start
-    if row.period_actual_end is not None:
-        proj.period_actual_end = row.period_actual_end

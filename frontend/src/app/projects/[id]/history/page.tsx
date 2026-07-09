@@ -43,9 +43,9 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const FIELD_LABEL: Record<string, string> = {
-  status: "ステータス", project_name: "工事名", client_name: "発注者",
-  project_price: "工事価格", period_contract_start: "着工日", period_contract_end: "完工日",
-  project_location: "現場場所", project_overview: "概要",
+  status: "ステータス", project_name: "件名", client_name: "顧客",
+  project_price: "工事価格", period_quote_start: "予定工期開始", period_quote_end: "予定工期終了",
+  project_location: "案件場所", project_summary: "案件概要",
 };
 
 function formatValue(v: unknown): string {

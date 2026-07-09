@@ -18,8 +18,6 @@ interface PreviewRow {
   project_number: string | null;
   client_name: string | null;
   project_price: number | null;
-  period_contract_start: string | null;
-  period_contract_end: string | null;
   conflict: Conflict;
   existing_id: string | null;
   deleted_existing_id: string | null;

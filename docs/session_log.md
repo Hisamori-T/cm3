@@ -3462,4 +3462,61 @@ GET    /invoices/{id}/payment-notice-pdf
 - package.json の name 変更
 - commit: "feat: サイドバーとブランディングを見積管理に変更 (Phase 1)"
 
+### 作業結果（Phase 1）
+
+- AppShell.tsx: NAV_MAINに「見積案件（/projects）」「業者見積スキャン（/scan）」を配置
+- AppShell.tsx: NAV_WORKからカンバン・全社工程表・日報・カレンダーの4リンク削除
+- AppShell.tsx: ブランド名「Construction Mgr」→「見積管理」
+- layout.tsx: title → 見積管理 / description → 業者見積AIスキャン・顧客見積管理システム
+- package.json: name → estimate-manager
+- ページファイル削除: kanban/page.tsx, gantt/page.tsx, daily-report/page.tsx, calendar/page.tsx
+- commit: `0d7445e` / 8 files changed
+
+### 作業内容（予定）— Phase 2
+
+- 削除カラム名を grep で全洗い出し後、変更計画を提示
+- projects/[id]/page.tsx: 「工事台帳」タブ → 「案件情報」
+- UIラベル変更: 工事名→件名 / 工事場所→案件場所 / 発注者→顧客 / 工期(見積)→予定工期 / 工事概要→案件概要
+- backend: project スキーマ・モデルから削除フィールド除去
+- Alembic マイグレーション（不要カラム DROP）
+- types/project.ts / excel_import_router.py / admin/import/page.tsx / exports.py も確認
+- commit: "feat: 案件情報タブ整理と不要フィールド削除 (Phase 2)"
+
+### 作業結果（Phase 2）
+
+**バックエンド**
+- `backend/app/models/project.py`: 削除フィールド（original_client_name, order_type, contract_type, awarding_type, payment_condition, prev_construction_*, period_contract_*, period_actual_*）を除去
+- `backend/app/schemas/project.py`: ProjectCreate / ProjectUpdate / ProjectDetail / ProjectListItem から同フィールド除去
+- `backend/app/modules/project/router.py`: _to_list_item・create_project・get_project のフィールドマッピング更新
+- `backend/app/main.py`: kanban_router の import・登録を削除
+- `backend/app/modules/project/kanban_router.py`: 削除（period_contract_end 参照あり）
+- `backend/app/modules/report/routers/exports.py`: period_contract_start/end・payment_condition フォールバック削除
+- `backend/app/modules/report/routers/dashboard.py`: 期限アラートを period_quote_end 単一フィールドに変更
+- `backend/app/modules/report/routers/csv_export.py`: ヘッダー・カラム名を新フィールドに更新
+- `backend/app/modules/admin/excel_import_router.py`: _apply_row から削除フィールド除去、payment_condition フォールバック修正
+- `backend/alembic/versions/68992a598db0_drop_project_fields_phase2.py`: 12カラム DROP マイグレーション作成
+
+**フロントエンド**
+- `frontend/src/types/project.ts`: 削除フィールドの型定義・定数をすべて除去
+- `frontend/src/modules/project/ProjectSubNav.tsx`: タブ「工事台帳」→「案件情報」、パンくず「案件一覧」→「見積案件」
+- `frontend/src/app/projects/[id]/page.tsx`: 編集UI・表示UIを全面刷新（削除フィールド除去・ラベル変更）
+- `frontend/src/modules/project/CreateProjectModal.tsx`: 発注区分・請負区分 UI と state を削除、ラベルを件名・顧客に更新
+- `frontend/src/app/projects/[id]/quote/[quote_id]/page.tsx`: ProjectHeader 型から削除フィールド除去、PATCH ペイロード修正
+- `frontend/src/app/projects/[id]/history/page.tsx`: FIELD_LABEL の旧フィールド→新フィールドに更新
+- `frontend/src/app/admin/import/page.tsx`: PreviewRow 型から period_contract_start/end 除去
+- `frontend/src/app/clients/[id]/page.tsx`: 「受注区分」列ヘッダー・セルを削除
+- `frontend/src/modules/project/types.ts`: PREV_CONSTRUCTION_LABEL の re-export を削除
+
+### 次のアクション
+
+- VPS で `alembic upgrade head` を実行してカラム DROP を適用（`68992a598db0`）
+- Phase 2 動作確認チェックリスト実施:
+  1. タブ名が「案件情報」になっているか
+  2. 削除フィールドが編集フォーム・表示に出ないか
+  3. 新規案件作成フロー（件名・顧客のみで作成できるか）
+  4. 見積書フロー（スキャン → 業者見積 → 顧客見積）が壊れていないか
+  5. Excel インポートが旧ファイルで動くか
+- チェックリスト合格後、commit: "feat: 案件情報タブ整理と不要フィールド削除 (Phase 2)"
+- Phase 3 計画: ステータス単純化（7段階→4段階）＋ダッシュボード見積特化
+
 ---

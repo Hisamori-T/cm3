@@ -80,7 +80,7 @@ async def export_projects_csv(
 
     projects = (await db.execute(q)).scalars().all()
 
-    header = ["工事番号", "工事名", "発注者", "ステータス", "工事価格", "工期開始", "工期終了", "作成日"]
+    header = ["工事番号", "件名", "顧客", "ステータス", "工事価格", "予定工期開始", "予定工期終了", "作成日"]
     rows: list[list[Any]] = [header]
     for p in projects:
         rows.append([
@@ -89,8 +89,8 @@ async def export_projects_csv(
             _fmt(p.client_name),
             _fmt(p.status.value if p.status else ""),
             _fmt(p.project_price),
-            _fmt(p.period_contract_start),
-            _fmt(p.period_contract_end),
+            _fmt(p.period_quote_start),
+            _fmt(p.period_quote_end),
             _fmt(p.created_at.date() if p.created_at else None),
         ])
     return _csv_response(rows, "案件一覧.csv")

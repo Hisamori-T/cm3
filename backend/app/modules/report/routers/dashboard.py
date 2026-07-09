@@ -133,25 +133,21 @@ async def get_dashboard(
             project_count=proj_by_month.get(ym, 0),
         ))
 
-    # ── 期限アラート（30日以内） ──
+    # ── 期限アラート（見積工期ベース、30日以内） ──
     deadline_alerts: list[DeadlineAlert] = []
     cutoff = today + timedelta(days=30)
     for p in projects:
-        for field, atype in [
-            ("period_contract_end", "contract_end"),
-            ("period_actual_end", "actual_end"),
-        ]:
-            dt: date | None = getattr(p, field, None)
-            if dt and today <= dt <= cutoff:
-                days_left = (dt - today).days
-                deadline_alerts.append(DeadlineAlert(
-                    project_id=str(p.id),
-                    project_number=p.project_number,
-                    project_name=p.project_name,
-                    deadline=dt.isoformat(),
-                    days_left=days_left,
-                    alert_type=atype,
-                ))
+        dt: date | None = getattr(p, "period_quote_end", None)
+        if dt and today <= dt <= cutoff:
+            days_left = (dt - today).days
+            deadline_alerts.append(DeadlineAlert(
+                project_id=str(p.id),
+                project_number=p.project_number,
+                project_name=p.project_name,
+                deadline=dt.isoformat(),
+                days_left=days_left,
+                alert_type="quote_end",
+            ))
     deadline_alerts.sort(key=lambda x: x.days_left)
 
     # ── 最近の活動（直近20件） ──

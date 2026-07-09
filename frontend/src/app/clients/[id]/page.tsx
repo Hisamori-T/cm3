@@ -817,7 +817,6 @@ export default function ClientDetailPage() {
                     <th style={{ width: 110 }}>工事番号</th>
                     <th>件名</th>
                     <th style={{ width: 80, textAlign: "center" }}>ステータス</th>
-                    <th style={{ width: 90 }}>受注区分</th>
                     <th className="num" style={{ width: 80 }}>登録日</th>
                   </tr>
                 </thead>
@@ -841,7 +840,6 @@ export default function ClientDetailPage() {
                           {STATUS_LABEL[p.status]}
                         </span>
                       </td>
-                      <td style={{ color: "var(--c-text-muted)", fontSize: 12 }}>{p.order_type === "private" ? "民間" : p.order_type === "government" ? "官庁" : "—"}</td>
                       <td className="num" style={{ color: "var(--c-text-muted)", fontSize: 11 }}>
                         {new Date(p.created_at).toLocaleDateString("ja-JP", { year: "2-digit", month: "numeric", day: "numeric" })}
                       </td>
