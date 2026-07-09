@@ -548,6 +548,15 @@ export default function QuoteDetailPage() {
   const tax = Math.floor(taxBase * 0.1);
   const total = taxBase + tax;
 
+  // 業者見積合計（原価・税抜）: cost_price × quantity の合計
+  const vendorSubtotal = customerItems.reduce((s, i) => {
+    if (i.cost_price != null && i.quantity != null) return s + i.cost_price * i.quantity;
+    return s;
+  }, 0);
+  const hasVendorCost = customerItems.some(i => i.cost_price != null);
+  const grossMarginAmount = taxBase - vendorSubtotal;
+  const grossMarginRate = taxBase > 0 ? (grossMarginAmount / taxBase) * 100 : 0;
+
   const sectionItems = (sectionId: string) =>
     customerItems.filter(i => i.section_id === sectionId).sort((a, b) => a.row_no - b.row_no);
 
@@ -1280,6 +1289,64 @@ export default function QuoteDetailPage() {
             handleSaveDiscount={handleSaveDiscount}
             sectionItems={sectionItems}
           />
+
+          {/* ── 粗利サマリー（税抜） ── */}
+          {hasVendorCost && (
+            <div style={{
+              marginTop: 12,
+              background: "var(--c-surface)", border: "1px solid var(--c-border)",
+              borderRadius: "var(--r-lg)", overflow: "hidden",
+            }}>
+              {/* ヘッダー */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "9px 14px", background: "var(--c-surface-2)",
+                borderBottom: "1px solid var(--c-border)",
+              }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M21.21 15.89A10 10 0 1 1 8 2.83" />
+                  <path d="M22 12A10 10 0 0 0 12 2v10z" />
+                </svg>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "var(--c-text-muted)", letterSpacing: "0.04em", textTransform: "uppercase" as const }}>
+                  粗利サマリー（税抜）
+                </span>
+              </div>
+
+              {/* 4行 */}
+              {[
+                { label: "業者見積合計（原価・税抜）", value: fmtYen(Math.round(vendorSubtotal)), major: false, green: false, danger: false },
+                { label: "顧客見積合計（実額・税抜）", value: fmtYen(Math.round(taxBase)),        major: false, green: false, danger: false },
+                { label: "粗利額（税抜）",               value: fmtYen(Math.round(grossMarginAmount)), major: true, green: grossMarginAmount >= 0, danger: grossMarginAmount < 0 },
+                { label: "粗利率",                       value: `${grossMarginRate.toFixed(1)}%`,  major: true, green: grossMarginRate >= 0, danger: grossMarginRate < 0 },
+              ].map((row, i, arr) => (
+                <div key={i} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "7px 14px", fontSize: 12,
+                  borderBottom: i < arr.length - 1 ? "1px solid var(--c-border)" : "none",
+                  background: row.major ? "var(--c-surface-2)" : "transparent",
+                }}>
+                  <span style={{ color: "var(--c-text-muted)" }}>{row.label}</span>
+                  <span style={{
+                    fontFamily: "var(--ff-mono)", fontWeight: row.major ? 700 : 600,
+                    fontSize: row.major ? 14 : 12,
+                    color: row.danger ? "var(--c-danger)" : row.green ? "var(--c-success, #22c55e)" : "inherit",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                    {row.value}
+                  </span>
+                </div>
+              ))}
+
+              {/* 補足テキスト */}
+              <div style={{
+                padding: "5px 14px", fontSize: 10, color: "var(--c-text-muted)",
+                borderTop: "1px solid var(--c-border)",
+              }}>
+                消費税は含みません。管理用の内部情報です。
+              </div>
+            </div>
+          )}
+
           <ApprovalStamps
             personInChargeId={project?.sales_person_id || null}
             reviewerId={quote.reviewer_id}
