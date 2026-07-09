@@ -38,61 +38,26 @@ const NAV_MAIN: NavItem[] = [
   },
   {
     href: "/projects",
-    label: "案件一覧",
+    label: "見積案件",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
         <path d="M3 5h18M3 12h18M3 19h18" />
       </svg>
     ),
   },
+  {
+    href: "/scan",
+    label: "業者見積スキャン",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2" />
+        <line x1="7" y1="12" x2="17" y2="12" />
+      </svg>
+    ),
+  },
 ];
 
 const NAV_WORK: NavItem[] = [
-  {
-    href: "/projects/kanban",
-    label: "カンバン",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <rect x="3" y="3" width="5" height="18" rx="1" />
-        <rect x="10" y="3" width="5" height="14" rx="1" />
-        <rect x="17" y="3" width="4" height="10" rx="1" />
-      </svg>
-    ),
-  },
-  {
-    href: "/gantt",
-    label: "全社工程表",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <line x1="3" y1="6" x2="15" y2="6" />
-        <line x1="3" y1="12" x2="21" y2="12" />
-        <line x1="3" y1="18" x2="11" y2="18" />
-      </svg>
-    ),
-  },
-  {
-    href: "/daily-report",
-    label: "日報",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <rect x="3" y="4" width="18" height="16" rx="2" />
-        <line x1="7" y1="9" x2="17" y2="9" />
-        <line x1="7" y1="13" x2="13" y2="13" />
-      </svg>
-    ),
-  },
-  {
-    href: "/calendar",
-    label: "カレンダー",
-    icon: (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <rect x="3" y="4" width="18" height="18" rx="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
-      </svg>
-    ),
-  },
   {
     href: "/approvals",
     label: "承認待ち",
@@ -265,7 +230,7 @@ export function AppShell({ children, breadcrumbs, action }: AppShellProps) {
               "CL"}
           </div>
           <div className="brand">
-            Construction Mgr
+            見積管理
             <small>{companyName}</small>
           </div>
         </div>

@@ -3426,10 +3426,40 @@ GET    /invoices/{id}/payment-notice-pdf
 - `frontend/src/app/projects/[id]/history/page.tsx`
 - 削除: `frontend/src/types/invoice.ts` / `frontend/src/types/ledger.ts`
 
+### コミット・Push
+- commit: `651c62c` / GitHub push 完了（main ブランチ）
+- 86 files changed, 1751 insertions(+), 19582 deletions(-)
+
+### デプロイ完了（2026-06-18）
+- VPS に git 初期化・GitHub リモート設定・`git reset --hard origin/main` で最新コードを反映
+- `/root/cmv3/backend/alembic/versions/drop_scope_reduction_2026.py` をコンテナにコピー
+- `uv run alembic upgrade drop_scope_reduction_2026` — 不要テーブル DROP 完了
+- `docker cp backend/app/. cmv3-api:/app/app/` → `docker restart cmv3-api cmv3-worker`
+- `docker compose build cmv3-web` → `docker compose up -d --force-recreate cmv3-web`
+- API `/health` → `OK` / Web `✓ Ready in 663ms` 確認済み
+
+### 追加修正（デプロイ後バグ）
+- **502 Bad Gateway 発生**: コンテナ起動コマンドに `alembic upgrade head` が含まれており、複数ヘッド（`phase_h_attend` + `drop_scope_reduction_2026`）エラーで API 起動失敗
+- **修正**: `merge_scope_reduction_2026.py` を作成して両ヘッドを合流 → `docker stop cmv3-api` → `docker cp` → `docker start cmv3-api`
+- API `✅ OK` / commit: `b2a5290`
+
 ### 次のアクション
-- npm install 完了後に `next build` でビルドエラー確認
-- バックエンド起動確認（`python -m uvicorn app.main:app`）
-- フロントエンド起動確認（`npm run dev`）
-- VPS デプロイ（git push → 本番反映）
+- https://cmv3.fact-ally.com でサブナビから削除タブが消えていることを確認
+- 業者見積（AIスキャン）・顧客見積のフローが正常なことを確認
+
+---
+
+## Session 2026-06-18 — 見積管理アプリへの移行（Phase 1〜3）
+
+### 作業内容（予定）
+
+**Phase 1: サイドバー・ブランディング**
+- AppShell.tsx: カンバン・全社工程表・日報・カレンダーのナビリンク削除
+- 対応ページファイル削除（kanban, gantt, daily-report, calendar）
+- 「案件一覧」→「見積案件」改名、「業者見積スキャン」を上位に配置
+- ヘッダー「Construction Mgr」→「見積管理」
+- layout.tsx メタデータタイトル変更
+- package.json の name 変更
+- commit: "feat: サイドバーとブランディングを見積管理に変更 (Phase 1)"
 
 ---

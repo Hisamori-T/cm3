@@ -16,8 +16,8 @@ const notoSansJP = Noto_Sans_JP({
 });
 
 export const metadata: Metadata = {
-  title: "Construction Manager v3",
-  description: "株式会社クラップ 工事台帳管理システム",
+  title: "見積管理",
+  description: "業者見積AIスキャン・顧客見積管理システム",
 };
 
 /** ルートレイアウト。全ページ共通のHTML shell。 */
