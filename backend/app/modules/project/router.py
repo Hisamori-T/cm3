@@ -166,7 +166,7 @@ async def create_project(
         project_price=body.project_price,
         period_quote_start=body.period_quote_start,
         period_quote_end=body.period_quote_end,
-        status=ProjectStatus.quote,
+        status=ProjectStatus.draft,
         created_by=current_user.id,
     )
     db.add(project)

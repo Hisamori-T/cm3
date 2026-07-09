@@ -86,7 +86,7 @@ class Project(Base, TimestampMixin):
     status: Mapped[ProjectStatus] = mapped_column(
         SAEnum(ProjectStatus, name="projectstatus"),
         nullable=False,
-        default=ProjectStatus.quote,
+        default=ProjectStatus.draft,
     )
 
     # 論理削除

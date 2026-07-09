@@ -35,13 +35,10 @@ const RANK_COLOR: Record<ClientRank, { bg: string; text: string }> = {
 const STATUS_LABEL: Record<ProjectStatus, string> = PROJECT_STATUS_LABEL;
 
 const STATUS_COLOR: Record<ProjectStatus, string> = {
-  quote:       "var(--c-status-quote)",
-  ordered:     "var(--c-status-order)",
-  started:     "var(--c-status-start)",
-  in_progress: "var(--c-status-progress)",
-  completed:   "var(--c-status-done)",
-  billed:      "var(--c-status-billed)",
-  paid:        "var(--c-status-paid)",
+  draft:     "#94a3b8",
+  submitted: "#3b82f6",
+  won:       "#22c55e",
+  lost:      "#ef4444",
 };
 
 interface ProjectsResponse {

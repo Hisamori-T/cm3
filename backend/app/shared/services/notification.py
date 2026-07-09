@@ -7,23 +7,17 @@ import structlog
 logger = structlog.get_logger()
 
 _STATUS_LABEL = {
-    "quote":       "見積中",
-    "ordered":     "受注",
-    "started":     "着工",
-    "in_progress": "施工中",
-    "completed":   "完工",
-    "billed":      "請求済",
-    "paid":        "入金済",
+    "draft":     "作成中",
+    "submitted": "提出済",
+    "won":       "受注",
+    "lost":      "失注",
 }
 
 _STATUS_COLOR = {
-    "quote":       "#94a3b8",
-    "ordered":     "#3b82f6",
-    "started":     "#f59e0b",
-    "in_progress": "#10b981",
-    "completed":   "#6366f1",
-    "billed":      "#f97316",
-    "paid":        "#22c55e",
+    "draft":     "#94a3b8",
+    "submitted": "#3b82f6",
+    "won":       "#22c55e",
+    "lost":      "#ef4444",
 }
 
 

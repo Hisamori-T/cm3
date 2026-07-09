@@ -1,25 +1,26 @@
 /** 案件（Project）関連の型定義。 */
 
 export type ProjectStatus =
-  | "quote"
-  | "ordered"
-  | "started"
-  | "in_progress"
-  | "completed"
-  | "billed"
-  | "paid";
+  | "draft"
+  | "submitted"
+  | "won"
+  | "lost";
 
 // Phase R-1: 案件立場
 export type ProjectRole = "prime" | "sub";
 
 export const PROJECT_STATUS_LABEL: Record<ProjectStatus, string> = {
-  quote: "見積中",
-  ordered: "受注",
-  started: "着工",
-  in_progress: "施工中",
-  completed: "完工",
-  billed: "請求済",
-  paid: "入金済",
+  draft:     "作成中",
+  submitted: "提出済",
+  won:       "受注",
+  lost:      "失注",
+};
+
+export const PROJECT_STATUS_COLOR: Record<ProjectStatus, string> = {
+  draft:     "#94a3b8",
+  submitted: "#3b82f6",
+  won:       "#22c55e",
+  lost:      "#ef4444",
 };
 
 export const PROJECT_ROLE_LABEL: Record<ProjectRole, string> = {

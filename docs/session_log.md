@@ -3520,3 +3520,76 @@ GET    /invoices/{id}/payment-notice-pdf
 - Phase 3 計画: ステータス単純化（7段階→4段階）＋ダッシュボード見積特化
 
 ---
+## Session 2026-07-09 — Phase 3: ステータス単純化・ダッシュボード見積特化
+
+### 作業内容（予定）
+- ProjectStatus enum 4値化 (draft/submitted/won/lost)
+- ステータス変更UX変更（状態依存の次アクションボタン方式）
+- ダッシュボード全面書き換え（見積特化KPI + 期間フィルタ）
+- DailyReport 残骸削除
+- Alembicマイグレーション（enum ALTER + 既存データ→draft）
+- commit: "feat: ステータス単純化とダッシュボード見積特化 (Phase 3)"
+
+### 作業結果
+
+**バックエンド**
+- `backend/app/shared/models/enums.py`: ProjectStatus を 4値（draft/submitted/won/lost）に変更
+- `backend/app/models/project.py`: status デフォルト → `ProjectStatus.draft`
+- `backend/app/modules/project/router.py`: status デフォルト → `ProjectStatus.draft`
+- `backend/app/shared/services/notification.py`: `_STATUS_LABEL` / `_STATUS_COLOR` を 4値に更新
+- `backend/app/main.py`: `daily_reports_router` の import・登録を削除
+- `backend/alembic/versions/a1b2c3d4e5f6_phase3_simplify_project_status.py`: PostgreSQL ENUM 再作成マイグレーション作成（CREATE TYPE new → ALTER COLUMN USING 'draft' cast → DROP old → RENAME）
+- `backend/app/modules/report/routers/dashboard.py`: 見積特化ダッシュボードに全面書き換え
+  - `period` パラメータ対応（current/previous/all、事業年度4月開始）
+  - KPI 4種: 見積金額 / 見積件数 / 平均利益率 / 受注率
+  - ステータス分布 / 月別統計（金額+件数） / 最近の活動
+  - DailyReport / UserWorkHours を完全削除
+
+**フロントエンド**
+- `frontend/src/types/project.ts`: ProjectStatus を 4値型に変更、PROJECT_STATUS_COLOR 追加
+- `frontend/src/modules/project/ProjectStatusBadge.tsx`: PALETTE を 4値（draft/submitted/won/lost）に更新
+- `frontend/src/modules/project/ProjectSubNav.tsx`: STATUS_CLASS / STATUS_LABEL を 4値に更新
+- `frontend/src/app/projects/[id]/page.tsx`: ステータスバーをコンテキスト依存アクションボタンに変更
+  - draft → 「提出済にする」
+  - submitted → 「受注」「失注」「作成中に戻す」
+  - won/lost → 「提出済に戻す」
+- `frontend/src/app/projects/page.tsx`: STATUS_CLASS / STATUS_COLOR / ALL_STATUSES を 4値に更新
+- `frontend/src/app/clients/[id]/page.tsx`: STATUS_COLOR を 4値に更新
+- `frontend/src/app/dashboard/page.tsx`: 全面書き換え（Recharts BarChart + PieChart + 期間トグル）
+  - 今期/前期/全期間 切替ボタン
+  - KPI グリッド（`/api/v1/dashboard?period={p}` からレスポンス）
+  - Recharts BarChart: 月別見積推移（amount / 万円軸）
+  - Recharts PieChart: ステータス分布ドーナツ（draft/submitted/won/lost）
+  - 最近の活動タイムライン
+  - deadline_alerts / user_work_hours 削除
+
+### 変更ファイル
+- `backend/app/shared/models/enums.py`
+- `backend/app/models/project.py`
+- `backend/app/modules/project/router.py`
+- `backend/app/shared/services/notification.py`
+- `backend/app/main.py`
+- `backend/alembic/versions/a1b2c3d4e5f6_phase3_simplify_project_status.py`（新規）
+- `backend/app/modules/report/routers/dashboard.py`
+- `frontend/src/types/project.ts`
+- `frontend/src/modules/project/ProjectStatusBadge.tsx`
+- `frontend/src/modules/project/ProjectSubNav.tsx`
+- `frontend/src/app/projects/[id]/page.tsx`
+- `frontend/src/app/projects/page.tsx`
+- `frontend/src/app/clients/[id]/page.tsx`
+- `frontend/src/app/dashboard/page.tsx`
+
+### 次のアクション
+- コミット: `feat: ステータス単純化とダッシュボード見積特化 (Phase 3)`
+- VPS デプロイ:
+  1. `git push` → VPS で `git pull`
+  2. `docker cp backend/app/. cmv3-api:/app/app/`
+  3. `docker cp backend/alembic/. cmv3-api:/app/alembic/`
+  4. `docker exec cmv3-api uv run alembic upgrade head`（`a1b2c3d4e5f6` 適用）
+  5. `docker restart cmv3-api cmv3-worker`
+  6. `docker compose build cmv3-web && docker compose up -d --force-recreate cmv3-web`
+  7. `docker restart cmv3-nginx`
+- 動作確認: ダッシュボード期間切替・KPI・チャート表示、ステータス変更ボタン
+
+---
+

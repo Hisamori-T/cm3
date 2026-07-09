@@ -47,9 +47,6 @@ from app.modules.admin.audit_router import router as audit_router
 from app.modules.schedule.gantt_router import router as gantt_router
 from app.modules.schedule.schedule_router import router as schedule_router
 
-# ── site ──────────────────────────────────────────────────────────────────────
-from app.modules.site.daily_reports_router import router as daily_reports_router
-
 # ── purchase ──────────────────────────────────────────────────────────────────
 from app.modules.purchase.routers.scan_upload import router as scan_upload_router
 from app.modules.purchase.routers.scan_review import router as scan_review_router
@@ -149,9 +146,6 @@ app.include_router(audit_router, prefix=PREFIX)
 # schedule
 app.include_router(gantt_router, prefix=PREFIX)
 app.include_router(schedule_router, prefix=PREFIX)
-
-# site
-app.include_router(daily_reports_router, prefix=PREFIX)
 
 # purchase
 app.include_router(scan_upload_router, prefix=PREFIX)

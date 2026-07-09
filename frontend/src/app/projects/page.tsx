@@ -102,15 +102,16 @@ function ExcelImportContent({ onImported }: { onImported?: () => void }) {
 }
 
 const STATUS_CLASS: Record<ProjectStatus, string> = {
-  quote: "s-quote", ordered: "s-order", started: "s-start",
-  in_progress: "s-progress", completed: "s-done", billed: "s-billed", paid: "s-paid",
+  draft: "s-draft", submitted: "s-submitted", won: "s-won", lost: "s-lost",
 };
 
-const ALL_STATUSES: ProjectStatus[] = [
-  "quote", "ordered", "started", "in_progress", "completed", "billed", "paid",
-];
+const STATUS_COLOR: Record<ProjectStatus, string> = {
+  draft: "#94a3b8", submitted: "#3b82f6", won: "#22c55e", lost: "#ef4444",
+};
 
-const ACTIVE_STATUSES = new Set<ProjectStatus>(["started", "in_progress"]);
+const ALL_STATUSES: ProjectStatus[] = ["draft", "submitted", "won", "lost"];
+
+const ACTIVE_STATUSES = new Set<ProjectStatus>(["submitted"]);
 
 function formatShortDate(iso: string) {
   const d = new Date(iso);
@@ -479,8 +480,14 @@ export default function ProjectsPage() {
                       )}
                     </td>
                     <td style={{ whiteSpace: "nowrap" }}>
-                      <span className={`badge ${STATUS_CLASS[p.status]}`}>
-                        <span className="dot" />
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 4,
+                        fontSize: 11, fontWeight: 700, padding: "2px 8px", borderRadius: 20,
+                        background: `color-mix(in oklab, ${STATUS_COLOR[p.status]} 15%, var(--c-surface))`,
+                        color: STATUS_COLOR[p.status],
+                        border: `1px solid color-mix(in oklab, ${STATUS_COLOR[p.status]} 35%, var(--c-border))`,
+                      }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", background: STATUS_COLOR[p.status] }} />
                         {PROJECT_STATUS_LABEL[p.status]}
                       </span>
                     </td>

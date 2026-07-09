@@ -1,6 +1,5 @@
 /**
- * 案件ステータスバッジ。
- * 7段階を共通の見た目で表示する。バックエンド enum 値に合わせたパレット定義。
+ * 案件ステータスバッジ（4値: draft/submitted/won/lost）。
  *
  * 移行先: src/modules/project/ProjectStatusBadge.tsx
  * 旧パス: src/components/project/ProjectStatusBadge.tsx（後方互換 re-export を維持）
@@ -11,13 +10,10 @@ import type { ProjectStatus } from "@/types/project";
 import { PROJECT_STATUS_LABEL } from "@/types/project";
 
 const PALETTE: Record<ProjectStatus, { dot: string; text: string; bg: string }> = {
-  quote:       { dot: "bg-status-quote",    text: "text-status-quote",    bg: "bg-status-quote/15" },
-  ordered:     { dot: "bg-status-order",    text: "text-status-order",    bg: "bg-status-order/15" },
-  started:     { dot: "bg-status-start",    text: "text-status-start",    bg: "bg-status-start/15" },
-  in_progress: { dot: "bg-status-progress", text: "text-status-progress", bg: "bg-status-progress/15" },
-  completed:   { dot: "bg-status-done",     text: "text-status-done",     bg: "bg-status-done/15" },
-  billed:      { dot: "bg-status-billed",   text: "text-status-billed",   bg: "bg-status-billed/15" },
-  paid:        { dot: "bg-status-paid",     text: "text-status-paid",     bg: "bg-status-paid/15" },
+  draft:     { dot: "bg-slate-400",   text: "text-slate-500",   bg: "bg-slate-400/15" },
+  submitted: { dot: "bg-blue-500",    text: "text-blue-600",    bg: "bg-blue-500/15" },
+  won:       { dot: "bg-green-500",   text: "text-green-600",   bg: "bg-green-500/15" },
+  lost:      { dot: "bg-red-500",     text: "text-red-600",     bg: "bg-red-500/15" },
 };
 
 interface Props {

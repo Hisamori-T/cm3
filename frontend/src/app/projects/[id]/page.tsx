@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch, ApiError } from "@/lib/api-client";
 import type { ProjectDetail, ProjectRole, ProjectStatus, ProjectUpdate } from "@/types/project";
-import { PROJECT_ROLE_COLOR, PROJECT_ROLE_LABEL, PROJECT_STATUS_LABEL } from "@/types/project";
+import { PROJECT_ROLE_COLOR, PROJECT_ROLE_LABEL, PROJECT_STATUS_LABEL, PROJECT_STATUS_COLOR } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SiteSearch } from "@/components/client/SiteSearch";
@@ -32,22 +32,12 @@ interface ApprovalRequest {
   quote_number?: string;
 }
 
-const STATUS_CLASS: Record<ProjectStatus, string> = {
-  quote: "s-quote", ordered: "s-order", started: "s-start",
-  in_progress: "s-progress", completed: "s-done", billed: "s-billed", paid: "s-paid",
-};
-
 const STATUS_COLOR: Record<ProjectStatus, string> = {
-  quote:       "var(--c-status-quote)",
-  ordered:     "var(--c-status-order)",
-  started:     "var(--c-status-start)",
-  in_progress: "var(--c-status-progress)",
-  completed:   "var(--c-status-done)",
-  billed:      "var(--c-status-billed)",
-  paid:        "var(--c-status-paid)",
+  draft:     "#94a3b8",
+  submitted: "#3b82f6",
+  won:       "#22c55e",
+  lost:      "#ef4444",
 };
-
-const STATUS_ORDER: ProjectStatus[] = ["quote", "ordered", "started", "in_progress", "completed", "billed", "paid"];
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -212,25 +202,69 @@ export default function ProjectDetailPage() {
       {!isLoading && project && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
 
-          {/* ステータス変更バー */}
+          {/* ステータス表示 + 次アクションボタン */}
           <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: "0.04em", color: "var(--c-text-muted)", whiteSpace: "nowrap" }}>
-              ステータス変更：
+            {/* 現在ステータスチップ */}
+            <span style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              fontSize: 13, fontWeight: 700, padding: "4px 12px", borderRadius: 20,
+              background: `color-mix(in oklab, ${PROJECT_STATUS_COLOR[project.status as ProjectStatus]} 15%, var(--c-surface))`,
+              color: PROJECT_STATUS_COLOR[project.status as ProjectStatus],
+              border: `1.5px solid color-mix(in oklab, ${PROJECT_STATUS_COLOR[project.status as ProjectStatus]} 40%, var(--c-border))`,
+            }}>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: PROJECT_STATUS_COLOR[project.status as ProjectStatus], display: "inline-block" }} />
+              {PROJECT_STATUS_LABEL[project.status as ProjectStatus]}
             </span>
-            <div className="stseg">
-              {STATUS_ORDER.map((s) => (
-                <button
-                  key={s}
-                  className={project.status === s ? "on" : ""}
-                  style={project.status === s ? { color: STATUS_COLOR[s] } : undefined}
-                  onClick={() => changeStatus(s)}
-                  disabled={isChangingStatus || !canEdit}
-                >
-                  <span className="dot" />
-                  {PROJECT_STATUS_LABEL[s]}
-                </button>
-              ))}
-            </div>
+
+            {/* 次アクションボタン（権限ありの場合のみ） */}
+            {canEdit && (
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                {project.status === "draft" && (
+                  <button
+                    onClick={() => changeStatus("submitted")}
+                    disabled={isChangingStatus}
+                    style={{ padding: "4px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid #3b82f6", background: "#3b82f6", color: "#fff", opacity: isChangingStatus ? 0.6 : 1 }}
+                  >
+                    提出済にする
+                  </button>
+                )}
+                {project.status === "submitted" && (
+                  <>
+                    <button
+                      onClick={() => changeStatus("won")}
+                      disabled={isChangingStatus}
+                      style={{ padding: "4px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid #22c55e", background: "#22c55e", color: "#fff", opacity: isChangingStatus ? 0.6 : 1 }}
+                    >
+                      受注
+                    </button>
+                    <button
+                      onClick={() => changeStatus("lost")}
+                      disabled={isChangingStatus}
+                      style={{ padding: "4px 14px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid #ef4444", background: "#ef4444", color: "#fff", opacity: isChangingStatus ? 0.6 : 1 }}
+                    >
+                      失注
+                    </button>
+                    <button
+                      onClick={() => changeStatus("draft")}
+                      disabled={isChangingStatus}
+                      style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: "1px solid var(--c-border)", background: "var(--c-surface-2)", color: "var(--c-text-muted)", opacity: isChangingStatus ? 0.6 : 1 }}
+                    >
+                      作成中に戻す
+                    </button>
+                  </>
+                )}
+                {(project.status === "won" || project.status === "lost") && (
+                  <button
+                    onClick={() => changeStatus("submitted")}
+                    disabled={isChangingStatus}
+                    style={{ padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 500, cursor: "pointer", border: "1px solid var(--c-border)", background: "var(--c-surface-2)", color: "var(--c-text-muted)", opacity: isChangingStatus ? 0.6 : 1 }}
+                  >
+                    提出済に戻す
+                  </button>
+                )}
+              </div>
+            )}
+
             <span style={{ marginLeft: "auto", fontFamily: "var(--ff-mono)", fontSize: 11, color: "var(--c-text-muted)" }}>
               最終更新 {formatDate(project.updated_at)}
             </span>

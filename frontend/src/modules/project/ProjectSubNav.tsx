@@ -13,13 +13,11 @@ import type { ProjectCounts } from "@/contexts/project-context";
 import type { ProjectStatus } from "@/types/project";
 
 const STATUS_CLASS: Record<ProjectStatus, string> = {
-  quote: "s-quote", ordered: "s-order", started: "s-start",
-  in_progress: "s-progress", completed: "s-done", billed: "s-billed", paid: "s-paid",
+  draft: "s-draft", submitted: "s-submitted", won: "s-won", lost: "s-lost",
 };
 
 const STATUS_LABEL: Record<ProjectStatus, string> = {
-  quote: "見積中", ordered: "受注", started: "着工",
-  in_progress: "施工中", completed: "完工", billed: "請求済", paid: "入金済",
+  draft: "作成中", submitted: "提出済", won: "受注", lost: "失注",
 };
 
 interface Tab {

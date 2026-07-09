@@ -13,13 +13,10 @@ class UserRole(str, enum.Enum):
 
 
 class ProjectStatus(str, enum.Enum):
-    quote = "quote"            # 見積中
-    ordered = "ordered"        # 受注
-    started = "started"        # 着工
-    in_progress = "in_progress"  # 施工中
-    completed = "completed"    # 完工
-    billed = "billed"          # 請求済
-    paid = "paid"              # 入金済
+    draft = "draft"            # 作成中
+    submitted = "submitted"    # 提出済
+    won = "won"                # 受注
+    lost = "lost"              # 失注
 
 
 class OrderType(str, enum.Enum):
