@@ -22,7 +22,7 @@ interface Props {
 }
 
 export function ProjectStatusBadge({ status, className }: Props) {
-  const p = PALETTE[status] ?? PALETTE.quote;
+  const p = PALETTE[status] ?? PALETTE.draft;
   return (
     <span
       className={cn(

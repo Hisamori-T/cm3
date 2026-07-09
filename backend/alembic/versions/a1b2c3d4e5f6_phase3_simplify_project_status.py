@@ -5,7 +5,7 @@
 
 既存データは全件 draft に移行（テストデータのみ）。
 
-Revision ID: a1b2c3d4e5f6
+Revision ID: p3_status_simplify_2026
 Revises: 68992a598db0
 Create Date: 2026-07-09
 """
@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "a1b2c3d4e5f6"
+revision = "p3_status_simplify_2026"
 down_revision = "68992a598db0"
 branch_labels = None
 depends_on = None
