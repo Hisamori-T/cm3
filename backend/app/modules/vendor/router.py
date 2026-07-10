@@ -203,7 +203,7 @@ async def search_price_history(
     q: str | None = Query(None, description="工事項目名で検索"),
     vendor_id: uuid.UUID | None = Query(None, description="業者IDで絞り込み"),
     page: int = Query(1, ge=1),
-    per_page: int = Query(30, ge=1, le=100),
+    per_page: int = Query(30, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PriceHistoryListResponse:
@@ -254,7 +254,7 @@ async def get_price_history(
     vendor_id: uuid.UUID,
     q: str | None = Query(None, description="工事項目名で検索"),
     page: int = Query(1, ge=1),
-    per_page: int = Query(30, ge=1, le=100),
+    per_page: int = Query(30, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> PriceHistoryListResponse:
