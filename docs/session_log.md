@@ -3672,5 +3672,27 @@ GET    /invoices/{id}/payment-notice-pdf
 - 編集履歴タブ（history/page.tsx）で掛け率変更レコードを専用 UI で表示
 - 業者名・旧掛率・新掛率・対象件数・反映有無・承認リセット有無をバッジで表示
 
+### 作業結果
+- バックエンド変更なし（markup-apply が保存する field_changes をそのまま利用）
+- `history/page.tsx` に以下を追加:
+  - `MarkupChangeFields` インターフェース（field_changes の構造を型定義）
+  - `isMarkupChange()` 型ガード関数（entity_type=quote_version + markup_rate キー存在で判定）
+  - `MarkupChangeDetail` コンポーネント（業者名・旧掛率→新掛率・対象件数・バッジ表示）
+  - 「顧客見積へ反映済み」（ブルー）/ 「掛け率のみ変更」（グレー）/ 「承認リセット済み」（アンバー）バッジ
+  - 「何を」欄: 掛け率変更レコードは「掛け率変更」グレーラベル（他は従来通り accent カラー）
+  - ENTITY_TYPE_LABEL に quote_version: "業者見積版" を追加
+  - `ChangeDetail` コンポーネントを `field_changes` 型対応に整理（JSX からも使用）
+- VPS: `docker compose build cmv3-web` → ビルド成功 → `docker compose up -d --force-recreate cmv3-web` → 全コンテナ正常稼働
+- コミット: `feat: 編集履歴タブに掛け率変更レコード表示追加 (Step D)`
+- git push: ローカルネットワーク制限でタイムアウト → ひささんに手動 push を依頼
+
+### 次のアクション
+- `git push origin main`（ひささんに手動実行依頼）
+- 動作確認: 編集履歴タブで掛け率変更レコードが専用 UI で表示されることを確認
+  - 掛け率のみ変更 → 「掛け率のみ変更」グレーバッジ
+  - 掛け率変更 + 顧客見積反映 → 「顧客見積へ反映済み」ブルーバッジ
+  - 承認リセット済み → 「承認リセット済み」アンバーバッジ追加
+- 確認後: 上司お披露目に向けたシナリオ整理（Step A〜D 全フロー完成）
+
 ---
 
