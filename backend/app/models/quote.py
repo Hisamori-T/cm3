@@ -143,6 +143,9 @@ class QuoteItem(Base):
     source_vendor_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("vendors.id"), nullable=True
     )
+    source_version_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("quote_versions.id", ondelete="SET NULL"), nullable=True
+    )
     source_scan_result_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
@@ -155,3 +158,4 @@ class QuoteItem(Base):
     version: Mapped["QuoteVersion | None"] = relationship("QuoteVersion", back_populates="items", foreign_keys=[version_id])
     section: Mapped["QuoteSection | None"] = relationship("QuoteSection", back_populates="items", foreign_keys=[section_id])
     source_vendor: Mapped["Vendor | None"] = relationship("Vendor", foreign_keys=[source_vendor_id])
+    source_version: Mapped["QuoteVersion | None"] = relationship("QuoteVersion", foreign_keys=[source_version_id])

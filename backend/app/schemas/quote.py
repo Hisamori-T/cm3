@@ -105,6 +105,7 @@ class QuoteItemRead(BaseModel):
     remarks: str | None
     version_id: uuid.UUID | None
     section_id: uuid.UUID | None
+    source_version_id: uuid.UUID | None = None
 
 
 # ---------------------------------------------------------------------------

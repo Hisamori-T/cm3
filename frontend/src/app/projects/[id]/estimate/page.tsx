@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { fmtNum, fmtYen } from "@/lib/format";
 import { ScanZone, type ScanJob } from "@/modules/estimate/ScanZone";
 import { VersionCard, type EstimateVersion } from "@/modules/estimate/VersionCard";
+import { MarkupApplyConfirmModal } from "@/components/modals/MarkupApplyConfirmModal";
 
 // ---------------------------------------------------------------------------
 // 型定義
@@ -30,6 +31,7 @@ interface QuoteItem {
   remarks: string | null;
   version_id: string | null;
   section_id: string | null;
+  source_version_id: string | null;
 }
 
 interface QuoteDetail {
@@ -41,6 +43,8 @@ interface QuoteDetail {
   subtotal: number | null;
   tax_amount: number | null;
   total_amount: number | null;
+  approver_id: string | null;
+  status: string;
 }
 
 interface EditItem extends QuoteItem {
@@ -97,6 +101,15 @@ export default function EstimatePage() {
   const masterSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // 版ごとに独立した掛率入力値（selectedVersion が変わるたびにリセット）
   const [markupInput, setMarkupInput] = useState<string>("1.0");
+  // 掛け率変更・顧客見積再反映モーダル
+  const [markupApplyModal, setMarkupApplyModal] = useState<{
+    version: QuoteVersion;
+    newRate: number;
+    affectedCount: number;
+    manualEditCount: number;
+    hasApproval: boolean;
+  } | null>(null);
+  const [markupApplySaving, setMarkupApplySaving] = useState(false);
 
   // スキャン統合（複数ファイル対応）
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -357,18 +370,59 @@ export default function EstimatePage() {
     }
   };
 
-  const handleMarkupChange = async (versionId: string, newRate: string) => {
+  const handleMarkupSave = (versionId: string, newRateStr: string) => {
     if (!quote) return;
-    const rate = parseFloat(newRate);
+    const rate = parseFloat(newRateStr);
     if (isNaN(rate) || rate < 1) return;
+    const version = quote.versions.find(v => v.id === versionId);
+    if (!version) return;
+
+    // この版から反映済みの顧客明細を特定
+    const linkedItems = quote.items.filter(
+      i => !i.version_id && i.source_version_id === versionId
+    );
+    const affectedCount = linkedItems.length;
+    const manualEditCount = linkedItems.filter(i => {
+      if (i.cost_price == null || i.unit_price == null) return false;
+      return Math.round(i.cost_price * version.markup_rate) !== i.unit_price;
+    }).length;
+    const hasApproval = !!quote.approver_id || quote.status === "approved";
+
+    if (affectedCount > 0) {
+      // 顧客見積に影響がある場合はモーダルを開く
+      setMarkupApplyModal({ version, newRate: rate, affectedCount, manualEditCount, hasApproval });
+    } else {
+      // 影響なし → 直接保存
+      void handleMarkupApplyConfirm(versionId, rate, false, false);
+    }
+  };
+
+  const handleMarkupApplyConfirm = async (
+    versionId: string,
+    newRate: number,
+    applyToCustomer: boolean,
+    forceResetApproval: boolean,
+  ) => {
+    if (!quote) return;
+    setMarkupApplySaving(true);
     try {
-      await apiFetch(`/api/v1/projects/${projectId}/quotes/${quote.id}/versions/${versionId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ markup_rate: rate }),
-      });
+      await apiFetch(
+        `/api/v1/projects/${projectId}/quotes/${quote.id}/versions/${versionId}/markup-apply`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            new_markup_rate: newRate,
+            apply_to_customer_quote: applyToCustomer,
+            force_reset_approval: forceResetApproval,
+          }),
+        },
+      );
+      setMarkupApplyModal(null);
       await loadQuote();
     } catch {
       setError("更新に失敗しました");
+    } finally {
+      setMarkupApplySaving(false);
     }
   };
 
@@ -899,13 +953,22 @@ export default function EstimatePage() {
                         type="number" step="0.01" min="1"
                         value={markupInput}
                         onChange={e => setMarkupInput(e.target.value)}
-                        onBlur={e => handleMarkupChange(selectedVersion.id, e.target.value)}
                         style={{
                           width: 72, fontSize: 14, fontWeight: 600,
                           border: "1px solid var(--c-border)", borderRadius: "var(--r-md)",
                           padding: "2px 6px", background: "var(--c-surface)",
                         }}
                       />
+                      {markupInput !== String(selectedVersion.markup_rate) && (
+                        <button
+                          onClick={() => handleMarkupSave(selectedVersion.id, markupInput)}
+                          style={{
+                            fontSize: 11, padding: "3px 10px", fontWeight: 600,
+                            background: "var(--c-primary)", color: "#fff", border: "none",
+                            borderRadius: "var(--r-md)", cursor: "pointer",
+                          }}
+                        >保存</button>
+                      )}
                       <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>（行ごとに上書き可）</span>
                     </div>
                   </div>
@@ -1095,6 +1158,36 @@ export default function EstimatePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── 掛け率変更・顧客見積再反映モーダル ── */}
+      {markupApplyModal && (
+        <MarkupApplyConfirmModal
+          vendorName={markupApplyModal.version.vendor_name_snapshot}
+          oldRate={markupApplyModal.version.markup_rate}
+          newRate={markupApplyModal.newRate}
+          affectedCount={markupApplyModal.affectedCount}
+          manualEditCount={markupApplyModal.manualEditCount}
+          hasApproval={markupApplyModal.hasApproval}
+          isSaving={markupApplySaving}
+          onCancel={() => setMarkupApplyModal(null)}
+          onRateOnly={() =>
+            void handleMarkupApplyConfirm(
+              markupApplyModal.version.id,
+              markupApplyModal.newRate,
+              false,
+              false,
+            )
+          }
+          onRateAndApply={() =>
+            void handleMarkupApplyConfirm(
+              markupApplyModal.version.id,
+              markupApplyModal.newRate,
+              true,
+              markupApplyModal.hasApproval,
+            )
+          }
+        />
       )}
 
     </AppShell>

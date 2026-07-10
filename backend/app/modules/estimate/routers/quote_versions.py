@@ -12,7 +12,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.deps import get_current_user
-from app.models.enums import UserRole
+from app.models.enums import QuoteStatus, UserRole
 from app.models.quote import Quote, QuoteItem, QuoteSection, QuoteVersion
 from app.models.user import User
 from app.schemas.quote import (
@@ -289,7 +289,7 @@ async def reflect_version_to_quote(
             row_no=max_item_row + i + 1,
             item_name=vi.item_name, spec=vi.spec, unit=vi.unit, quantity=vi.quantity,
             cost_price=vi.unit_price, unit_price=up, amount=amt,
-            source_vendor_id=version.vendor_id, source_type="scan",
+            source_vendor_id=version.vendor_id, source_version_id=version.id, source_type="scan",
         ))
 
     await db.flush()
@@ -386,4 +386,149 @@ async def create_version_from_vendor(
     return CreateVersionFromVendorResponse(
         version_id=new_ver.id, version_no=new_ver.version_no,
         vendor_name_snapshot=new_ver.vendor_name_snapshot, item_count=len(src_ver.items),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 掛け率変更 → 顧客見積再反映
+# ---------------------------------------------------------------------------
+
+class MarkupApplyRequest(BaseModel):
+    """掛け率変更・顧客見積再反映リクエスト。"""
+    new_markup_rate: float
+    apply_to_customer_quote: bool = True
+    force_reset_approval: bool = False
+
+
+class MarkupApplyResponse(BaseModel):
+    """掛け率変更・顧客見積再反映レスポンス。"""
+    vendor_quote: QuoteVersionRead
+    customer_quote_updated: bool
+    affected_items_count: int
+    approval_reset: bool
+    change_set_id: str
+
+
+@router.patch(
+    "/projects/{project_id}/quotes/{quote_id}/versions/{version_id}/markup-apply",
+    response_model=MarkupApplyResponse,
+)
+async def apply_markup_rate(
+    project_id: uuid.UUID,
+    quote_id: uuid.UUID,
+    version_id: uuid.UUID,
+    body: MarkupApplyRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> MarkupApplyResponse:
+    """業者見積版の掛け率を更新し、オプションで顧客見積明細を版単位で再計算する。
+
+    source_version_id が設定された顧客明細（reflect-from-version で作成）のみが対象。
+    source_version_id が NULL のレガシー明細には触れない。
+    """
+    project = await _get_project_or_404(project_id, db)
+    if not (current_user.role == UserRole.admin or project.created_by == current_user.id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="編集権限がありません")
+
+    quote = (await db.execute(
+        select(Quote).where(Quote.id == quote_id, Quote.project_id == project_id)
+    )).scalar_one_or_none()
+    if quote is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="見積書が見つかりません")
+
+    version = (await db.execute(
+        select(QuoteVersion).where(QuoteVersion.id == version_id, QuoteVersion.quote_id == quote_id)
+    )).scalar_one_or_none()
+    if version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="版が見つかりません")
+
+    old_markup_rate = float(version.markup_rate)
+    version.markup_rate = body.new_markup_rate
+
+    # 顧客見積明細の再計算（source_version_id で版単位に絞る）
+    affected_count = 0
+    if body.apply_to_customer_quote:
+        customer_items = (await db.execute(
+            select(QuoteItem).where(
+                QuoteItem.quote_id == quote_id,
+                QuoteItem.version_id.is_(None),
+                QuoteItem.source_version_id == version_id,
+            )
+        )).scalars().all()
+        for item in customer_items:
+            if item.cost_price is not None:
+                new_up = round(float(item.cost_price) * body.new_markup_rate)
+                item.unit_price = new_up
+                if item.quantity is not None:
+                    item.amount = round(new_up * float(item.quantity))
+        affected_count = len(customer_items)
+
+        # 顧客見積の合計再計算
+        all_customer = (await db.execute(
+            select(QuoteItem).where(
+                QuoteItem.quote_id == quote_id,
+                QuoteItem.version_id.is_(None),
+            )
+        )).scalars().all()
+        s, t, tot = _calc_totals(list(all_customer))
+        quote.subtotal = s
+        quote.tax_amount = t
+        quote.total_amount = tot
+
+    # 承認リセット（アクティブな承認依頼を取り下げ + Quoteスタンプをクリア）
+    approval_reset = False
+    if body.force_reset_approval:
+        from app.models.approval import ApprovalRequest
+        active_req = (await db.execute(
+            select(ApprovalRequest).where(
+                ApprovalRequest.quote_id == quote_id,
+                ApprovalRequest.status.in_(["pending", "approved"]),
+            )
+        )).scalars().first()
+        if active_req:
+            active_req.status = "withdrawn"
+            quote.approver_id = None
+            quote.approved_at = None
+            quote.reviewer_id = None
+            quote.reviewed_at = None
+            quote.person_in_charge_id = None
+            quote.person_in_charge_confirmed_at = None
+            quote.status = QuoteStatus.draft
+            approval_reset = True
+
+    # 編集履歴に記録
+    change_set_id = str(uuid.uuid4())
+    from app.shared.models.history import EditHistory
+    from app.shared.models.enums import EditHistoryChangeType
+    db.add(EditHistory(
+        entity_type="quote_version",
+        entity_id=version_id,
+        project_id=project.id,
+        changed_by=current_user.id,
+        change_type=EditHistoryChangeType.update,
+        field_changes={
+            "change_set_id": change_set_id,
+            "markup_rate": {"before": old_markup_rate, "after": body.new_markup_rate},
+            "vendor_name": version.vendor_name_snapshot,
+            "affected_items_count": affected_count,
+            "apply_to_customer_quote": body.apply_to_customer_quote,
+            "approval_reset": approval_reset,
+        },
+    ))
+
+    await db.commit()
+    await db.refresh(version)
+    logger.info(
+        "markup_rate_applied",
+        version_id=str(version_id),
+        old_rate=old_markup_rate,
+        new_rate=body.new_markup_rate,
+        affected_count=affected_count,
+    )
+    return MarkupApplyResponse(
+        vendor_quote=_build_version_read(version),
+        customer_quote_updated=body.apply_to_customer_quote and affected_count > 0,
+        affected_items_count=affected_count,
+        approval_reset=approval_reset,
+        change_set_id=change_set_id,
     )

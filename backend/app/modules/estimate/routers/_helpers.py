@@ -112,6 +112,7 @@ def _build_item_read(item: QuoteItem) -> QuoteItemRead:
         remarks=item.remarks,
         version_id=item.version_id,
         section_id=item.section_id,
+        source_version_id=item.source_version_id,
     )
 
 
