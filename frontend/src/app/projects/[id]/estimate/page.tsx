@@ -539,6 +539,7 @@ export default function EstimatePage() {
       cost_price: null, item_markup_rate: null, unit_price: null,
       amount: null, remarks: null,
       version_id: selectedVersionId, section_id: null,
+      source_version_id: null,
       _edited: true,
     }]);
   };

@@ -3593,6 +3593,33 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
+## Session 2026-07-10 — 掛け率変更→顧客見積再反映機能
+
+### 作業内容（予定）
+- Step A: QuoteItem.source_version_id カラム追加（Alembic マイグレーション + reflect 修正）
+- Step B: PATCH .../versions/{version_id}/markup-apply エンドポイント実装（版単位で絞り込み）
+- Step C: フロントエンド — VersionCard 掛け率 UI + MarkupApplyConfirmModal 新規作成
+- 承認リセット処理（ApprovalRequest → withdrawn + Quote スタンプクリア）
+- edit_histories 記録（change_type=update + field_changes で掛け率変更詳細）
+- 編集履歴タブへの掛け率変更表示追加
+
+### 作業結果
+- Alembic: `add_source_version_id_2026` — `quote_items.source_version_id UUID FK（SET NULL）` 追加、インデックス作成
+- QuoteItem モデル・スキーマ・_helpers.py に `source_version_id` フィールド追加
+- `reflect-from-version` エンドポイントに `source_version_id=version.id` 保存追加
+- `PATCH .../versions/{version_id}/markup-apply` エンドポイント実装（版単位再計算・承認リセット・edit_histories 記録）
+- `MarkupApplyConfirmModal.tsx` 新規作成（旧掛率/新掛率/対象件数/手動編集警告/承認リセット警告）
+- `estimate/page.tsx`: onBlur 廃止→明示的保存ボタン＋モーダルフロー、QuoteItem に source_version_id 追加
+- VPS: Alembic upgrade 成功、フロント + API コンテナ再起動・全正常稼働
+- TypeScript ビルドエラー修正（EditItem の addRow に source_version_id: null 追加）
+
+### 次のアクション
+- ブラウザ確認: estimate ページで掛け率変更→保存ボタン表示→モーダル表示の動作確認
+- 確認後: 編集履歴タブへの掛け率変更表示追加（Step D）
+- 注意: source_version_id が NULL の既存顧客明細（旧 reflect 分）は掛け率変更の対象外（レガシー扱い）
+
+---
+
 ## Session 2026-07-09（続き）— 粗利サマリー（税抜）
 
 ### 作業内容（予定）
@@ -3601,4 +3628,39 @@ GET    /invoices/{id}/payment-notice-pdf
 - すべて税抜ベース（QuoteItem.amount / cost_price はパターン1＝税抜で確認済み）
 - 補足テキスト「消費税は含みません。管理用の内部情報です。」を表示
 - VPS デプロイ
+
+### 作業結果
+
+**金額フィールドの確認結果（パターン1確定）**
+- `QuoteItem.cost_price` = 業者仕入れ単価（税抜）
+- `QuoteItem.amount` = unit_price × quantity（税抜・顧客向け）
+- `Quote.subtotal` = 税抜小計 / `Quote.tax_amount` = 消費税 / `Quote.total_amount` = 税込合計
+- 変換不要で税抜同士で計算可能
+
+**フロントエンド実装**
+- `frontend/src/app/projects/[id]/quote/[quote_id]/page.tsx`:
+  - `vendorSubtotal` = customerItems の cost_price × quantity 合計（税抜）
+  - `hasVendorCost` = cost_price が1件以上設定されている場合のみカード表示
+  - `grossMarginAmount` = taxBase - vendorSubtotal
+  - `grossMarginRate` = grossMarginAmount / taxBase × 100
+  - 粗利サマリーカードを QuoteTotals の直下・ApprovalStamps の直前に追加
+    - ヘッダー: 「粗利サマリー（税抜）」 + pie-chart アイコン
+    - 4行グリッド: 業者見積合計 / 顧客見積合計（実額）/ 粗利額 / 粗利率
+    - 粗利額・粗利率は正値=緑、負値=赤でカラーコーディング
+    - 補足テキスト「消費税は含みません。管理用の内部情報です。」
+
+**デプロイ**
+- 直接 SCP で VPS に転送 → Docker build → `✅ Compiled successfully`
+- `/projects/[id]/quote/[quote_id]` バンドルサイズ: 17.9kB → 18.5kB
+- Web HTTP 200 確認済み
+
+### 変更ファイル
+- `frontend/src/app/projects/[id]/quote/[quote_id]/page.tsx`
+
+### 次のアクション
+- 顧客見積ページで cost_price が設定されている明細を含む見積書を開き、粗利サマリーカードが表示されることを確認
+- 数値整合確認: 「顧客見積合計（実額・税抜）」= QuoteTotals の「小計（税抜）」と一致すること
+  （値引きがある場合: 顧客見積合計 = 小計 - 値引額）
+
+---
 
