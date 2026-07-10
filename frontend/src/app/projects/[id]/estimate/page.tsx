@@ -110,6 +110,12 @@ export default function EstimatePage() {
     hasApproval: boolean;
   } | null>(null);
   const [markupApplySaving, setMarkupApplySaving] = useState(false);
+  // 業者名変更モーダル
+  const [vendorNameModal, setVendorNameModal] = useState<{ versionId: string } | null>(null);
+  const [vendorNameSearch, setVendorNameSearch] = useState("");
+  const [vendorNameOptions, setVendorNameOptions] = useState<{ id: string; vendor_name: string }[]>([]);
+  const [vendorNameSaving, setVendorNameSaving] = useState(false);
+  const vendorNameSearchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // スキャン統合（複数ファイル対応）
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -423,6 +429,47 @@ export default function EstimatePage() {
       setError("更新に失敗しました");
     } finally {
       setMarkupApplySaving(false);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // 業者名変更ハンドラー
+  // ---------------------------------------------------------------------------
+
+  const handleVendorNameSearch = (q: string) => {
+    setVendorNameSearch(q);
+    setVendorNameOptions([]);
+    if (vendorNameSearchTimer.current) clearTimeout(vendorNameSearchTimer.current);
+    vendorNameSearchTimer.current = setTimeout(async () => {
+      if (!q.trim()) { setVendorNameOptions([]); return; }
+      try {
+        const d = await apiFetch<{ items: { id: string; vendor_name: string }[] }>(
+          `/api/v1/vendors?q=${encodeURIComponent(q)}&per_page=20`
+        );
+        setVendorNameOptions(d.items);
+      } catch { setVendorNameOptions([]); }
+    }, 300);
+  };
+
+  const handleVendorNameSelect = async (vendor: { id: string; vendor_name: string }) => {
+    if (!quote || !vendorNameModal) return;
+    setVendorNameSaving(true);
+    try {
+      await apiFetch(
+        `/api/v1/projects/${projectId}/quotes/${quote.id}/versions/${vendorNameModal.versionId}/vendor-name`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ vendor_id: vendor.id, vendor_name_snapshot: vendor.vendor_name }),
+        },
+      );
+      setVendorNameModal(null);
+      setVendorNameSearch("");
+      setVendorNameOptions([]);
+      await loadQuote();
+    } catch {
+      setError("業者名の変更に失敗しました");
+    } finally {
+      setVendorNameSaving(false);
     }
   };
 
@@ -942,8 +989,23 @@ export default function EstimatePage() {
                 <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
                   <div>
                     <span style={{ fontSize: 11, color: "var(--c-text-muted)" }}>業者名</span>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>
-                      {selectedVersion.vendor_name_snapshot || "（未設定）"}
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 14, fontWeight: 600 }}>
+                        {selectedVersion.vendor_name_snapshot || "（未設定）"}
+                      </span>
+                      <button
+                        onClick={() => {
+                          setVendorNameModal({ versionId: selectedVersion.id });
+                          setVendorNameSearch("");
+                          setVendorNameOptions([]);
+                        }}
+                        style={{
+                          fontSize: 11, padding: "1px 8px",
+                          background: "none", border: "1px solid var(--c-border)",
+                          borderRadius: "var(--r-sm)", cursor: "pointer",
+                          color: "var(--c-accent)",
+                        }}
+                      >変更</button>
                     </div>
                   </div>
                   <div>
@@ -1172,14 +1234,6 @@ export default function EstimatePage() {
           hasApproval={markupApplyModal.hasApproval}
           isSaving={markupApplySaving}
           onCancel={() => setMarkupApplyModal(null)}
-          onRateOnly={() =>
-            void handleMarkupApplyConfirm(
-              markupApplyModal.version.id,
-              markupApplyModal.newRate,
-              false,
-              false,
-            )
-          }
           onRateAndApply={() =>
             void handleMarkupApplyConfirm(
               markupApplyModal.version.id,
@@ -1189,6 +1243,46 @@ export default function EstimatePage() {
             )
           }
         />
+      )}
+
+      {/* ── 業者名変更モーダル ── */}
+      {vendorNameModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999 }}
+          onClick={() => setVendorNameModal(null)}
+        >
+          <div
+            style={{ background: "var(--c-surface)", borderRadius: "var(--r-lg)", boxShadow: "0 20px 60px rgba(0,0,0,.3)", width: 400, padding: "20px 24px" }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 14 }}>業者名を変更</div>
+            <input
+              autoFocus
+              value={vendorNameSearch}
+              onChange={e => handleVendorNameSearch(e.target.value)}
+              placeholder="業者名で検索..."
+              style={{ width: "100%", fontSize: 13, padding: "7px 10px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", outline: "none", boxSizing: "border-box", marginBottom: 8 }}
+            />
+            {vendorNameOptions.length === 0 && vendorNameSearch.length > 0 && (
+              <div style={{ fontSize: 12, color: "var(--c-text-muted)", padding: "4px 2px" }}>見つかりません</div>
+            )}
+            {vendorNameOptions.map(v => (
+              <div
+                key={v.id}
+                onMouseDown={() => handleVendorNameSelect(v)}
+                style={{ padding: "8px 10px", fontSize: 13, cursor: vendorNameSaving ? "wait" : "pointer", borderRadius: "var(--r-md)" }}
+                onMouseEnter={e => (e.currentTarget.style.background = "var(--c-surface-2)")}
+                onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+              >{v.vendor_name}</div>
+            ))}
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+              <button
+                onClick={() => setVendorNameModal(null)}
+                style={{ padding: "6px 14px", fontSize: 12, background: "var(--c-surface)", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer" }}
+              >キャンセル</button>
+            </div>
+          </div>
+        </div>
       )}
 
     </AppShell>

@@ -532,3 +532,75 @@ async def apply_markup_rate(
         approval_reset=approval_reset,
         change_set_id=change_set_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# 業者名変更エンドポイント
+# ---------------------------------------------------------------------------
+
+class VendorNameUpdateRequest(BaseModel):
+    """業者名変更リクエスト。vendor_id=null は業者マスタ未登録の業者を許容。"""
+    vendor_id: uuid.UUID | None = None
+    vendor_name_snapshot: str
+
+
+class VendorNameUpdateResponse(BaseModel):
+    """業者名変更レスポンス。"""
+    version: QuoteVersionRead
+
+
+@router.patch(
+    "/projects/{project_id}/quotes/{quote_id}/versions/{version_id}/vendor-name",
+    response_model=VendorNameUpdateResponse,
+)
+async def update_vendor_name(
+    project_id: uuid.UUID,
+    quote_id: uuid.UUID,
+    version_id: uuid.UUID,
+    body: VendorNameUpdateRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> VendorNameUpdateResponse:
+    """業者見積版の業者名（vendor_name_snapshot / vendor_id）を更新する。
+
+    PDFスキャン誤読の訂正用途。顧客見積明細の source_vendor_id は変更しない。
+    """
+    project = await _get_project_or_404(project_id, db)
+    quote = await _get_quote_or_404(quote_id, project_id, db)
+    version = next((v for v in quote.versions if v.id == version_id), None)
+    if version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="版が見つかりません")
+
+    old_vendor_id = version.vendor_id
+    old_vendor_name = version.vendor_name_snapshot
+
+    version.vendor_id = body.vendor_id
+    version.vendor_name_snapshot = body.vendor_name_snapshot
+
+    from app.shared.models.history import EditHistory
+    from app.shared.models.enums import EditHistoryChangeType
+    db.add(EditHistory(
+        entity_type="quote_version",
+        entity_id=version_id,
+        project_id=project.id,
+        changed_by=current_user.id,
+        change_type=EditHistoryChangeType.update,
+        field_changes={
+            "change_kind": "vendor_name_change",
+            "old_vendor_id": str(old_vendor_id) if old_vendor_id else None,
+            "new_vendor_id": str(body.vendor_id) if body.vendor_id else None,
+            "old_vendor_name": old_vendor_name,
+            "new_vendor_name": body.vendor_name_snapshot,
+            "version_id": str(version_id),
+        },
+    ))
+
+    await db.commit()
+    await db.refresh(version)
+    logger.info(
+        "vendor_name_updated",
+        version_id=str(version_id),
+        old_name=old_vendor_name,
+        new_name=body.vendor_name_snapshot,
+    )
+    return VendorNameUpdateResponse(version=_build_version_read(version))
