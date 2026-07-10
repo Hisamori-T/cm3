@@ -3593,33 +3593,6 @@ GET    /invoices/{id}/payment-notice-pdf
 
 ---
 
-## Session 2026-07-10 — 掛け率変更→顧客見積再反映機能
-
-### 作業内容（予定）
-- Step A: QuoteItem.source_version_id カラム追加（Alembic マイグレーション + reflect 修正）
-- Step B: PATCH .../versions/{version_id}/markup-apply エンドポイント実装（版単位で絞り込み）
-- Step C: フロントエンド — VersionCard 掛け率 UI + MarkupApplyConfirmModal 新規作成
-- 承認リセット処理（ApprovalRequest → withdrawn + Quote スタンプクリア）
-- edit_histories 記録（change_type=update + field_changes で掛け率変更詳細）
-- 編集履歴タブへの掛け率変更表示追加
-
-### 作業結果
-- Alembic: `add_source_version_id_2026` — `quote_items.source_version_id UUID FK（SET NULL）` 追加、インデックス作成
-- QuoteItem モデル・スキーマ・_helpers.py に `source_version_id` フィールド追加
-- `reflect-from-version` エンドポイントに `source_version_id=version.id` 保存追加
-- `PATCH .../versions/{version_id}/markup-apply` エンドポイント実装（版単位再計算・承認リセット・edit_histories 記録）
-- `MarkupApplyConfirmModal.tsx` 新規作成（旧掛率/新掛率/対象件数/手動編集警告/承認リセット警告）
-- `estimate/page.tsx`: onBlur 廃止→明示的保存ボタン＋モーダルフロー、QuoteItem に source_version_id 追加
-- VPS: Alembic upgrade 成功、フロント + API コンテナ再起動・全正常稼働
-- TypeScript ビルドエラー修正（EditItem の addRow に source_version_id: null 追加）
-
-### 次のアクション
-- ブラウザ確認: estimate ページで掛け率変更→保存ボタン表示→モーダル表示の動作確認
-- 確認後: 編集履歴タブへの掛け率変更表示追加（Step D）
-- 注意: source_version_id が NULL の既存顧客明細（旧 reflect 分）は掛け率変更の対象外（レガシー扱い）
-
----
-
 ## Session 2026-07-09（続き）— 粗利サマリー（税抜）
 
 ### 作業内容（予定）
@@ -3661,6 +3634,43 @@ GET    /invoices/{id}/payment-notice-pdf
 - 顧客見積ページで cost_price が設定されている明細を含む見積書を開き、粗利サマリーカードが表示されることを確認
 - 数値整合確認: 「顧客見積合計（実額・税抜）」= QuoteTotals の「小計（税抜）」と一致すること
   （値引きがある場合: 顧客見積合計 = 小計 - 値引額）
+
+---
+
+## Session 2026-07-10 — 掛け率変更→顧客見積再反映機能
+
+### 作業内容（予定）
+- Step A: QuoteItem.source_version_id カラム追加（Alembic マイグレーション + reflect 修正）
+- Step B: PATCH .../versions/{version_id}/markup-apply エンドポイント実装（版単位で絞り込み）
+- Step C: フロントエンド — VersionCard 掛け率 UI + MarkupApplyConfirmModal 新規作成
+- 承認リセット処理（ApprovalRequest → withdrawn + Quote スタンプクリア）
+- edit_histories 記録（change_type=update + field_changes で掛け率変更詳細）
+- 編集履歴タブへの掛け率変更表示追加
+
+### 作業結果
+- Alembic: `add_source_version_id_2026` — `quote_items.source_version_id UUID FK（SET NULL）` 追加、インデックス作成
+- QuoteItem モデル・スキーマ・_helpers.py に `source_version_id` フィールド追加
+- `reflect-from-version` エンドポイントに `source_version_id=version.id` 保存追加
+- `PATCH .../versions/{version_id}/markup-apply` エンドポイント実装（版単位再計算・承認リセット・edit_histories 記録）
+- `MarkupApplyConfirmModal.tsx` 新規作成（旧掛率/新掛率/対象件数/手動編集警告/承認リセット警告）
+- `estimate/page.tsx`: onBlur 廃止→明示的保存ボタン＋モーダルフロー、QuoteItem に source_version_id 追加
+- VPS: Alembic upgrade 成功、フロント + API コンテナ再起動・全正常稼働
+- TypeScript ビルドエラー修正（EditItem の addRow に source_version_id: null 追加）
+
+### 次のアクション
+- ブラウザ確認: estimate ページで掛け率変更→保存ボタン表示→モーダル表示の動作確認
+- 確認後: 編集履歴タブへの掛け率変更表示追加（Step D）
+- 注意: source_version_id が NULL の既存顧客明細（旧 reflect 分）は掛け率変更の対象外（レガシー扱い）
+
+---
+
+## Session 2026-07-10（続き）— Step D: 編集履歴タブへの掛け率変更表示
+
+### 作業内容（予定）
+- Step A〜C の動作確認 OK を受けてコミット・git push
+- edit_histories の markup_change レコード形式を事前調査
+- 編集履歴タブ（history/page.tsx）で掛け率変更レコードを専用 UI で表示
+- 業者名・旧掛率・新掛率・対象件数・反映有無・承認リセット有無をバッジで表示
 
 ---
 
