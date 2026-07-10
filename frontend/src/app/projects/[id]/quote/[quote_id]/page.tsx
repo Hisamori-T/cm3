@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
-import { Download, ArrowDownToLine, X, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
+import { Download, X, Plus, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { apiFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -117,7 +117,6 @@ export default function QuoteDetailPage() {
   const [addSectionLetter, setAddSectionLetter] = useState("");
   const [addSectionName, setAddSectionName] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState("");
-  const [generatingDocs, setGeneratingDocs] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
 
   // 選択削除
@@ -125,9 +124,6 @@ export default function QuoteDetailPage() {
   const [selectedSectionIds, setSelectedSectionIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const selectedCount = selectedItemIds.size + selectedSectionIds.size;
-
-  // 業者見積から取り込みモーダル
-  const [importOpen, setImportOpen] = useState(false);
 
   // 見積条件書
   const [conditionItems, setConditionItems] = useState<{ id: string; display_order: number; content: string }[]>([]);
@@ -477,44 +473,6 @@ export default function QuoteDetailPage() {
     finally { setBulkDeleting(false); }
   };
 
-  // ── 業者見積から取り込み ───────────────────────────────────────────────────
-  const handleImportFromEstimate = async (versionId: string, targetSectionId: string | null) => {
-    if (!quote) return;
-    setSaving(true);
-    try {
-      const versionItems = quote.items
-        .filter(i => i.version_id === versionId)
-        .sort((a, b) => a.row_no - b.row_no);
-      const version = quote.versions.find(v => v.id === versionId);
-      const markupRate = version?.markup_rate ?? 1.0;
-      const maxRow = Math.max(0, ...quote.items.filter(i => !i.version_id).map(i => i.row_no));
-      let offset = 0;
-      for (const vi of versionItems) {
-        // 業者見積の unit_price が原価。cost_price が明示されていればそちらを優先
-        const costPrice = vi.cost_price ?? vi.unit_price;
-        const unitPrice = costPrice != null ? Math.round(costPrice * markupRate) : vi.unit_price;
-        await apiFetch<QuoteItem>(`/api/v1/projects/${projectId}/quotes/${quoteId}/items`, {
-          method: "POST",
-          body: JSON.stringify({
-            row_no: maxRow + offset + 1,
-            section_id: targetSectionId || null,
-            item_name: vi.item_name,
-            spec: vi.spec,
-            unit: vi.unit,
-            quantity: vi.quantity,
-            unit_price: unitPrice,
-            cost_price: costPrice,
-          }),
-        });
-        offset++;
-      }
-      setImportOpen(false);
-      await load();
-      showMsg(`${offset}件を取り込みました`);
-    } catch (e) { showMsg(`取り込みエラー: ${(e as Error).message}`); }
-    finally { setSaving(false); }
-  };
-
   // ── 値引き更新 ───────────────────────────────────────────────────────────
   const handleSaveDiscount = async () => {
     const val = parseFloat(discountInput.replace(/,/g, "")) || 0;
@@ -527,16 +485,6 @@ export default function QuoteDetailPage() {
       setQuote(prev => prev ? { ...prev, discount_amount: val } : prev);
     } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
     finally { setSaving(false); setEditingDiscount(false); }
-  };
-
-  // ── 関連帳票生成 ──────────────────────────────────────────────────────────
-  const handleGenerateDocs = async () => {
-    setGeneratingDocs(true);
-    try {
-      await apiFetch(`/api/v1/projects/${projectId}/quotes/${quoteId}/generate-related-documents`, { method: "POST" });
-      showMsg("注文書・注文請書・請求書のドラフトを生成しました");
-    } catch (e) { showMsg(`エラー: ${(e as Error).message}`); }
-    finally { setGeneratingDocs(false); }
   };
 
   // ── 集計 ─────────────────────────────────────────────────────────────────
@@ -609,12 +557,6 @@ export default function QuoteDetailPage() {
                 {bulkDeleting ? "削除中…" : `削除 (${selectedCount})`}
               </Button>
             </>
-          )}
-          {/* 業者見積から取り込み */}
-          {quote.versions.filter(v => quote.items.some(i => i.version_id === v.id)).length > 0 && (
-            <Button size="sm" variant="default" onClick={() => setImportOpen(true)}>
-              <ArrowDownToLine className="w-3.5 h-3.5" /> 業者見積から取り込み
-            </Button>
           )}
           {/* テンプレ適用 */}
           {templates.length > 0 && (
@@ -700,14 +642,6 @@ export default function QuoteDetailPage() {
           >
             <Download className="w-3.5 h-3.5" />
             {pdfLoading ? "生成中..." : "PDF"}
-          </Button>
-          <Button
-            variant="default" size="sm"
-            onClick={handleGenerateDocs}
-            disabled={generatingDocs}
-            style={{ background: "var(--c-primary)", color: "#fff" }}
-          >
-            {generatingDocs ? "生成中…" : "関連帳票を一括生成"}
           </Button>
         </div>
       }
@@ -1497,19 +1431,6 @@ export default function QuoteDetailPage() {
         </div>
       )}
 
-      {importOpen && (() => {
-        const vendorVersions = quote.versions.filter(v => quote.items.some(i => i.version_id === v.id));
-        return (
-          <ImportFromEstimateModal
-            versions={vendorVersions}
-            sections={quote.sections}
-            onClose={() => setImportOpen(false)}
-            onImport={handleImportFromEstimate}
-            saving={saving}
-          />
-        );
-      })()}
-
       {/* 承認依頼モーダル */}
       {approvalModalOpen && (
         <ApprovalModal
@@ -1658,88 +1579,3 @@ function ApprovalModal({
   );
 }
 
-// ---------------------------------------------------------------------------
-// 業者見積から取り込みモーダル
-// ---------------------------------------------------------------------------
-
-function ImportFromEstimateModal({
-  versions,
-  sections,
-  onClose,
-  onImport,
-  saving,
-}: {
-  versions: QuoteVersion[];
-  sections: QuoteSection[];
-  onClose: () => void;
-  onImport: (versionId: string, sectionId: string | null) => Promise<void>;
-  saving: boolean;
-}) {
-  const [selectedVersionId, setSelectedVersionId] = useState(versions[0]?.id ?? "");
-  const [targetSectionId, setTargetSectionId] = useState<string>("");
-
-  return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 50,
-      background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center",
-    }} onClick={onClose}>
-      <div style={{
-        background: "var(--c-surface)", borderRadius: "var(--r-lg)",
-        boxShadow: "0 20px 60px rgba(0,0,0,.3)",
-        width: 440, padding: "20px 24px",
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-          <ArrowDownToLine size={16} style={{ color: "var(--c-primary)" }} />
-          <span style={{ fontSize: 14, fontWeight: 700 }}>業者見積から取り込み</span>
-          <button onClick={onClose} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "var(--c-text-muted)" }}>
-            <X size={16} />
-          </button>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>取り込む業者版</div>
-            {versions.map(v => (
-              <label key={v.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", cursor: "pointer", borderRadius: "var(--r-md)", background: selectedVersionId === v.id ? "color-mix(in oklab, var(--c-primary) 8%, var(--c-surface))" : "transparent" }}>
-                <input type="radio" name="version" value={v.id} checked={selectedVersionId === v.id} onChange={() => setSelectedVersionId(v.id)} />
-                <span style={{ fontSize: 13, fontWeight: 500 }}>{v.vendor_name_snapshot || `版 ${v.version_no}`}</span>
-                <span style={{ fontSize: 11, color: "var(--c-text-muted)", marginLeft: "auto" }}>掛率 ×{Number(v.markup_rate).toFixed(2)}</span>
-              </label>
-            ))}
-          </div>
-
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>追加先の大項目（任意）</div>
-            <select
-              value={targetSectionId}
-              onChange={e => setTargetSectionId(e.target.value)}
-              style={{ width: "100%", fontSize: 12, padding: "6px 8px", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", background: "var(--c-surface)" }}
-            >
-              <option value="">大項目未割り当て</option>
-              {sections.map(s => (
-                <option key={s.id} value={s.id}>{s.section_letter} {s.section_name}</option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ fontSize: 11, color: "var(--c-text-muted)", background: "var(--c-surface-2)", padding: "8px 10px", borderRadius: "var(--r-md)" }}>
-            ※ 業者見積の原価単価に掛率を乗じた値を単価として取り込みます
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 16 }}>
-          <button onClick={onClose} style={{ padding: "6px 16px", fontSize: 13, background: "var(--c-surface-2)", border: "1px solid var(--c-border)", borderRadius: "var(--r-md)", cursor: "pointer" }}>
-            キャンセル
-          </button>
-          <button
-            onClick={() => onImport(selectedVersionId, targetSectionId || null)}
-            disabled={!selectedVersionId || saving}
-            style={{ padding: "6px 20px", fontSize: 13, fontWeight: 600, background: "var(--c-primary)", color: "#fff", border: "none", borderRadius: "var(--r-md)", cursor: "pointer" }}
-          >
-            {saving ? "取り込み中…" : "取り込む"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
