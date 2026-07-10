@@ -9,7 +9,6 @@ export interface MarkupApplyConfirmProps {
   hasApproval: boolean;
   isSaving: boolean;
   onCancel: () => void;
-  onRateOnly: () => void;
   onRateAndApply: () => void;
 }
 
@@ -23,7 +22,6 @@ export function MarkupApplyConfirmModal({
   hasApproval,
   isSaving,
   onCancel,
-  onRateOnly,
   onRateAndApply,
 }: MarkupApplyConfirmProps) {
   const rateChanged = Math.abs(oldRate - newRate) > 0.0001;
@@ -135,26 +133,15 @@ export function MarkupApplyConfirmModal({
             }}
           >キャンセル</button>
           <button
-            onClick={onRateOnly}
+            onClick={onRateAndApply}
             disabled={isSaving}
             style={{
-              padding: "6px 14px", fontSize: 12,
-              background: "var(--c-surface)", border: "1px solid var(--c-border)",
-              borderRadius: "var(--r-md)", cursor: isSaving ? "wait" : "pointer",
-              color: "var(--c-text)",
-            }}
-          >掛け率のみ更新</button>
-          <button
-            onClick={onRateAndApply}
-            disabled={isSaving || affectedCount === 0}
-            style={{
               padding: "6px 14px", fontSize: 12, fontWeight: 600,
-              background: affectedCount === 0 ? "var(--c-surface-2)" : "var(--c-primary)",
-              color: affectedCount === 0 ? "var(--c-text-muted)" : "#fff",
+              background: "var(--c-primary)", color: "#fff",
               border: "none", borderRadius: "var(--r-md)",
-              cursor: isSaving || affectedCount === 0 ? "not-allowed" : "pointer",
+              cursor: isSaving ? "wait" : "pointer",
             }}
-          >{isSaving ? "処理中..." : "掛け率更新 + 顧客見積へ反映"}</button>
+          >{isSaving ? "処理中..." : "顧客見積へ反映"}</button>
         </div>
       </div>
     </div>
